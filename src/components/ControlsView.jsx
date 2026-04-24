@@ -661,13 +661,13 @@ const ControlsView = ({
 
     const clientSuggestions = useMemo(() => {
         if (!searchTerm || searchTerm.length < 2) return [];
-        return registeredClients
+        return allClients
             .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
             .map(c => c.name);
-    }, [searchTerm, registeredClients]);
+    }, [searchTerm, allClients]);
 
     const isClientRegistered = (name) => {
-        return registeredClients.some(c => c.name.toLowerCase() === name?.toLowerCase());
+        return allClients.some(c => c.name.toLowerCase() === name?.toLowerCase());
     };
 
     const handleRegisterClient = async (name) => {
@@ -689,7 +689,7 @@ const ControlsView = ({
 
             if (error) throw error;
 
-            setRegisteredClients(prev => [...prev, { name }]);
+            // setRegisteredClients(prev => [...prev, { name }]);
             notifySuccess('Sucesso!', 'Cliente registrado com sucesso!');
         } catch (error) {
             console.error('Error registering client:', error);
@@ -1201,7 +1201,7 @@ const ControlsView = ({
                                         onUpdateStatus={handleUpdateStatus}
                                         onDeleteTest={(id) => handleDelete('tech_tests', id)}
                                         onConvertToTask={(row, info) => {
-                                            const clientExists = registeredClients.some(c => 
+                                            const clientExists = allClients.some(c => 
                                                 c.name?.trim().toLowerCase() === row.client_name?.trim().toLowerCase()
                                             );
                                             if (!clientExists) {
@@ -1342,7 +1342,7 @@ const ControlsView = ({
                 isSaving={isSaving}
                 allClients={allClients}
                 users={users}
-                registeredClients={registeredClients}
+
                 onRegisterClient={handleRegisterClient}
                 testFlows={testFlows}
                 testStatusPresets={testStatusPresets}
@@ -1393,7 +1393,7 @@ const ControlsView = ({
                 notifySuccess={notifySuccess}
                 notifyError={notifyError}
                 allClients={allClients}
-                registeredClients={registeredClients}
+
                 isClientRegistered={isClientRegistered}
                 handleRegisterClient={handleRegisterClient}
                 isMeetingView={isMeetingView}
