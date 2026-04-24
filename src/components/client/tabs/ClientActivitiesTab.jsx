@@ -25,10 +25,8 @@ const ClientActivitiesTab = ({
     onEditTask,
     activeTopic,
     techTests = [],
-    allTests = [],
     techFollowups = [],
-    clientFollowups = [],
-    allInventory = []
+    clientFollowups = []
 }) => {
 
     const filteredActivities = useMemo(() => {
