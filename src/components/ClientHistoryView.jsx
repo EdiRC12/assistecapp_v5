@@ -58,8 +58,7 @@ const ClientHistoryView = ({
     const [clientMachines, setClientMachines] = useState([]);
     const [clientTests, setClientTests] = useState([]); // Novos testes técnicos
     const [clientFollowups, setClientFollowups] = useState([]); // Acompanhamentos
-    const [allTests, setAllTests] = useState([]); // Todos os testes para vínculos de reuso
-    const [allInventory, setAllInventory] = useState([]); // Todo o estoque para vínculos de reuso
+
     const [isAddingContact, setIsAddingContact] = useState(false);
     const [isAddingMachine, setIsAddingMachine] = useState(false);
     const [newContact, setNewContact] = useState({ name: '', position: '', phone: '', has_whatsapp: true });
@@ -130,7 +129,7 @@ const ClientHistoryView = ({
             // Nome normalizado para busca flexível e robusta
             const normalizedClient = normalizeText(clientName);
 
-            const [contactsRes, machinesRes, reportsRes, testsRes, followupsRes, allTestsRes, allInventoryRes] = await Promise.all([
+            const [contactsRes, machinesRes, reportsRes, testsRes, followupsRes] = await Promise.all([
                 supabase.from('client_contacts').select('*').eq('client_id', clientId).order('name'),
                 supabase.from('machines').select('*').eq('client_id', clientId).order('name'),
                 clientTaskIds.length > 0
@@ -143,9 +142,7 @@ const ClientHistoryView = ({
                 supabase.from('tech_followups')
                     .select('*')
                     .or(`client_name.eq."${clientName}",client_name.ilike."%${normalizedClient}%"`)
-                    .order('created_at', { ascending: false }),
-                supabase.from('tech_tests').select('*'),
-                supabase.from('ee_inventory').select('*')
+                    .order('created_at', { ascending: false })
             ]);
 
             setClientContacts(contactsRes.data || []);
@@ -158,8 +155,6 @@ const ClientHistoryView = ({
 
             setClientTests(testsMatched);
             setClientFollowups(followupsMatched);
-            setAllTests(allTestsRes.data || []);
-            setAllInventory(allInventoryRes.data || []);
         } catch (err) {
             console.error('Error fetching client details:', err);
         }
@@ -660,10 +655,8 @@ const ClientHistoryView = ({
                                             onEditTask={onEditTask}
                                             activeTopic={activeTopic}
                                             techTests={techTests}
-                                            allTests={allTests}
                                             techFollowups={techFollowups}
                                             clientFollowups={clientFollowups}
-                                            allInventory={allInventory}
                                         />
                                     )}
                                 </div>
