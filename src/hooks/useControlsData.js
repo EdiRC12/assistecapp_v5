@@ -101,8 +101,7 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
 
             }
 
-            const { data: clientList } = await supabase.from('clients').select('name');
-            setRegisteredClients(clientList || []);
+
         } catch (error) {
             console.error('Error fetching controls data:', error);
         } finally {
