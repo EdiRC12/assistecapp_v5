@@ -57,7 +57,7 @@ export const useReturnsData = (selectedMonth, selectedYear) => {
                         // Refetch to get the joined relations (rnc_records, sac_tickets)
                         fetchData();
                     } else if (payload.eventType === 'DELETE') {
-                        setReturns(prev => prev.filter(r => r.id === payload.old.id));
+                        setReturns(prev => prev.filter(r => r.id !== payload.old.id));
                     }
                 }
             )
