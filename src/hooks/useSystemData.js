@@ -215,50 +215,22 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
             fetchVehicles();
             fetchAiConfig();
             fetchInventoryReasons();
-            updateHeartbeat();
 
-            const channel = supabase
-                .channel('system_changes')
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'users' },
-                    (payload) => {
-                        console.log('[Real-time] User change:', payload);
-                        if (payload.eventType === 'INSERT') setUsers(prev => [...prev, payload.new]);
-                        else if (payload.eventType === 'UPDATE') setUsers(prev => prev.map(u => u.id === payload.new.id ? payload.new : u));
-                        else if (payload.eventType === 'DELETE') setUsers(prev => prev.filter(u => u.id === payload.old.id));
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'app_configs' },
-                    (payload) => {
-                        console.log('[Real-time] Config change:', payload);
-                        fetchAiConfig();
-                    }
-                )
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'inventory_reasons' },
-                    () => {
-                        fetchInventoryReasons();
-                    }
-                )
-                .subscribe();
-
-            const heartbeatInterval = setInterval(() => {
-                updateHeartbeat();
-            }, 60000);
+            // Polling de 30s para lista de usuários (substitui Realtime WebSocket)
+            // Mais econômico para a cota do Supabase do que manter um canal aberto.
+            // O heartbeat do usuário já é gerenciado pelo App.jsx (intervalo de 120s).
+            const usersPollingInterval = setInterval(() => {
+                fetchUsers();
+            }, 30000);
 
             return () => {
-                supabase.removeChannel(channel);
-                clearInterval(heartbeatInterval);
+                clearInterval(usersPollingInterval);
             };
         } else {
             setUsers([]);
             setVehicles([]);
         }
-    }, [currentUser, fetchUsers, fetchVehicles, fetchAiConfig, fetchInventoryReasons, updateHeartbeat]);
+    }, [currentUser, fetchUsers, fetchVehicles, fetchAiConfig, fetchInventoryReasons]);
 
     return {
         users,
