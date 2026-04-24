@@ -34,22 +34,16 @@ const LoginScreen = ({ onLogin }) => {
                     .eq('email', email)
                     .single();
 
-                if (selectError && selectError.code !== 'PGRST116') { // Ignore 'exact one row' error
-                    throw selectError;
-                }
-                if (existingUser) {
-                    throw new Error('Este e-mail já está em uso.');
-                }
+                if (selectError && selectError.code !== 'PGRST116') throw selectError;
+                if (existingUser) throw new Error('Este e-mail já está em uso.');
 
                 // 2. Insert new user
-                // SECURITY WARNING: Storing plain text passwords. This is NOT secure.
-                // In a real application, this logic must be on a server with password hashing (e.g., bcrypt).
                 const { data: newUser, error: insertError } = await supabase
                     .from('users')
                     .insert({
                         username,
                         email,
-                        password_hash: password // Storing plain text password
+                        password_hash: password 
                     })
                     .select()
                     .single();
@@ -68,14 +62,17 @@ const LoginScreen = ({ onLogin }) => {
                     .eq('email', email)
                     .single();
 
-                if (selectError || !user) {
-                    throw new Error('E-mail ou senha inválidos.');
-                }
+                if (selectError || !user) throw new Error('E-mail ou senha inválidos.');
 
-                // 2. Compare password (insecure plain text comparison)
-                if (user.password_hash !== password) {
-                    throw new Error('E-mail ou senha inválidos.');
-                }
+                // 2. Compare password
+                if (user.password_hash !== password) throw new Error('E-mail ou senha inválidos.');
+
+                // 3. Save to localStorage for device persistence (1 month)
+                const sessionData = {
+                    user,
+                    expiry: new Date().getTime() + (30 * 24 * 60 * 60 * 1000) // 30 days
+                };
+                localStorage.setItem('assistec_device_session', JSON.stringify(sessionData));
 
                 onLogin(user);
             }
@@ -108,7 +105,25 @@ const LoginScreen = ({ onLogin }) => {
                             {loading ? <Loader2 className="animate-spin" /> : (isRegistering ? <><UserPlus size={20} /><span>Criar Conta</span></> : <><LogIn size={20} /><span>Entrar</span></>)}
                         </button>
                     </form>
-                    <div className="mt-6 pt-4 border-t border-slate-100 text-center"><button onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccessMsg(''); setPassword(''); }} className="text-sm text-slate-500 hover:text-brand-600 font-medium transition-colors">{isRegistering ? 'Já tem uma conta? Faça login' : 'Não tem conta? Registre-se'}</button></div>
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col gap-3 text-center">
+                        <button 
+                            onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccessMsg(''); setPassword(''); }} 
+                            className={`py-2 px-4 rounded-xl transition-all font-bold ${error && error.includes('Registre-se') ? 'bg-brand-50 text-brand-700 border-2 border-brand-200 animate-pulse' : 'text-slate-500 hover:text-brand-600'}`}
+                        >
+                            {isRegistering ? 'Já tem uma conta? Faça login' : 'Não tem conta? Clique aqui para Registrar/Ativar'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (confirm('Isso limpará as preferências salvas no seu navegador (filtros, larguras de coluna, etc). Deseja continuar?')) {
+                                    localStorage.clear();
+                                    window.location.reload();
+                                }
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-red-500 transition-colors uppercase font-bold tracking-widest mt-2"
+                        >
+                            Limpar Dados do Navegador
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

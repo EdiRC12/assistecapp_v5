@@ -229,6 +229,62 @@ export const analyzeAfterSales = (clients) => {
 };
 
 /**
+ * Analyze Task Cycle Time and Aging (Audit Intelligence)
+ * @param {Array} tasks - List of all tasks
+ * @returns {Array} List of audit suggestions
+ */
+export const analyzeTaskAging = (tasks) => {
+    const now = new Date();
+    const suggestions = [];
+
+    // 1. Aging Analysis (Open tasks for too long)
+    const openTasks = tasks.filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED');
+    openTasks.forEach(t => {
+        const created = new Date(t.created_at);
+        const agingDays = Math.ceil(Math.abs(now - created) / (1000 * 60 * 60 * 24));
+
+        if (agingDays > 15) {
+            suggestions.push({
+                type: 'aging_alert',
+                id: `aging_${t.id}`,
+                title: `Task Estagnada: ${t.title}`,
+                description: `Esta tarefa está em aberto há ${agingDays} dias. Requer revisão de prioridade ou auditoria de impedimentos.`,
+                priority: agingDays > 30 ? 'high' : 'medium',
+                data: { taskId: t.id, agingDays }
+            });
+        }
+    });
+
+    // 2. Cycle Time Analysis (Average time to complete by category)
+    const completedTasks = tasks.filter(t => t.status === 'DONE');
+    const categories = [...new Set(completedTasks.map(t => t.category))].filter(Boolean);
+
+    categories.forEach(cat => {
+        const catTasks = completedTasks.filter(t => t.category === cat);
+        if (catTasks.length < 3) return; // Need a sample
+
+        const avgDays = catTasks.reduce((acc, t) => {
+            const start = new Date(t.created_at);
+            const end = new Date(t.updated_at);
+            return acc + (end - start);
+        }, 0) / (catTasks.length * 1000 * 60 * 60 * 24);
+
+        if (avgDays > 10) {
+            suggestions.push({
+                type: 'cycle_time_insight',
+                id: `cycle_${cat}`,
+                title: `Gargalo Detectado: ${cat}`,
+                description: `O tempo médio de resolução para "${cat}" é de ${Math.round(avgDays)} dias. Considerar otimização de fluxo.`,
+                priority: 'low',
+                data: { category: cat, avgDays: Math.round(avgDays) }
+            });
+        }
+    });
+
+    return suggestions;
+};
+
+/**
  * Technical Insights - Suggest solutions based on history
  * @param {string} currentProblem - The RNC/Problem description
  * @param {Array} pastTasks - List of historical tasks
@@ -251,4 +307,181 @@ export const getTechnicalInsights = (currentProblem, pastTasks) => {
         client: t.client
     }));
 };
+/**
+ * Analyze Inactive Clients (No visits or tasks in 120 days)
+ * @param {Array} clients - List of clients
+ * @param {Array} tasks - List of all tasks
+ * @returns {Array} Inactive client suggestions
+ */
+export const analyzeInactiveClients = (clients, tasks) => {
+    const suggestions = [];
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 120);
 
+    clients.forEach(client => {
+        // Find latest interaction (visit or task)
+        const clientTasks = tasks.filter(t => t.client === client.name && t.status === 'DONE');
+        
+        // Find latest task date
+        let latestInteraction = null;
+        if (clientTasks.length > 0) {
+            const latestTask = clientTasks.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))[0];
+            latestInteraction = new Date(latestTask.updated_at || latestTask.created_at);
+        }
+
+        // Also check last_pos_venda_at if exists
+        if (client.last_pos_venda_at) {
+            const lpDate = new Date(client.last_pos_venda_at);
+            if (!latestInteraction || lpDate > latestInteraction) {
+                latestInteraction = lpDate;
+            }
+        }
+
+        // Evaluate inactivity
+        if (!latestInteraction || latestInteraction < thresholdDate) {
+            const daysInative = latestInteraction 
+                ? Math.floor((new Date() - latestInteraction) / (1000 * 60 * 60 * 24))
+                : 'mais de 120';
+
+            suggestions.push({
+                type: 'client_inactive',
+                id: `inactive_${client.id}`,
+                title: `Cliente Inativo: ${client.name}`,
+                description: `Este cliente ${client.classification || ''} está sem interações registradas há ${daysInative} dias. Risco de perda de vínculo.`,
+                priority: client.classification === 'OURO' ? 'high' : (client.classification === 'PRATA' ? 'medium' : 'low'),
+                data: { 
+                    clientId: client.id, 
+                    lastInteraction: latestInteraction ? latestInteraction.toLocaleDateString('pt-BR') : 'Nunca',
+                    daysInative 
+                }
+            });
+        }
+    });
+
+    return suggestions;
+};
+
+/**
+ * Analyze Overdue Notes from Daily Hub
+ * @param {Array} notes - List of all notes
+ * @returns {Array} List of overdue note suggestions
+ */
+export const analyzeOverdueNotes = (notes) => {
+    const now = new Date();
+    const todayAtMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const suggestions = [];
+
+    const overdueCount = (notes || []).filter(note => {
+        if (note.is_confirmed) return false;
+        if (!note.note_date) return false;
+        
+        const nDate = new Date(note.note_date + 'T12:00:00');
+        const noteDateOnly = new Date(nDate.getFullYear(), nDate.getMonth(), nDate.getDate()).getTime();
+
+        if (noteDateOnly < todayAtMidnight) return true;
+        
+        if (noteDateOnly === todayAtMidnight && note.note_time) {
+            const [hours, minutes] = note.note_time.split(':');
+            const targetTime = new Date();
+            targetTime.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+            return now.getTime() > targetTime.getTime();
+        }
+        return false;
+    }).length;
+
+    if (overdueCount > 0) {
+        suggestions.push({
+            type: 'daily_hub_overdue',
+            id: 'daily_hub_overdue_alert',
+            title: `Lembretes Atrasados: ${overdueCount} pendentes`,
+            description: `Existem ${overdueCount} lembretes no Daily Hub que já passaram do horário e não foram confirmados.`,
+            priority: 'medium',
+            data: { overdueCount }
+        });
+    }
+
+    return suggestions;
+};
+
+/**
+ * Analyze Return orders for potential issues
+ * @returns {Promise<Array>} List of return suggestions
+ */
+export const analyzeReturns = async () => {
+    try {
+        const { data: returns, error } = await supabase
+            .from('returns')
+            .select('*')
+            .not('status', 'eq', 'FINALIZADO');
+
+        if (error) throw error;
+
+        const suggestions = [];
+        const highValueThreshold = 5000;
+
+        for (const ret of (returns || [])) {
+            // 1. High value returns
+            if (Number(ret.total_value) >= highValueThreshold) {
+                suggestions.push({
+                    type: 'return_analysis',
+                    id: `high_value_return_${ret.id}`,
+                    title: `Devolução de Alto Valor: ${ret.client_name}`,
+                    description: `Devolução de R$ ${ret.total_value} aguardando processamento. Requer atenção financeira.`,
+                    priority: 'high',
+                    data: { returnId: ret.id, value: ret.total_value }
+                });
+            }
+
+            // 2. Old returns (pending for more than 15 days)
+            const created = new Date(ret.created_at);
+            const daysOpen = Math.ceil(Math.abs(new Date() - created) / (1000 * 60 * 60 * 24));
+            if (daysOpen > 15) {
+                suggestions.push({
+                    type: 'return_analysis',
+                    id: `old_return_${ret.id}`,
+                    title: `Devolução Estagnada: ${ret.client_name}`,
+                    description: `Esta devolução está aberta há ${daysOpen} dias sem finalização.`,
+                    priority: 'medium',
+                    data: { returnId: ret.id, daysOpen }
+                });
+            }
+        }
+
+        return suggestions;
+    } catch (err) {
+        console.error('Error analyzing returns:', err);
+        return [];
+    }
+};
+
+/**
+ * Analyze SAC Followups for missing feedback
+ * @param {Array} tasks - List of all tasks
+ * @returns {Array} List of followup suggestions
+ */
+export const analyzeFollowups = (tasks) => {
+    const suggestions = [];
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 7); // 7 days without update
+
+    const openFollowups = (tasks || []).filter(t => 
+        (t.category === 'SAC' || t.title?.toLowerCase().includes('sac')) && 
+        !['DONE', 'FINALIZADO', 'CANCELADO'].includes(t.status?.toUpperCase())
+    );
+
+    openFollowups.forEach(t => {
+        const lastAction = new Date(t.updated_at || t.created_at);
+        if (lastAction < thresholdDate) {
+            suggestions.push({
+                type: 'followup_stalled',
+                id: `stalled_sac_${t.id}`,
+                title: `Follow-up Pendente: ${t.client || 'Cliente N/I'}`,
+                description: `O atendimento "${t.title}" está sem atualizações há mais de 7 dias.`,
+                priority: 'medium',
+                data: { taskId: t.id, daysStalled: Math.floor((new Date() - lastAction) / (1000 * 60 * 60 * 24)) }
+            });
+        }
+    });
+
+    return suggestions;
+};

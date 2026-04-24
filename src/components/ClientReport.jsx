@@ -76,7 +76,7 @@ const ClientReport = ({ clientName, tasks, filters, onClose, currentUser }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-white overflow-auto">
+        <div className="fixed inset-0 z-[999] bg-white overflow-auto">
             <style>{`
                 @media print {
                     @page {

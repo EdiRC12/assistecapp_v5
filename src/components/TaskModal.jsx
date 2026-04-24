@@ -3,7 +3,7 @@ import {
     X, History, Layers, Building2, Building, Search, Loader2, Check,
     AlertCircle, Sparkles, Unlock, Eye, Users, MapPin, Printer,
     Trash2, Paperclip, Download, Plus, Map as MapIcon, ClipboardList, MessageSquare,
-    Calendar, Wallet, FileText, Send, Ban, Save
+    Calendar, FileText, Send, Ban, Save
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { supabase } from '../supabaseClient';
@@ -13,11 +13,13 @@ import {
     TaskStatus, Priority, Category, StatusLabels, StageStatusLabels
 } from '../constants/taskConstants';
 import { getProactiveSuggestion } from '../services/aiService';
+import { UI_TOKENS } from '../constants/themeConstants';
+import useIsMobile from '../hooks/useIsMobile';
 
 const MapClickHandler = ({ onLocationSelect }) => {
     useMapEvents({
         click(e) {
-            onLocationSelect(e.latlng.lat, e.latlng.lng);
+            onLocationSelect(e.latlng);
         }
     });
     return null;
@@ -29,8 +31,13 @@ const MapClickHandler = ({ onLocationSelect }) => {
  */
 const TaskModal = ({
     isOpen, onClose, onSave, initialData, customCategories,
-    currentUser, onDelete, logs, users, allClients = [], onOpenReport,
-    tasks // Tasks list for POLI proactivity
+    currentUser, onDelete, users, allClients = [], onOpenReport,
+    tasks, // Tasks list for POLI proactivity
+    techTests = [], // Dados de testes técnicos para vínculos
+    notifySuccess,
+    notifyError,
+    notifyWarning,
+    notifyInfo
 }) => {
     // State management for task fields
     const [category, setCategory] = useState(Category.DEVELOPMENT);
@@ -52,6 +59,7 @@ const TaskModal = ({
     const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
     const [mapPickerGeo, setMapPickerGeo] = useState(null);
     const [newCustomStageName, setNewCustomStageName] = useState('');
+    const isMobile = useIsMobile();
 
     // Additional state for features added in V5
     const [travels, setTravels] = useState([]);
@@ -80,11 +88,10 @@ const TaskModal = ({
     const [poliSuggestion, setPoliSuggestion] = useState(null);
     const [isPoliAnalyzing, setIsPoliAnalyzing] = useState(false);
     const [outcome, setOutcome] = useState(null);
-    const [tripCost, setTripCost] = useState(0);
-    const [tripCostCurrency, setTripCostCurrency] = useState('BRL');
     const [currentReport, setCurrentReport] = useState(null);
     const [isEditingReport, setIsEditingReport] = useState(false);
     const [reportRequired, setReportRequired] = useState(false);
+    const [meetingActionId, setMeetingActionId] = useState(null);
 
     const [clientsRegistry, setClientsRegistry] = useState([]);
 
@@ -97,24 +104,32 @@ const TaskModal = ({
     );
 
     // Memoize the last activity for the task from logs
+    // Memoize the last activity for the task from tracking fields
     const lastActivity = useMemo(() => {
-        if (!initialData || !logs || !users) return null;
-        const taskLogs = logs.filter(l => l.metadata?.taskId === initialData.id);
-        if (taskLogs.length === 0) return null;
-        const latest = taskLogs[0]; // logs are already sorted by timestamp desc
-        const user = users.find(u => u.id === latest.user_id);
+        if (!initialData || !users) return null;
+
+        const modifiedBy = initialData.last_modified_by;
+        const modifiedAt = initialData.last_modified_at || initialData.updated_at;
+
+        if (!modifiedBy || !modifiedAt) return null;
+
+        const user = users.find(u => u.id === modifiedBy);
         return {
-            action: latest.action,
-            details: latest.details,
-            timestamp: latest.timestamp,
+            action: 'Última modificação',
+            details: '',
+            timestamp: modifiedAt,
             userName: user ? user.username : 'Sistema'
         };
-    }, [initialData, logs, users]);
+    }, [initialData, users]);
 
     // Check if user has permission to edit the task
     const canEdit = useMemo(() => {
-        if (!currentUser) return false;
         const isNewTask = !initialData || !initialData.id;
+        
+        // Mobile view: Can only edit if it is a BRAND NEW task.
+        if (isMobile && !isNewTask) return false;
+        
+        if (!currentUser) return false;
         if (isNewTask) return true;
 
         if (initialData.visibility === 'PUBLIC') return true;
@@ -123,7 +138,7 @@ const TaskModal = ({
             return initialData.assigned_users.includes(currentUser.id);
         }
         return false;
-    }, [initialData, currentUser]);
+    }, [initialData, currentUser, isMobile]);
 
     // Initialize stages based on category config
     const initializeStages = (config) => {
@@ -168,10 +183,16 @@ const TaskModal = ({
                 setCategory(catId);
                 setTitle(initialData.title);
                 setDescription(initialData.description);
-                setStatus(initialData.status);
-                setPriority(initialData.priority);
+                setStatus(initialData.status || TaskStatus.TO_START);
+                setPriority(initialData.priority || Priority.MEDIUM);
                 setClient(initialData.client || '');
-                setDueDate(initialData.due_date || '');
+                
+                // Tratar string de data para o input date (precisa ser formato YYYY-MM-DD estrito)
+                let parsedDueDate = '';
+                if (initialData.due_date) {
+                    parsedDueDate = initialData.due_date.includes('T') ? initialData.due_date.split('T')[0] : initialData.due_date;
+                }
+                setDueDate(parsedDueDate);
                 setOp(initialData.op || '');
                 setPedido(initialData.pedido || '');
                 setItem(initialData.item || '');
@@ -181,13 +202,12 @@ const TaskModal = ({
                 setVisitationRequired(initialData.visitation?.required || false);
                 setAttachments(initialData.attachments || []);
                 setOutcome(initialData.outcome || null);
-                setTripCost(initialData.trip_cost || 0);
-                setTripCostCurrency(initialData.trip_cost_currency || 'BRL');
+                setMeetingActionId(initialData.meeting_action_id || null);
 
                 // Fetch existing reports (both types)
                 const fetchReports = async () => {
-                    if (!initialData.id) {
-                        console.warn('TaskModal: Tentativa de buscar relatórios sem task_id');
+                    if (!initialData.id || initialData.id.toString().startsWith('test-')) {
+                        console.warn('TaskModal: Busca de relatórios ignorada (ID de teste ou inválido):', initialData.id);
                         return;
                     }
 
@@ -241,7 +261,7 @@ const TaskModal = ({
             } else {
                 const defCat = Category.DEVELOPMENT;
                 const defConf = customCategories.find(c => c.id === defCat);
-                setCategory(defCat); setTitle(''); setClient(''); setDescription(''); setStatus(TaskStatus.PENDING); setPriority(Priority.MEDIUM);
+                setCategory(defCat); setTitle(''); setClient(''); setDescription(''); setStatus(TaskStatus.TO_START); setPriority(Priority.MEDIUM);
                 setDueDate(''); setOp(''); setPedido(''); setItem(''); setRnc(''); setLocation(''); setGeo(null);
                 setVisitationRequired(false); setTravels([]);
                 setAttachments([]); setComments([]);
@@ -250,9 +270,7 @@ const TaskModal = ({
                 setIsReopening(false); setReopenReason(''); setPendingStatus(null);
 
                 // Limpar estados de relatório
-                setReportRequired(false);
                 setCurrentReport(null);
-                setIsEditingReport(false);
 
                 if (defConf) {
                     setStages(initializeStages(defConf));
@@ -263,24 +281,26 @@ const TaskModal = ({
                 }
             }
         }
-    }, [isOpen, initialData?.id]);
+    }, [isOpen, initialData]);
 
-    // Fetch clients for auto-complete
+    // Fetch clients and vehicles for auto-complete
     useEffect(() => {
         if (isOpen && currentUser) {
-            const fetchClients = async () => {
-                const { data } = await supabase.from('clients').select('*');
-                setClientsRegistry(data || []);
+            const fetchInitialData = async () => {
+                const [clientsRes] = await Promise.all([
+                    supabase.from('clients').select('*')
+                ]);
+                setClientsRegistry(clientsRes.data || []);
             };
-            fetchClients();
+            fetchInitialData();
         }
     }, [isOpen, currentUser]);
 
     // POLI PROACTIVE SUGGESTIONS TRIGGER
+    // POLI PROACTIVE SUGGESTIONS TRIGGER (Focus: Address/Location)
     useEffect(() => {
-        if (!isOpen || !client || isPoliAnalyzing || initialData) return;
+        if (!isOpen || !location || isPoliAnalyzing || initialData) return;
         if (!currentUser || currentUser.poli_interaction === 'DISABLED') return;
-        if (currentUser.poli_interaction === 'LOW' && priority !== Priority.HIGH) return;
 
         const timer = setTimeout(async () => {
             setIsPoliAnalyzing(true);
@@ -289,7 +309,8 @@ const TaskModal = ({
                     title: client,
                     client,
                     due_date: dueDate,
-                    category
+                    category,
+                    location
                 };
 
                 const suggestion = await getProactiveSuggestion(
@@ -311,7 +332,7 @@ const TaskModal = ({
         }, 2000);
 
         return () => clearTimeout(timer);
-    }, [client, dueDate, category, isOpen, currentUser?.poli_interaction, priority, tasks, clientsRegistry]);
+    }, [location, isOpen, currentUser?.poli_interaction, tasks, clientsRegistry]);
 
     const handleCategoryChange = (newCat) => {
         if (category === newCat) return;
@@ -385,15 +406,16 @@ const TaskModal = ({
             }
         } catch (error) {
             console.error("Erro ao processar arquivo:", error);
-            alert("Não foi possível abrir este arquivo.");
+            notifyError("Não foi possível abrir este arquivo.");
         }
     };
 
     const handleAddCustomStage = () => {
         if (!newCustomStageName.trim()) return;
+        const name = newCustomStageName.trim();
         setStages(prev => ({
             ...prev,
-            [newCustomStageName.trim()]: { active: true, description: '', status: 'NOT_STARTED', date: '' }
+            [name]: { active: true, description: '', status: 'NOT_STARTED', date: '' }
         }));
         setNewCustomStageName('');
     };
@@ -518,7 +540,7 @@ const TaskModal = ({
                             }).eq('name', client);
 
                             if (!error) {
-                                alert('✅ Endereço do cliente atualizado!');
+                                notifySuccess('Endereço do cliente atualizado!');
                                 const { data } = await supabase.from('clients').select('*');
                                 setClientsRegistry(data || []);
                             }
@@ -538,6 +560,71 @@ const TaskModal = ({
             setLocationError('Erro na busca. Tente novamente.');
         } finally {
             setLocationSearching(false);
+        }
+    };
+
+    const handleConfirmMapPosition = async () => {
+        if (!geo) return;
+        setLocationSearching(true);
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${geo.lat}&lon=${geo.lng}&zoom=18&addressdetails=1`);
+            const data = await response.json();
+
+            if (data && data.display_name) {
+                // Formatar endereço mais bonito (Rua, Número - Bairro, Cidade/Estado)
+                const addr = data.address;
+                const street = addr.road || addr.pedestrian || addr.suburb || '';
+                const number = addr.house_number || '';
+                const neighborhood = addr.neighbourhood || addr.suburb || '';
+                const city = addr.city || addr.town || addr.village || '';
+                const state = addr.state_code || addr.state || '';
+
+                let formatted = street;
+                if (number) formatted += `, ${number}`;
+                if (neighborhood) formatted += ` - ${neighborhood}`;
+                if (city || state) {
+                    formatted += `, ${city}${city && state ? '/' : ''}${state}`;
+                }
+
+                const finalAddress = formatted || data.display_name;
+
+                // Se o cliente já estiver preenchido, perguntar sobre a atualização do cadastro
+                if (client && finalAddress !== location) {
+                    const foundClient = clientsRegistry.find(c => c.name.toLowerCase() === client.toLowerCase());
+
+                    const shouldUpdate = window.confirm(
+                        `📍 Localização exata capturada no mapa!\n\n` +
+                        `Endereço sugerido: ${finalAddress}\n\n` +
+                        `Deseja atualizar o endereço no cadastro do cliente '${client}'?`
+                    );
+
+                    if (shouldUpdate && foundClient) {
+                        const { error } = await supabase.from('clients').update({
+                            address: finalAddress,
+                            street: street || null,
+                            number: number || null,
+                            neighborhood: neighborhood || null,
+                            city: city || null,
+                            state: state || null,
+                            address_verified: true,
+                            address_verified_at: new Date().toISOString()
+                        }).eq('id', foundClient.id);
+
+                        if (!error) {
+                            const { data: newClients } = await supabase.from('clients').select('*');
+                            setClientsRegistry(newClients || []);
+                        }
+                    }
+                }
+
+                setLocation(finalAddress);
+                setSearchLocation(finalAddress);
+            }
+        } catch (err) {
+            console.error("Reverse geocoding error:", err);
+        } finally {
+            setLocationSearching(false);
+            setIsMapPickerOpen(false);
         }
     };
 
@@ -616,7 +703,7 @@ const TaskModal = ({
     };
 
     const handleStatusChange = (newStatus) => {
-        const restrictedStatuses = [TaskStatus.DONE, TaskStatus.CANCELED, TaskStatus.TO_START];
+        const restrictedStatuses = [TaskStatus.DONE];
         if (initialData && restrictedStatuses.includes(initialData.status)) {
             setPendingStatus(newStatus);
             setIsReopening(true);
@@ -693,28 +780,54 @@ const TaskModal = ({
         }
     };
 
-    // Trigger finding client address when enabling visitation if client is already filled
+    // Trigger finding client address and coordinates when enabling visitation if client is already filled
     useEffect(() => {
         if (visitationRequired && client) {
-            const found = clientsRegistry.find(c => c.name.toLowerCase() === client.toLowerCase());
-            if (found) {
-                const fullAddress = found.street
-                    ? `${found.street}, ${found.number || ''} - ${found.neighborhood || ''}, ${found.city || ''}/${found.state || ''}`
-                    : found.address;
-                if (fullAddress) {
-                    setLocation(fullAddress);
-                    setSearchLocation(fullAddress);
+            const foundClient = clientsRegistry.find(c => c.name.toLowerCase() === client.toLowerCase());
+            
+            // 1. Tentar endereço e geo do cadastro do cliente
+            let clientAddress = '';
+            let clientGeo = null;
+
+            if (foundClient) {
+                clientAddress = foundClient.street
+                    ? `${foundClient.street}, ${foundClient.number || ''} - ${foundClient.neighborhood || ''}, ${foundClient.city || ''}/${foundClient.state || ''}`
+                    : foundClient.address;
+                
+                // Se a tabela clients tivesse lat/lng nativos, pegaríamos aqui
+                if (foundClient.lat && foundClient.lng) {
+                    clientGeo = { lat: foundClient.lat, lng: foundClient.lng };
                 }
             }
+
+            // 2. Se não encontrou geo no cliente, procurar na tarefa mais recente desse cliente que tenha geo
+            if (!clientGeo && tasks) {
+                const lastTaskWithGeo = tasks
+                    .filter(t => t.client?.toLowerCase() === client.toLowerCase() && t.geo)
+                    .sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt))[0];
+                
+                if (lastTaskWithGeo) {
+                    clientGeo = lastTaskWithGeo.geo;
+                }
+            }
+
+            if (clientAddress && (!location || location === '')) {
+                setLocation(clientAddress);
+                setSearchLocation(clientAddress);
+            }
+
+            if (clientGeo && !geo) {
+                setGeo(clientGeo);
+            }
         }
-    }, [visitationRequired, client, clientsRegistry]);
+    }, [visitationRequired, client, clientsRegistry, tasks]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave({
             ...initialData,
             category,
-            title: client,
+            title: title || client, // Usa o título preenchido (que já contém o número)
             description,
             status,
             priority,
@@ -724,18 +837,41 @@ const TaskModal = ({
             pedido,
             item,
             rnc,
+            parent_followup_id: initialData?.parent_followup_id,
+            parent_sac_id: initialData?.parent_sac_id,
+            parent_test_id: initialData?.parent_test_id,
+            parent_rnc_id: initialData?.parent_rnc_id,
+            meeting_action_id: meetingActionId,
             location,
             geo,
             visitation: { required: visitationRequired },
-            stages,
+            stages: (() => {
+                if (status === TaskStatus.DONE) {
+                    const openStages = Object.entries(stages).filter(([_, s]) =>
+                        !['COMPLETED', 'FINALIZADO', 'SOLUCIONADO', 'DEVOLVIDO'].includes(s.status)
+                    );
+                    if (openStages.length > 0) {
+                        const confirmFinish = window.confirm(
+                            `⚠️ ATENÇÃO: Existem ${openStages.length} etapas que ainda não foram finalizadas.\n\n` +
+                            `Deseja marcar todas as etapas como FINALIZADAS automaticamente?`
+                        );
+                        if (confirmFinish) {
+                            const updatedStages = { ...stages };
+                            Object.keys(updatedStages).forEach(key => {
+                                updatedStages[key] = { ...updatedStages[key], status: 'FINALIZADO' };
+                            });
+                            return updatedStages;
+                        }
+                    }
+                }
+                return stages;
+            })(),
             attachments,
             travels,
             comments,
             assigned_users: assignedUsers,
             visibility,
-            outcome: status === TaskStatus.DONE ? outcome : null,
-            trip_cost: tripCost,
-            trip_cost_currency: tripCostCurrency
+            outcome: status === TaskStatus.DONE ? outcome : null
         });
         onClose();
     };
@@ -744,15 +880,16 @@ const TaskModal = ({
 
     if (isEditingReport && initialData) {
         return (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 overflow-y-auto">
-                <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] md:max-h-[90vh] flex flex-col my-auto border border-slate-700 animate-in fade-in zoom-in duration-200 overflow-hidden">
-                    <div className="flex justify-between px-6 py-4 border-b border-slate-700 bg-slate-900 rounded-t-xl shrink-0">
+            <div className={`fixed inset-0 z-[3000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4 animate-in fade-in ${UI_TOKENS.TRANSITION_ALL}`}>
+                <div className={`${UI_TOKENS.MODAL_CARD} w-full max-w-5xl max-h-[95vh] md:max-h-[90vh] flex flex-col my-auto overflow-hidden`}>
+                    <div className="flex justify-between px-6 py-4 border-b border-slate-700 bg-slate-950 rounded-t-xl shrink-0">
                         <h2 className="text-xl font-semibold text-white">
                             {currentReport ? 'Editar' : 'Gerar'} Relatório Técnico
                         </h2>
                         <button type="button" onClick={() => setIsEditingReport(false)} className="text-slate-400 hover:text-white font-bold bg-slate-800 px-3 py-1 rounded">Voltar</button>
                     </div>
-                    <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-100">
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#003399]">
                         <ReportEditor
                             task={initialData}
                             report={currentReport}
@@ -771,6 +908,10 @@ const TaskModal = ({
                                 onOpenReport(initialData);
                             }}
                             onClose={() => setIsEditingReport(false)}
+                            notifySuccess={notifySuccess}
+                            notifyError={notifyError}
+                            notifyWarning={notifyWarning}
+                            notifyInfo={notifyInfo}
                         />
                     </div>
                 </div>
@@ -779,11 +920,12 @@ const TaskModal = ({
     }
 
     return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 md:p-4 overflow-y-auto">
-            <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] md:max-h-[90vh] flex flex-col my-auto border border-slate-700 animate-in fade-in zoom-in duration-200 overflow-hidden">
+        <div className={`fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 md:p-4 animate-in fade-in ${UI_TOKENS.TRANSITION_ALL}`}>
+            <div className="bg-slate-800 w-full max-w-6xl h-full md:h-[92vh] flex flex-col relative overflow-hidden border border-slate-700 shadow-2xl rounded-xl">
+                {/* Status bar */}
                 <form id="taskForm" onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
                     {/* Header */}
-                    <div className="flex justify-between px-6 py-4 border-b border-slate-700 bg-slate-900 rounded-t-xl shrink-0">
+                    <div className="flex justify-between px-6 py-4 border-b border-slate-700 bg-slate-800 rounded-t-xl shrink-0">
                         <div className="flex flex-col">
                             <h2 className="text-xl font-semibold text-white">{initialData ? 'Editar' : 'Nova'} Tarefa</h2>
                             {lastActivity && (
@@ -812,21 +954,35 @@ const TaskModal = ({
                         </div>
                     </div>
 
-                    <div className="overflow-y-auto custom-scrollbar p-6 flex-1 min-h-0">
+                    {/* War Room Banner */}
+                    {meetingActionId && (
+                        <div className="bg-purple-600/20 border-b border-purple-500/30 px-6 py-2 flex items-center justify-between animate-in slide-in-from-top-2 duration-500">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1 bg-purple-600 rounded text-white shadow-lg">
+                                    <Users size={12} />
+                                </div>
+                                <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em]">Tarefa Vinculada à Reunião (War Room)</span>
+                            </div>
+                            <div className="text-[9px] text-purple-300/60 font-medium italic">As alterações refletirão no status do apontamento da reunião</div>
+                        </div>
+                    )}
+
+                    <div className="overflow-y-auto custom-scrollbar p-6 flex-1 min-h-0 bg-[#1c2e6e]">
                         <datalist id="userSuggestions">
                             {users.map((u) => <option key={u.id} value={u.username} />)}
                         </datalist>
 
                         <div className="space-y-6">
                             {/* Category Selection */}
-                            <div className="bg-slate-800 p-4 rounded-lg border border-slate-600">
-                                <label className="block text-xs font-semibold text-brand-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <div className="p-0">
+                                <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <Layers size={14} />Tipo de Tarefa
                                 </label>
                                 <select
                                     value={category}
                                     onChange={(e) => handleCategoryChange(e.target.value)}
-                                    className="w-full bg-slate-700 text-white border-none rounded-lg p-2.5 font-medium focus:ring-2 focus:ring-brand-500 outline-none"
+                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                    className="w-full bg-white text-black border border-slate-300 rounded-lg p-2.5 font-bold focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-200 disabled:cursor-not-allowed"
                                 >
                                     {(customCategories || []).map(c => (
                                         <option key={c.id} value={c.id}>{c.label}</option>
@@ -837,18 +993,20 @@ const TaskModal = ({
                             {/* Client & Description Section */}
                             <div className="space-y-4">
                                 <div>
-                                    <label className="text-sm font-medium text-slate-300">Cliente (Identificador Principal)</label>
+                                    <label className="text-sm font-bold text-slate-200">Cliente (Identificador Principal)</label>
                                     <div className="relative">
-                                        <Building2 className="absolute left-3 top-2.5 text-slate-400 z-10" size={16} />
+                                        <Building2 className="absolute left-3 top-2.5 text-slate-500 z-10" size={16} />
                                         <input
                                             type="text"
                                             required
                                             value={client}
                                             onChange={handleClientChange}
-                                            onFocus={() => {
-                                                if (client.trim().length > 0) {
+                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            onFocus={(e) => {
+                                                const val = e.target.value;
+                                                if (val.trim().length > 0) {
                                                     const filtered = clientsRegistry.filter(c =>
-                                                        c.name.toLowerCase().includes(client.toLowerCase())
+                                                        c.name.toLowerCase().includes(val.toLowerCase())
                                                     );
                                                     setFilteredClientSuggestions(filtered);
                                                     setShowClientSuggestions(true);
@@ -857,20 +1015,20 @@ const TaskModal = ({
                                             onBlur={() => {
                                                 setTimeout(() => setShowClientSuggestions(false), 200);
                                             }}
-                                            className="w-full pl-10 pr-3 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none font-bold"
+                                            className="w-full pl-10 pr-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"
                                             placeholder="Digite para buscar cliente..."
                                             autoComplete="off"
                                         />
 
                                         {showClientSuggestions && filteredClientSuggestions.length > 0 && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                                                 {filteredClientSuggestions.map((c) => (
                                                     <div
                                                         key={c.id}
                                                         onClick={() => handleSelectClient(c.name)}
-                                                        className="px-4 py-2 hover:bg-brand-50 cursor-pointer border-b border-slate-100 last:border-b-0"
+                                                        className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-slate-200 last:border-b-0 transition-colors"
                                                     >
-                                                        <div className="font-bold text-slate-800">{c.name}</div>
+                                                        <div className="font-bold text-slate-800 text-sm">{c.name}</div>
                                                         {(c.city || c.state) && (
                                                             <div className="text-xs text-slate-500">
                                                                 {c.city}{c.city && c.state ? '/' : ''}{c.state}
@@ -885,27 +1043,27 @@ const TaskModal = ({
 
                                 {/* Custom Fields based on category */}
                                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-                                    {currentConfig.fields.op && <div><label className="text-xs font-medium text-slate-400">OP</label><input type="text" value={op} onChange={(e) => setOp(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg text-sm" /></div>}
-                                    {currentConfig.fields.pedido && <div><label className="text-xs font-medium text-slate-400">Pedido</label><input type="text" value={pedido} onChange={(e) => setPedido(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg text-sm" /></div>}
-                                    {currentConfig.fields.item && <div><label className="text-xs font-medium text-slate-400">Item</label><input type="text" value={item} onChange={(e) => setItem(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg text-sm" /></div>}
-                                    {currentConfig.fields.rnc && <div><label className="text-xs font-medium text-slate-400">RNC</label><input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg text-sm" /></div>}
+                                    {currentConfig.fields.op && <div><label className="text-xs font-bold text-slate-200 mb-1 block">OP</label><input type="text" value={op} onChange={(e) => setOp(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.pedido && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Pedido</label><input type="text" value={pedido} onChange={(e) => setPedido(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.item && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Item</label><input type="text" value={item} onChange={(e) => setItem(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.rnc && <div><label className="text-xs font-bold text-slate-200 mb-1 block">RNC</label><input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
                                 </div>
 
                                 <div>
-                                    <label className="text-sm font-medium text-slate-300">Descrição</label>
-                                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg resize-none text-sm" />
+                                    <label className="text-sm font-bold text-slate-200 mb-1 block">Descrição</label>
+                                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} rows={3} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg resize-none text-sm font-bold outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                                    <div><label className="text-sm font-medium text-slate-300">Status</label><select value={status} onChange={(e) => handleStatusChange(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-medium"><option value={TaskStatus.TO_START}>A Iniciar</option><option value={TaskStatus.IN_PROGRESS}>Em Andamento</option><option value={TaskStatus.WAITING_CLIENT}>Aguardando Cliente</option><option value={TaskStatus.DONE}>Finalizada</option><option value={TaskStatus.CANCELED}>Cancelada</option></select></div>
-                                    <div><label className="text-sm font-medium text-slate-300">Prioridade</label><select value={priority} onChange={(e) => setPriority(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-medium"><option value={Priority.LOW}>Baixa</option><option value={Priority.MEDIUM}>Média</option><option value={Priority.HIGH}>Alta</option></select></div>
+                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Status</label><select value={status} onChange={(e) => handleStatusChange(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={TaskStatus.TO_START}>A Iniciar</option><option value={TaskStatus.IN_PROGRESS}>Em Andamento</option><option value={TaskStatus.WAITING_CLIENT}>Aguardando Cliente</option><option value={TaskStatus.DONE}>Finalizada</option><option value={TaskStatus.CANCELED}>Cancelada</option></select></div>
+                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Prioridade</label><select value={priority} onChange={(e) => setPriority(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={Priority.LOW}>Baixa</option><option value={Priority.MEDIUM}>Média</option><option value={Priority.HIGH}>Alta</option></select></div>
                                     <div>
-                                        <label className="text-sm font-medium text-slate-300">Prazo de Entrega</label>
+                                        <label className="text-sm font-bold text-slate-200 mb-1 block">Prazo de Entrega</label>
                                         <input
                                             type="date"
                                             value={dueDate}
                                             onChange={(e) => setDueDate(e.target.value)}
                                             disabled={!canEdit}
-                                            className="w-full px-3 py-2 bg-white text-slate-900 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-medium"
+                                            className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                 </div>
@@ -925,7 +1083,8 @@ const TaskModal = ({
                                                     key={opt.id}
                                                     type="button"
                                                     onClick={() => setOutcome(opt.id)}
-                                                    className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all border-2 ${outcome === opt.id
+                                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                                    className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed ${outcome === opt.id
                                                         ? `${opt.color} border-white/20 text-white shadow-lg scale-105`
                                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
                                                         }`}
@@ -1017,16 +1176,16 @@ const TaskModal = ({
                                     </div>
                                 )}
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-white/15 rounded-xl p-4">
                                 {/* Visibility Toggle */}
-                                <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-700">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Eye size={12} /> Visibilidade</label>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Eye size={12} /> Visibilidade</label>
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
                                             onClick={() => setVisibility('PUBLIC')}
                                             disabled={!canEdit}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PUBLIC' ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PUBLIC' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
                                         >
                                             Público
                                         </button>
@@ -1034,7 +1193,7 @@ const TaskModal = ({
                                             type="button"
                                             onClick={() => setVisibility('PRIVATE')}
                                             disabled={!canEdit}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PRIVATE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PRIVATE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
                                         >
                                             Privado
                                         </button>
@@ -1042,10 +1201,11 @@ const TaskModal = ({
                                 </div>
 
                                 {/* Assignment Selector */}
-                                <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-700">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Users size={12} /> Responsáveis</label>
+                                <div className="p-0">
+                                    <label className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Users size={12} /> Responsáveis</label>
                                     <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto custom-scrollbar">
-                                        {users.filter(u => u.id !== currentUser.id).map(u => {
+                                        {users.filter(u => u.id !== currentUser?.id).map(u => {
+
                                             const isAssigned = assignedUsers.includes(u.id);
                                             return (
                                                 <button
@@ -1056,28 +1216,27 @@ const TaskModal = ({
                                                         if (isAssigned) setAssignedUsers(assignedUsers.filter(id => id !== u.id));
                                                         else setAssignedUsers([...assignedUsers, u.id]);
                                                     }}
-                                                    className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center text-[10px] font-bold ${isAssigned ? 'border-brand-500 scale-105 shadow-sm' : 'border-slate-500 opacity-40 grayscale'} disabled:cursor-not-allowed`}
-                                                    style={{ backgroundColor: u.color }}
+                                                    className={`w-9 h-9 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center text-xs font-black text-white ${isAssigned ? 'border-white scale-105 shadow-lg' : 'border-white/30 opacity-60'} disabled:cursor-not-allowed`}
+                                                    style={{ backgroundColor: u.color, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
                                                     title={u.username}
                                                 >
                                                     {u.username.substring(0, 1).toUpperCase()}
                                                 </button>
                                             );
                                         })}
-                                        {users.filter(u => u.id !== currentUser.id).length === 0 && <span className="text-[10px] text-slate-500 italic">Nenhum outro usuário disponível</span>}
+                                        {users.filter(u => u.id !== currentUser?.id).length === 0 && <span className="text-[10px] text-slate-500 italic">Nenhum outro usuário disponível</span>}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Combined Location & Travel Section */}
-                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="border border-white/15 rounded-xl p-4">
                                 <div className="flex items-center gap-2 mb-4">
-                                    <input
-                                        type="checkbox"
-                                        id="visitationRequired"
-                                        checked={visitationRequired}
-                                        onChange={(e) => {
-                                            const isRequired = e.target.checked;
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (status === TaskStatus.DONE || !canEdit) return;
+                                            const isRequired = !visitationRequired;
                                             setVisitationRequired(isRequired);
                                             if (isRequired) {
                                                 if (travels.length === 0) handleAddTravel();
@@ -1088,73 +1247,119 @@ const TaskModal = ({
                                                 setSearchLocation('');
                                             }
                                         }}
-                                        className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500 border-gray-300"
-                                    />
-                                    <label htmlFor="visitationRequired" className="text-white font-bold text-sm cursor-pointer select-none">Necessidade de Viagem</label>
+                                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${visitationRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                    >
+                                        {visitationRequired && <Check size={12} className="text-white" strokeWidth={3} />}
+                                    </button>
+                                    <label onClick={() => (status !== TaskStatus.DONE && canEdit) && setVisitationRequired(!visitationRequired)} className={`font-bold text-sm select-none ${status === TaskStatus.DONE ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer text-slate-200'}`}>Necessidade de Viagem</label>
                                 </div>
 
                                 {visitationRequired && (
                                     <div className="space-y-4 pl-0 md:pl-2 animate-in fade-in slide-in-from-top-2 duration-300">
                                         {/* Location Search */}
-                                        <div className="bg-slate-900 border border-slate-700 p-3 rounded-lg relative">
-                                            <label className="text-xs font-bold text-brand-400 uppercase tracking-wider mb-2 block flex items-center gap-1"><MapPin size={12} /> Localização (Destino)</label>
+                                        <div className="p-3 border border-slate-800 rounded-lg relative">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className="text-xs font-bold text-slate-300 uppercase">Local da Visita</h4>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSearchLocation}
+                                                        disabled={locationSearching}
+                                                        className="text-[10px] bg-brand-600 text-white px-3 py-1 rounded hover:bg-brand-700 flex items-center gap-1 disabled:opacity-50"
+                                                    >
+                                                        {locationSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+                                                        Validar Endereço
+                                                    </button>
+                                                    <button type="button" onClick={() => setIsMapPickerOpen(true)} className="text-[10px] bg-slate-700 text-white px-2 py-1 rounded hover:bg-slate-600 flex items-center gap-1"><MapPin size={12} /> Mapa</button>
+                                                </div>
+                                            </div>
                                             <div className="flex gap-2 mb-2">
-                                                <input type="text" value={searchLocation} onChange={(e) => setSearchLocation(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchLocation())} placeholder="Buscar cidade/local..." className="flex-1 px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded-lg text-sm outline-none" />
-                                                <button type="button" onClick={handleSearchLocation} disabled={locationSearching} className="bg-brand-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">{locationSearching ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}</button>
+                                                <input type="text" value={searchLocation} onChange={(e) => setSearchLocation(e.target.value)} placeholder="Pesquisar endereço..." className="flex-1 bg-white border border-slate-300 rounded text-xs px-3 py-2 text-black font-bold outline-none focus:border-brand-500" />
                                             </div>
-                                            {locationError && <p className="text-red-400 text-xs mb-2">{locationError}</p>}
-                                            <div className="flex gap-2">
-                                                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 bg-slate-800 border-slate-700 text-white rounded-lg text-sm" placeholder="Endereço exato..." />
-                                                <button type="button" onClick={() => setIsMapPickerOpen(true)} className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${geo ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>{geo ? 'Alfinete' : 'Mapa'}</button>
-                                            </div>
+                                            {locationError && <div className="text-[10px] text-rose-400 font-bold mb-2">{locationError}</div>}
+                                            {geo && <div className="text-[10px] text-emerald-500 font-mono mt-1 flex items-center gap-1"><Check size={10} /> Localização Fixada</div>}
                                         </div>
 
                                         {/* Travels List */}
-                                        <div>
+                                        <div className="pt-2">
                                             <div className="flex justify-between items-center mb-2 mt-4">
-                                                <h4 className="text-xs font-bold text-slate-400 uppercase">Viagens Agendadas</h4>
-                                                <button type="button" onClick={handleAddTravel} className="text-xs bg-slate-700 text-white px-3 py-1.5 rounded hover:bg-slate-600 font-medium">+ Nova Viagem</button>
+                                                <h4 className="text-xs font-bold text-slate-200 uppercase">Viagens Agendadas</h4>
+                                                <button type="button" onClick={() => setTravels([...travels, { id: Date.now().toString(), date: '', team: [''], isDateDefined: true }])} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700 font-extrabold shadow-lg transition-all">+ Nova Viagem</button>
                                             </div>
                                             <div className="space-y-3">
                                                 {travels.map((travel, idx) => (
-                                                    <div key={travel.id} className="bg-slate-900 border border-slate-600 rounded p-3 relative">
-                                                        <button type="button" onClick={() => removeTravel(travel.id)} className="absolute top-2 right-2 text-slate-500 hover:text-red-500"><X size={14} /></button>
+                                                    <div key={travel.id} className="border border-slate-800 rounded p-4 relative">
+                                                        <button type="button" onClick={() => setTravels(travels.filter(t => t.id !== travel.id))} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-lg"><X size={12} /></button>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                             <div>
                                                                 <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Quando?</label>
                                                                 <div className="flex flex-col gap-2">
                                                                     <div className="flex items-center gap-2">
-                                                                        <input type="checkbox" checked={!travel.isDateDefined} onChange={(e) => updateTravel(travel.id, 'isDateDefined', !e.target.checked)} className="w-3 h-3 text-brand-600 rounded bg-slate-800 border-slate-600" />
-                                                                        <span className="text-[10px] text-slate-300">A Definir Data</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newTravels = [...travels];
+                                                                                newTravels[idx].isDateDefined = travel.isDateDefined;
+                                                                                newTravels[idx].isDateDefined = !travel.isDateDefined;
+                                                                                setTravels(newTravels);
+                                                                            }}
+                                                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${!travel.isDateDefined ? 'bg-amber-500' : 'bg-slate-500/50'}`}
+                                                                        >
+                                                                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${!travel.isDateDefined ? 'translate-x-5' : 'translate-x-1'}`} />
+                                                                        </button>
+                                                                        <span className={`text-[10px] font-bold ${!travel.isDateDefined ? 'text-amber-400' : 'text-slate-400'}`}>A Definir Data</span>
                                                                     </div>
-                                                                    {travel.isDateDefined && <input type="date" value={travel.date} onChange={(e) => updateTravel(travel.id, 'date', e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-xs px-2 py-1.5 text-white focus:border-brand-500 outline-none" />}
+                                                                    {travel.isDateDefined && <input type="date" value={travel.date} onChange={(e) => {
+                                                                        const newTravels = [...travels];
+                                                                        newTravels[idx].date = e.target.value;
+                                                                        setTravels(newTravels);
+                                                                    }} className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold focus:border-brand-500 outline-none" />}
                                                                 </div>
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Quem vai?</label>
-                                                                <div className="space-y-1.5">
-                                                                    {(Array.isArray(travel.team) ? travel.team : ['']).map((member, mIdx) => (
-                                                                        <div key={mIdx} className="flex gap-1">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <label className="text-[10px] text-slate-200 uppercase font-bold">Equipe (Quem vai?)</label>
+                                                                    <button type="button" onClick={() => addTeamMember(travel.id)} className="text-[10px] text-brand-400 font-bold hover:text-brand-300 flex items-center gap-1">+ Técnico</button>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    {travel.team.map((member, tIdx) => (
+                                                                        <div key={tIdx} className="flex gap-2">
                                                                             <input
                                                                                 type="text"
                                                                                 value={member}
-                                                                                onChange={(e) => handleTeamMemberChange(travel.id, mIdx, e.target.value)}
-                                                                                className="w-full bg-slate-800 border border-slate-600 rounded text-xs px-2 py-1 text-white placeholder:text-slate-600 focus:border-brand-500 outline-none"
-                                                                                placeholder="Nome do técnico..."
+                                                                                onChange={(e) => handleTeamMemberChange(travel.id, tIdx, e.target.value)}
                                                                                 list="userSuggestions"
+                                                                                className="flex-1 bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                                placeholder="Nome do técnico..."
                                                                             />
-                                                                            {mIdx === (travel.team || ['']).length - 1 ? (
-                                                                                <button type="button" onClick={() => addTeamMember(travel.id)} className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 p-1 rounded"><Plus size={14} /></button>
-                                                                            ) : (
-                                                                                <button type="button" onClick={() => removeTeamMember(travel.id, mIdx)} className="bg-red-500/20 text-red-500 hover:bg-red-500/40 p-1 rounded"><X size={14} /></button>
+                                                                            {travel.team.length > 1 && (
+                                                                                <button type="button" onClick={() => removeTeamMember(travel.id, tIdx)} className="bg-white border border-slate-300 px-2 rounded text-slate-600 hover:bg-red-500 hover:text-white transition-colors"><X size={14} /></button>
                                                                             )}
                                                                         </div>
                                                                     ))}
                                                                 </div>
                                                             </div>
-                                                            <div className="md:col-span-2 grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
-                                                                <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Contato no Cliente</label><input type="text" value={travel.contacts} onChange={(e) => updateTravel(travel.id, 'contacts', e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-xs px-2 py-1.5 text-white focus:border-brand-500 outline-none" /></div>
-                                                                <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Cargo</label><input type="text" value={travel.role} onChange={(e) => updateTravel(travel.id, 'role', e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-xs px-2 py-1.5 text-white focus:border-brand-500 outline-none" /></div>
+                                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700">
+                                                                <div>
+                                                                    <label className="text-[10px] text-slate-300 uppercase font-bold mb-1 block">Contato no Cliente</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={travel.contacts || ''}
+                                                                        onChange={(e) => updateTravel(travel.id, 'contacts', e.target.value)}
+                                                                        placeholder="Nome do contato..."
+                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] text-slate-300 uppercase font-bold mb-1 block">Cargo / Função</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={travel.role || ''}
+                                                                        onChange={(e) => updateTravel(travel.id, 'role', e.target.value)}
+                                                                        placeholder="Ex: Gerente, Manutenção..."
+                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                    />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1166,22 +1371,23 @@ const TaskModal = ({
                             </div>
 
                             {/* Reports Section - Independent */}
-                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="border border-white/15 rounded-xl p-4">
                                 <div className="flex items-center gap-2 mb-3">
-                                    <input
-                                        type="checkbox"
-                                        id="reportRequired"
-                                        checked={reportRequired}
-                                        onChange={(e) => {
-                                            setReportRequired(e.target.checked);
-                                            if (!e.target.checked) {
-                                                // Limpar estados ao desmarcar
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (status === TaskStatus.DONE || !canEdit) return;
+                                            const isNowRequired = !reportRequired;
+                                            setReportRequired(isNowRequired);
+                                            if (!isNowRequired) {
                                                 setCurrentReport(null);
                                             }
                                         }}
-                                        className="w-5 h-5 text-brand-600 rounded focus:ring-brand-500 border-gray-300"
-                                    />
-                                    <label htmlFor="reportRequired" className="text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer select-none flex items-center gap-1.5">
+                                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${reportRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                    >
+                                        {reportRequired && <Check size={12} className="text-white" strokeWidth={3} />}
+                                    </button>
+                                    <label onClick={() => (status !== TaskStatus.DONE && canEdit) && setReportRequired(!reportRequired)} className={`text-xs font-bold uppercase tracking-wider select-none flex items-center gap-1.5 ${status === TaskStatus.DONE ? 'text-slate-500 cursor-not-allowed' : 'text-slate-200 cursor-pointer'}`}>
                                         <FileText size={12} /> Necessita Relatório
                                     </label>
                                 </div>
@@ -1193,7 +1399,8 @@ const TaskModal = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setIsEditingReport(true)}
-                                                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white py-3 rounded-lg font-bold text-sm hover:from-brand-700 hover:to-brand-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white py-3 rounded-lg font-bold text-sm hover:from-brand-700 hover:to-brand-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 <Printer size={16} />
                                                 {currentReport ? 'GERENCIAR RELATÓRIO TÉCNICO' : 'GERAR RELATÓRIO TÉCNICO'}
@@ -1226,48 +1433,114 @@ const TaskModal = ({
                             </div>
 
                             {/* Custom Stages Section */}
-                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="border border-white/15 rounded-xl p-4">
                                 <div className="flex justify-between items-center mb-4">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><ClipboardList size={12} /> Etapas Customizadas</label>
-                                    <button type="button" onClick={handleAddCustomStage} className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 px-3 py-1 rounded text-[10px] font-bold">+ Nova Etapa</button>
+                                    <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5"><ClipboardList size={12} /> Etapas Customizadas</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newCustomStageName}
+                                            onChange={(e) => setNewCustomStageName(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCustomStage())}
+                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            placeholder="Nome da etapa..."
+                                            className="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 w-40 disabled:bg-gray-200 disabled:cursor-not-allowed"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleAddCustomStage}
+                                            disabled={status === TaskStatus.DONE || !canEdit || !newCustomStageName.trim()}
+                                            className="bg-brand-600 text-white hover:bg-brand-500 px-3 py-1 rounded text-[10px] font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >+ Nova Etapa</button>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     {Object.entries(stages).length > 0 ? (
                                         Object.entries(stages).map(([stageName, stageData]) => {
                                             const isFinished = ['COMPLETED', 'FINALIZADO', 'SOLUCIONADO'].includes(stageData.status);
-                                            // Check if it's a native stage for the current category
                                             const isNative = currentConfig.stages.includes(stageName);
 
                                             return (
-                                                <div key={stageName} className="flex gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-700/50 group hover:border-slate-600 transition-colors">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isFinished}
-                                                        onChange={() => {
-                                                            setStages(prev => ({
-                                                                ...prev,
-                                                                [stageName]: {
-                                                                    ...prev[stageName],
-                                                                    status: isFinished ? 'NOT_STARTED' : 'FINALIZADO'
-                                                                }
-                                                            }));
-                                                        }}
-                                                        className="w-4 h-4 text-brand-600 rounded bg-slate-800 border-slate-600 focus:ring-brand-500 cursor-pointer"
-                                                    />
-                                                    <span className={`flex-1 text-sm font-medium ${isFinished ? 'line-through text-slate-500' : 'text-slate-200'}`}>
-                                                        {stageName}
-                                                        {isNative && <span className="ml-2 text-[10px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700">Nativo</span>}
-                                                    </span>
-                                                    {!isNative && (
+                                                <div key={stageName} className={`p-3 rounded-lg border transition-all space-y-2 bg-blue-950/60 ${stageData.active ? 'border-brand-500/70 shadow-md' : 'border-white/10'}`}>
+                                                    <div className="flex gap-2 items-center">
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleDeleteCustomStage(stageName)}
-                                                            className="text-slate-600 hover:text-red-500 opacity-60 hover:opacity-100 transition-all p-1"
-                                                            title="Remover etapa"
+                                                            onClick={() => {
+                                                                if (status === TaskStatus.DONE || !canEdit) return;
+                                                                setStages(prev => ({
+                                                                    ...prev,
+                                                                    [stageName]: { ...prev[stageName], active: !stageData.active }
+                                                                }));
+                                                            }}
+                                                            className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${stageData.active ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                                                         >
-                                                            <Trash2 size={14} />
+                                                            {stageData.active && <Check size={12} className="text-white" strokeWidth={3} />}
                                                         </button>
-                                                    )}
+                                                        <select
+                                                            value={stageData.status || 'NOT_STARTED'}
+                                                            onChange={(e) => {
+                                                                if (!stageData.active || status === TaskStatus.DONE || !canEdit) return;
+                                                                setStages(prev => ({
+                                                                    ...prev,
+                                                                    [stageName]: { ...prev[stageName], status: e.target.value }
+                                                                }));
+                                                            }}
+                                                            disabled={!stageData.active || status === TaskStatus.DONE || !canEdit}
+                                                            className={`text-[10px] font-bold rounded border bg-white px-1 py-0.5 ${isFinished ? 'text-emerald-700 border-emerald-500/50' :
+                                                                stageData.status === 'IN_PROGRESS' ? 'text-blue-700 border-blue-500/50' :
+                                                                    'text-black border-slate-300'
+                                                                } ${!stageData.active ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            <option value="NOT_STARTED">A INICIAR</option>
+                                                            <option value="IN_PROGRESS">EM ANDAMENTO</option>
+                                                            <option value="FINALIZADO">FINALIZADA</option>
+                                                            <option value="DEVOLVIDO">DEVOLVIDO</option>
+                                                        </select>
+                                                        <span className={`flex-1 text-xs font-bold ${!stageData.active ? 'text-white/60' : isFinished ? 'line-through text-white/40' : 'text-white'}`}>
+                                                            {stageName}
+                                                            {isNative && <span className="ml-2 text-[8px] bg-blue-900 text-white/60 px-1 py-0.5 rounded border border-white/20 uppercase tracking-tighter">Nativo</span>}
+                                                        </span>
+                                                        {!isNative && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteCustomStage(stageName)}
+                                                                className="text-slate-600 hover:text-red-500 opacity-60 hover:opacity-100 transition-all p-1"
+                                                                title="Remover etapa"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6 ${!stageData.active ? 'pointer-events-none opacity-30' : ''}`}>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold text-slate-300 uppercase block mb-1">Descrição / Resultado</label>
+                                                            <input
+                                                                type="text"
+                                                                value={stageData.description || ''}
+                                                                onChange={(e) => setStages(prev => ({
+                                                                    ...prev,
+                                                                    [stageName]: { ...prev[stageName], description: e.target.value }
+                                                                }))}
+                                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                                placeholder="O que foi feito..."
+                                                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold text-slate-300 uppercase block mb-1">Data da Etapa</label>
+                                                            <input
+                                                                type="date"
+                                                                value={stageData.date || ''}
+                                                                onChange={(e) => setStages(prev => ({
+                                                                    ...prev,
+                                                                    [stageName]: { ...prev[stageName], date: e.target.value }
+                                                                }))}
+                                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             );
                                         })
@@ -1278,18 +1551,19 @@ const TaskModal = ({
                             </div>
 
                             {/* Attachments Section */}
-                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                            <div className="border border-white/15 rounded-xl p-4">
                                 <div className="flex justify-between items-center mb-4">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Paperclip size={12} /> Anexos</label>
+                                    <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5"><Paperclip size={12} /> Anexos</label>
                                     <div className="relative">
                                         <input
                                             type="file"
                                             multiple
                                             onChange={handleFileChange}
-                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                             title="Adicionar arquivos"
                                         />
-                                        <button type="button" className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 px-3 py-1 rounded text-[10px] font-bold">Upload</button>
+                                        <button type="button" disabled={status === TaskStatus.DONE || !canEdit} className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 px-3 py-1 rounded text-[10px] font-bold disabled:opacity-50">Upload</button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1323,7 +1597,8 @@ const TaskModal = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
-                                                    className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                                    className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity z-20 disabled:hidden"
                                                     title="Remover anexo"
                                                 >
                                                     <X size={10} />
@@ -1345,16 +1620,16 @@ const TaskModal = ({
                             </div>
 
                             {/* Comments Section */}
-                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 block flex items-center gap-1.5"><MessageSquare size={12} /> Comentários e Histórico</label>
+                            <div className="border border-white/15 rounded-xl p-4">
+                                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-4 block flex items-center gap-1.5"><MessageSquare size={12} /> Comentários e Histórico</label>
                                 <div className="space-y-4 mb-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
                                     {comments.map((comment, idx) => (
-                                        <div key={idx} className="bg-slate-900/80 p-3 rounded-lg border-l-4 border-brand-500 animate-in slide-in-from-left-2 duration-300">
+                                        <div key={idx} className="bg-slate-800 p-3 rounded-lg border-l-4 border-brand-500 shadow-md animate-in slide-in-from-left-2 duration-300">
                                             <div className="flex justify-between items-center mb-1">
-                                                <span className="text-[10px] font-black text-brand-400 uppercase tracking-tighter">{comment.user}</span>
-                                                <span className="text-[9px] text-slate-500 font-medium italic">{new Date(comment.createdAt).toLocaleString()}</span>
+                                                <span className="text-[10px] font-black text-brand-600 uppercase tracking-tighter">{comment.user}</span>
+                                                <span className="text-[9px] text-slate-400 font-medium italic">{new Date(comment.createdAt).toLocaleString()}</span>
                                             </div>
-                                            <p className="text-xs text-slate-100 leading-relaxed break-words">{comment.text}</p>
+                                            <p className="text-xs text-white font-medium leading-relaxed break-words">{comment.text}</p>
                                         </div>
                                     ))}
                                     {comments.length === 0 && <p className="text-[10px] text-slate-500 italic text-center py-4">Nenhum comentário registrado</p>}
@@ -1365,18 +1640,19 @@ const TaskModal = ({
                                         value={newComment}
                                         onChange={(e) => setNewComment(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handlePostComment())}
-                                        placeholder="Digite um comentário..."
-                                        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 text-white rounded-lg text-sm placeholder:text-slate-600 outline-none focus:border-brand-500 transition-colors"
+                                        disabled={status === TaskStatus.DONE}
+                                        placeholder={status === TaskStatus.DONE ? "Reabra a tarefa para comentar..." : "Digite um comentário..."}
+                                        className="flex-1 px-3 py-2 bg-white border border-slate-300 text-black font-bold rounded-lg text-sm placeholder:text-slate-400 outline-none focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
-                                    <button type="button" onClick={handlePostComment} className="bg-brand-600 text-white p-2 rounded-lg hover:bg-brand-500 transition-colors group">
+                                    <button type="button" onClick={handlePostComment} disabled={status === TaskStatus.DONE || !newComment.trim()} className="bg-brand-600 text-white p-2 rounded-lg hover:bg-brand-500 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed">
                                         <Send size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                     </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div >
                     {/* Footer */}
-                    <div className="px-6 py-4 bg-slate-800/80 border-t border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+                    < div className="px-6 py-4 bg-slate-800 border-t border-slate-700 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0" >
                         <div className="flex items-center gap-4">
                             {initialData && (
                                 <button
@@ -1387,7 +1663,8 @@ const TaskModal = ({
                                             onClose();
                                         }
                                     }}
-                                    className="text-red-400 hover:text-red-300 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-red-500/10 transition-all"
+                                    disabled={status === TaskStatus.DONE}
+                                    className="text-red-400 hover:text-red-300 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                     <Trash2 size={16} /> Excluir Tarefa
                                 </button>
@@ -1396,7 +1673,8 @@ const TaskModal = ({
                                 <button
                                     type="button"
                                     onClick={() => setShowCancelProtocol(true)}
-                                    className="text-slate-400 hover:text-rose-400 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-rose-500/10 transition-all"
+                                    disabled={status === TaskStatus.DONE}
+                                    className="text-slate-400 hover:text-rose-400 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-rose-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                     <Ban size={16} /> Cancelar Tarefa
                                 </button>
@@ -1404,11 +1682,11 @@ const TaskModal = ({
                         </div>
                         <div className="flex gap-3 w-full md:w-auto">
                             <button type="button" onClick={onClose} className="flex-1 md:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-700 transition-all">Descartar</button>
-                            <button type="submit" className="flex-1 md:flex-none px-8 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-black shadow-lg shadow-brand-900/40 transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <button type="submit" className="flex-1 md:flex-none px-8 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-black shadow-lg shadow-brand-900/40 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                 <Save size={18} /> {initialData ? 'Salvar Alterações' : 'Criar Tarefa'}
                             </button>
                         </div>
-                    </div>
+                    </div >
                 </form >
             </div >
 
@@ -1454,11 +1732,11 @@ const TaskModal = ({
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => setIsMapPickerOpen(false)}
+                                        onClick={handleConfirmMapPosition}
                                         className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl text-base font-black transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-900/40"
-                                        disabled={!geo}
+                                        disabled={!geo || locationSearching}
                                     >
-                                        Confirmar Posição
+                                        {locationSearching ? <Loader2 size={24} className="animate-spin mx-auto" /> : 'Confirmar Posição'}
                                     </button>
                                 </div>
                             </div>

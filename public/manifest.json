@@ -1,0 +1,17 @@
+{
+  "name": "AssisTecApp",
+  "short_name": "AssisTec",
+  "description": "Gestão de Tarefas e Assistência Técnica",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

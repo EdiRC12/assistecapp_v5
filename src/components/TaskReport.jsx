@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { X, Printer, Calendar, User, MapPin, Clock, CheckSquare, AlertCircle, Paperclip, Activity, TrendingUp, Eye, List, Settings } from 'lucide-react';
+import logo from '../assets/logo_plastimarau.png';
 
 const TaskReport = ({ task, data, onClose, currentUser }) => {
     const [viewMode, setViewMode] = useState('overview'); // 'overview', 'detailed', or 'custom'
@@ -383,11 +384,14 @@ const TaskReport = ({ task, data, onClose, currentUser }) => {
                 {/* Report Header */}
                 <div className="mb-8 pb-6 border-b-2 border-slate-300">
                     <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <h1 className="text-3xl font-bold text-slate-900 mb-2">AssisTecApp</h1>
-                            <p className="text-sm text-slate-600">
-                                Relatório de Tarefa - {viewMode === 'overview' ? 'Visão Geral' : viewMode === 'detailed' ? 'Detalhado' : 'Personalizado'}
-                            </p>
+                        <div className="flex items-center gap-4">
+                            <img src={logo} alt="Plastimarau" className="h-16 w-auto object-contain" />
+                            <div>
+                                <h1 className="text-3xl font-bold text-slate-900 mb-0">AssisTec</h1>
+                                <p className="text-sm text-slate-600 font-bold uppercase tracking-widest">
+                                    {viewMode === 'overview' ? 'Visão Geral' : viewMode === 'detailed' ? 'Detalhado' : 'Personalizado'}
+                                </p>
+                            </div>
                         </div>
                         <div className="text-right text-sm text-slate-600">
                             <p className="font-bold">Tarefa #{task.id}</p>
@@ -562,15 +566,15 @@ const TaskReport = ({ task, data, onClose, currentUser }) => {
                     </section>
                 )}
 
-                {/* Travel Details */}
-                {shouldShow('travels') && task.travels && task.travels.length > 0 && (
+                {(shouldShow('travels') && (task.travels?.length > 0 || task.visitation?.required)) && (
                     <section className="mb-8">
                         <h2 className="text-xl font-bold text-slate-800 mb-4 pb-2 border-b border-slate-300 flex items-center gap-2">
                             <MapPin size={20} className="text-brand-600" />
-                            Detalhes de Viagens ({task.travels.length})
+                            Controle de Deslocamento
                         </h2>
                         <div className="space-y-4">
-                            {task.travels.map((travel, index) => (
+                            {/* Specific travels */}
+                            {task.travels?.map((travel, index) => (
                                 <div key={travel.id || index} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                                     <div className="flex justify-between items-start mb-3">
                                         <h3 className="font-bold text-slate-900">Viagem {index + 1}</h3>
@@ -586,12 +590,35 @@ const TaskReport = ({ task, data, onClose, currentUser }) => {
                                         )}
                                     </div>
 
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
+                                        {(travel.vehicle || task.vehicle_info) && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Veículo</p>
+                                                <p className="text-sm font-semibold text-slate-700">{travel.vehicle || task.vehicle_info}</p>
+                                            </div>
+                                        )}
+                                        {(travel.km_end > 0 || task.trip_km_end > 0) && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">KM Percorrido</p>
+                                                <p className="text-sm font-semibold text-slate-700">{(travel.km_end || task.trip_km_end).toLocaleString()} KM</p>
+                                            </div>
+                                        )}
+                                        {(travel.cost > 0 || task.trip_cost > 0) && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Custo</p>
+                                                <p className="text-sm font-bold text-emerald-600">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: travel.currency || task.trip_cost_currency || 'BRL' }).format(travel.cost || task.trip_cost)}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {travel.team && travel.team.length > 0 && travel.team.some(t => t) && (
                                         <div className="mb-2">
-                                            <p className="text-xs font-bold text-slate-500 uppercase mb-1">Equipe</p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Equipe</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {travel.team.filter(t => t).map((member, idx) => (
-                                                    <span key={idx} className="text-sm bg-white px-2 py-1 rounded border border-slate-300">
+                                                    <span key={idx} className="text-xs bg-white px-2 py-0.5 rounded border border-slate-200">
                                                         {member}
                                                     </span>
                                                 ))}
@@ -600,16 +627,16 @@ const TaskReport = ({ task, data, onClose, currentUser }) => {
                                     )}
 
                                     {(travel.contacts || travel.role) && (
-                                        <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-300">
+                                        <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-slate-200">
                                             {travel.contacts && (
                                                 <div>
-                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Contato no Cliente</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase">Contato</p>
                                                     <p className="text-sm text-slate-700">{travel.contacts}</p>
                                                 </div>
                                             )}
                                             {travel.role && (
                                                 <div>
-                                                    <p className="text-xs font-bold text-slate-500 uppercase mb-1">Cargo</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase">Cargo</p>
                                                     <p className="text-sm text-slate-700">{travel.role}</p>
                                                 </div>
                                             )}
@@ -617,6 +644,35 @@ const TaskReport = ({ task, data, onClose, currentUser }) => {
                                     )}
                                 </div>
                             ))}
+
+                            {/* Task-level fallback if no specific travels but visitation is required */}
+                            {(!task.travels || task.travels.length === 0) && (task.vehicle_info || task.trip_km_end > 0 || task.trip_cost > 0) && (
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                    <h3 className="font-bold text-slate-900 mb-3 text-xs uppercase tracking-wider text-slate-400">Dados Gerais de Viagem</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        {task.vehicle_info && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Veículo</p>
+                                                <p className="text-sm font-semibold text-slate-700">{task.vehicle_info}</p>
+                                            </div>
+                                        )}
+                                        {task.trip_km_end > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">KM Percorrido</p>
+                                                <p className="text-sm font-semibold text-slate-700">{task.trip_km_end.toLocaleString()} KM</p>
+                                            </div>
+                                        )}
+                                        {task.trip_cost > 0 && (
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Custo</p>
+                                                <p className="text-sm font-bold text-emerald-600">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: task.trip_cost_currency || 'BRL' }).format(task.trip_cost)}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
                 )}

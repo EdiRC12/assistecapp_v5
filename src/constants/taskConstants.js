@@ -58,6 +58,14 @@ export const PriorityColors = {
     [Priority.HIGH]: 'bg-red-100 text-red-600',
 };
 
+export const StatusBgColors = {
+    [TaskStatus.TO_START]: 'bg-slate-100 border-slate-300',
+    [TaskStatus.IN_PROGRESS]: 'bg-blue-100 border-blue-300',
+    [TaskStatus.WAITING_CLIENT]: 'bg-amber-100 border-amber-300',
+    [TaskStatus.CANCELED]: 'bg-red-100 border-red-300',
+    [TaskStatus.DONE]: 'bg-emerald-100 border-emerald-300',
+};
+
 export const StageStatusLabels = {
     NOT_STARTED: 'Não Iniciada',
     IN_PROGRESS: 'Em Andamento',

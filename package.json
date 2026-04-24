@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "serve dist -s -l tcp://0.0.0.0:$PORT"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -21,6 +22,7 @@
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
     "react-to-print": "^3.2.0",
+    "serve": "^14.2.6",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

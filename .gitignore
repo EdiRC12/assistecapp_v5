@@ -46,3 +46,27 @@ Thumbs.db
 projeto_completo.txt
 *.backup
 .gemini/
+
+# Debug/utility scripts (local dev only)
+build_debug.log
+build_log.txt
+build_output.txt
+esbuild_reports_error.txt
+file_list.txt
+schema_update.sql
+schema_utf8.sql
+check_*.js
+check_*.cjs
+check-*.js
+debug_build.js
+diagnose_*.js
+diagnose_*.mjs
+find_tables.js
+scan_build.js
+verify_counts.mjs
+purge-data.js
+reset-app-data.mjs
+test-simple.js
+test-supabase.js
+supabase_types.ts
+scratch/
