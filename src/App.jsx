@@ -347,10 +347,6 @@ const App = () => {
         }
     };
 
-    useEffect(() => {
-        fetchGlobalClients();
-    }, []);
-
     const isToday = (dateStr) => {
         if (!dateStr) return false;
         try {
