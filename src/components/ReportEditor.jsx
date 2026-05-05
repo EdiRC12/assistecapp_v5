@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Sparkles, Loader2, Plus, X, Paperclip, FileText, Trash2, Eye, CheckCircle2, AlertCircle, FileDown, Save, Printer, CheckCircle, Edit, ClipboardList, Copy, Check } from 'lucide-react';
 import { generateReportWithGemini, refineReportText, buildAIDataPackage, generateNativeReportFallback } from '../services/aiService';
 import { supabase } from '../supabaseClient';

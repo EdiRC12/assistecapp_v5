@@ -304,7 +304,7 @@ const SacView = ({
             // Agora que o SQL foi executado, o banco aceita todos os campos.
             // Limpamos apenas campos internos e de controle que não devem ser persistidos ou que o banco gera automaticamente.
             const internalFields = [
-                'id', 'created_at', 'rnc_records', 'is_audited', 'rnc_id', 
+                'id', 'created_at', 'rnc_records', 'is_audited',
                 'converted_to_task_id', 'is_test'
             ];
 
@@ -364,6 +364,19 @@ const SacView = ({
                 }
                 savedSacId = insertedTicket?.id;
                 if (notifySuccess) notifySuccess('Sucesso', 'Atendimento registrado com sucesso.');
+            } else {
+                // UPDATE logic
+                console.log('[SacView] Atualizando sac_tickets (Payload Final):', payload);
+                const { error: updateError } = await supabase
+                    .from('sac_tickets')
+                    .update(payload)
+                    .eq('id', selectedTicket.id);
+
+                if (updateError) {
+                    console.error('[SacView] Erro Supabase no Update:', updateError);
+                    throw updateError;
+                }
+                if (notifySuccess) notifySuccess('Sucesso', 'Atendimento atualizado com sucesso.');
             }
 
             // --- SINCRONIZAÇÃO DE DEVOLUÇÕES ---

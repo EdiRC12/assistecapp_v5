@@ -413,7 +413,7 @@ const ServiceJourneyReport = ({
                                 Auditoria Técnica Profissional
                             </h2>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                {journey.sac?.is_followup ? `DOSSIÊ #${journey.sac.followup_number}` : journey.sac?.is_virtual ? 'MONITORAMENTO DIRETO' : `SAC #${journey.sac?.appointment_number}`} • {effectiveClientName} • Jornada Auditada
+                                {journey.sac?.is_followup ? `DOSSIÊ #${journey.sac.followup_number}` : journey.sac?.is_ri ? `RI #${journey.sac?.appointment_number}` : journey.sac?.is_virtual ? 'MONITORAMENTO DIRETO' : `OT #${journey.sac?.appointment_number || journey.rnc?.rnc_number}`} • {effectiveClientName} • Jornada Auditada
                             </p>
                         </div>
                     </div>

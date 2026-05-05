@@ -9,7 +9,8 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
         if (catId === 'SERVICE_JOURNEY') {
             if (task.followup_id) return 'Dossiê (Acompanhamento)';
             if (task.rnc_id) return 'RNC (Não Conformidade)';
-            if (task.sac_id) return 'SAC (Atendimento)';
+            if (task.ri_id) return 'RI (Registro de Interação)';
+            if (task.sac_id) return 'OT (Ocorrência Técnica)';
             return 'Jornada de Atendimento';
         }
         const type = taskTypes?.find(t => t.id === catId || t.name === catId);
@@ -25,7 +26,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                     <div className="text-right">
                         <h1 className="text-2xl font-black text-brand-600 tracking-tighter leading-none mb-1">AssisTec</h1>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                            {isFinalized ? 'Relatório Técnico Final' : 'Relatório Técnico Parcial'}
+                            {isFinalized ? 'Relatório Técnico Final' : 'Relatório Técnico Parcial'} | {getCategoryName(task.category).split(' ')[0]}
                         </p>
                         {String(task.appointment_number || '').includes('/') && (
                             <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest mt-1">

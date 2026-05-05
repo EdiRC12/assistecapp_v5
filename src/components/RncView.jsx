@@ -332,8 +332,10 @@ const RncView = ({ currentUser, allClients = [], onNewTask, onTasksUpdate, onOpe
         try {
             // Sanitização do payload para rnc_records
             const payload = { ...newRnc };
-            delete payload.sac_tickets;
-            delete payload.is_audited;
+            
+            // Campos internos que não devem ser enviados ou que o banco gera
+            const internalFields = ['id', 'created_at', 'sac_tickets', 'is_audited', 'is_test'];
+            internalFields.forEach(f => delete payload[f]);
 
             // Converter strings vazias para null em campos de data
             // Evita erro "invalid input syntax for type date" no Postgres/Supabase

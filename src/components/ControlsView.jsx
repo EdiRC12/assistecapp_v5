@@ -763,6 +763,17 @@ const ControlsView = ({
 
             const payload = { ...cleanPayload, user_id: currentUser.id };
 
+            // Sanitização Estrita de Campos Numéricos (Evita erro 22P02 do PostgreSQL)
+            const numericFields = [
+                'produced_quantity', 'volumes', 'op_cost', 'unit_cost', 
+                'gross_total_cost', 'quantity_billed'
+            ];
+            numericFields.forEach(field => {
+                if (payload[field] === '' || payload[field] === undefined) {
+                    payload[field] = null;
+                }
+            });
+
             if (activeTab === 'tests') {
                 payload.status = payload.status || 'AGUARDANDO';
                 payload.status_color = payload.status_color || '#94a3b8';
@@ -992,9 +1003,19 @@ const ControlsView = ({
             ];
 
             const updatePayload = {};
+            const numericFields = [
+                'produced_quantity', 'volumes', 'op_cost', 'unit_cost', 
+                'gross_total_cost', 'quantity_billed'
+            ];
+
             techTestsColumns.forEach(col => {
                 if (rawPayload[col] !== undefined) {
-                    updatePayload[col] = rawPayload[col];
+                    let val = rawPayload[col];
+                    // Sanitização para campos numéricos
+                    if (numericFields.includes(col) && (val === '' || val === undefined)) {
+                        val = null;
+                    }
+                    updatePayload[col] = val;
                 }
             });
             updatePayload.updated_at = new Date().toISOString();
@@ -1341,6 +1362,7 @@ const ControlsView = ({
                 onSave={handleSaveNewRecord}
                 isSaving={isSaving}
                 allClients={allClients}
+                registeredClients={allClients}
                 users={users}
 
                 onRegisterClient={handleRegisterClient}

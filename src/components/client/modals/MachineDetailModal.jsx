@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Factory, Edit2, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Factory, Edit2, Save, ChevronLeft, ChevronRight, Camera, Trash2 } from 'lucide-react';
 
 const MachineDetailModal = ({
     selectedMachineForView,
@@ -11,20 +11,157 @@ const MachineDetailModal = ({
     handleEnterEditMode,
     handleSaveMachineDetails
 }) => {
+    const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+    // Reseta o index ao mudar de máquina ou entrar em edição
+    useEffect(() => {
+        setCurrentPhotoIndex(0);
+    }, [selectedMachineForView?.id, isEditingMachineDetails]);
+
     if (!selectedMachineForView) return null;
+
+    // Helper para extrair fotos de forma resiliente
+    const getPhotosList = (machine) => {
+        if (machine.photos && Array.isArray(machine.photos) && machine.photos.length > 0) {
+            return machine.photos;
+        }
+        if (machine.photo) {
+            // Tenta detectar se o campo 'photo' contém um JSON de array (fallback)
+            if (typeof machine.photo === 'string' && machine.photo.startsWith('[') && machine.photo.endsWith(']')) {
+                try {
+                    const parsed = JSON.parse(machine.photo);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (e) {
+                    return [machine.photo];
+                }
+            }
+            return [machine.photo];
+        }
+        return [];
+    };
+
+    const photos = isEditingMachineDetails 
+        ? (machineEditForm.photos || []) 
+        : getPhotosList(selectedMachineForView);
+
+    const nextPhoto = (e) => {
+        e.stopPropagation();
+        setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
+    };
+
+    const prevPhoto = (e) => {
+        e.stopPropagation();
+        setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
+    };
+
+    const handleEditPhotoChange = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        const currentPhotos = machineEditForm.photos || [];
+        if (currentPhotos.length >= 6) return;
+
+        const remainingSlots = 6 - currentPhotos.length;
+        const filesToProcess = files.slice(0, remainingSlots);
+
+        // Import helper inside or assume it exists in scope (actually it's in ClientHistoryView)
+        // Since this is a separate component, we expect the parent to handle it if needed,
+        // but here we can implement a local version of convertFileToBase64 if necessary
+        const convertToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        };
+
+        try {
+            const base64Array = await Promise.all(filesToProcess.map(file => convertToBase64(file)));
+            setMachineEditForm(prev => ({
+                ...prev,
+                photos: [...(prev.photos || []), ...base64Array]
+            }));
+        } catch (err) {
+            console.error('Error adding photos in edit mode:', err);
+        }
+    };
+
+    const removeEditPhoto = (index) => {
+        const updated = (machineEditForm.photos || []).filter((_, i) => i !== index);
+        setMachineEditForm({ ...machineEditForm, photos: updated });
+        if (currentPhotoIndex >= updated.length && updated.length > 0) {
+            setCurrentPhotoIndex(updated.length - 1);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8">
             <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setSelectedMachineForView(null); setIsEditingMachineDetails(false); }} />
             <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-[32px] overflow-hidden shadow-2xl relative z-10 flex flex-col md:flex-row animate-in zoom-in-95 duration-300">
-                {/* Foto Ampliada (60%) */}
+                
+                {/* Galeria de Fotos (60%) */}
                 <div className="w-full md:w-3/5 bg-slate-900 relative group overflow-hidden flex items-center justify-center">
-                    {selectedMachineForView.photo ? (
-                        <img src={selectedMachineForView.photo} alt={selectedMachineForView.name} className="w-full h-full object-contain" />
+                    {photos.length > 0 ? (
+                        <div className="w-full h-full relative">
+                            <img 
+                                src={photos[currentPhotoIndex]} 
+                                alt={selectedMachineForView.name} 
+                                className="w-full h-full object-contain animate-in fade-in duration-500" 
+                                key={currentPhotoIndex}
+                            />
+                            
+                            {/* Navegação */}
+                            {photos.length > 1 && (
+                                <>
+                                    <button onClick={prevPhoto} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-2 rounded-full transition-all">
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                    <button onClick={nextPhoto} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white p-2 rounded-full transition-all">
+                                        <ChevronRight size={24} />
+                                    </button>
+                                    
+                                    {/* Indicadores */}
+                                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                        {photos.map((_, i) => (
+                                            <div 
+                                                key={i} 
+                                                className={`h-1.5 rounded-full transition-all ${i === currentPhotoIndex ? 'w-6 bg-brand-500' : 'w-1.5 bg-white/30'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Controles de Edição na Foto */}
+                            {isEditingMachineDetails && (
+                                <div className="absolute top-6 right-6 flex gap-2">
+                                    <button 
+                                        onClick={() => removeEditPhoto(currentPhotoIndex)}
+                                        className="bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-xl backdrop-blur-md transition-all shadow-lg"
+                                        title="Remover esta foto"
+                                    >
+                                        <Trash2 size={20} />
+                                    </button>
+                                    {photos.length < 6 && (
+                                        <label className="bg-brand-600/80 hover:bg-brand-600 text-white p-2 rounded-xl backdrop-blur-md transition-all shadow-lg cursor-pointer">
+                                            <Camera size={20} />
+                                            <input type="file" className="hidden" accept="image/*" multiple onChange={handleEditPhotoChange} />
+                                        </label>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-700">
                             <Factory size={120} strokeWidth={1} />
                             <span className="text-sm font-bold mt-4 uppercase tracking-[0.2em] opacity-40">Sem Foto Cadastrada</span>
+                            {isEditingMachineDetails && (
+                                <label className="mt-6 bg-brand-600 text-white px-6 py-3 rounded-2xl font-bold uppercase text-xs tracking-widest cursor-pointer hover:bg-brand-500 transition-all">
+                                    Adicionar Foto
+                                    <input type="file" className="hidden" accept="image/*" multiple onChange={handleEditPhotoChange} />
+                                </label>
+                            )}
                         </div>
                     )}
 
@@ -35,9 +172,9 @@ const MachineDetailModal = ({
                         <X size={24} />
                     </button>
 
-                    {selectedMachineForView.photo && (
+                    {photos.length > 0 && (
                         <div className="absolute bottom-6 left-6 bg-black/60 backdrop-blur-xl px-4 py-2 rounded-2xl text-[10px] font-black text-white uppercase tracking-widest border border-white/10">
-                            Visualização Ampliada
+                            Foto {currentPhotoIndex + 1} de {photos.length}
                         </div>
                     )}
                 </div>
@@ -45,7 +182,7 @@ const MachineDetailModal = ({
                 {/* Informações e Edição (40%) */}
                 <div className="w-full md:w-2/5 p-10 flex flex-col bg-white border-l border-slate-100 overflow-y-auto">
                     <div className="mb-10 flex justify-between items-start">
-                        <div>
+                        <div className="flex-1 mr-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <div className="p-2 bg-brand-50 text-brand-600 rounded-xl">
                                     <Factory size={22} />
@@ -69,7 +206,7 @@ const MachineDetailModal = ({
                                 onClick={handleEnterEditMode}
                                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-brand-600 hover:text-white text-slate-600 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm active:scale-95 border border-slate-200"
                             >
-                                <Edit2 size={14} /> Reabrir Cadastro
+                                <Edit2 size={14} /> Editar
                             </button>
                         )}
                     </div>
