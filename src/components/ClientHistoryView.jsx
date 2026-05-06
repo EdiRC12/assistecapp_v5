@@ -345,9 +345,11 @@ const sortAlphaNum = (a, b) => {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 };
 
-const sortedClients = useMemo(() => {
-    return clientsData.map(c => c.name).sort(sortAlphaNum);
-}, [clientsData]);
+    const sortedClients = useMemo(() => {
+        // Garantir que a lista seja única mesmo se houver duplicatas no banco
+        const uniqueNames = Array.from(new Set(clientsData.map(c => c.name)));
+        return uniqueNames.sort(sortAlphaNum);
+    }, [clientsData]);
 
 const filteredClients = sortedClients.filter(c => {
     const matchesSearch = c.toLowerCase().includes(searchTerm.toLowerCase());

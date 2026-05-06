@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2
+    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2, Unlink
 } from 'lucide-react';
 import {
     TaskStatus, StatusLabels, CategoryLabels, StatusColors
@@ -9,7 +9,7 @@ import { supabase } from '../supabaseClient';
 
 import useIsMobile from '../hooks/useIsMobile';
 
-const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView }) => {
+const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView, fetchTasks }) => {
     const isMobile = useIsMobile();
     const [filters, setFilters] = useState({ client: initialClientFilter, status: '', team: '', date: '', dateMode: 'ALL', category: '', incident: '' });
 
@@ -25,6 +25,27 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
     const [selectedTripForDetail, setSelectedTripForDetail] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [newParticipantName, setNewParticipantName] = useState('');
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedTrips, setSelectedTrips] = useState([]); // Array of trip IDs
+    const [isProrationModalOpen, setIsProrationModalOpen] = useState(false);
+    const [prorationData, setProrationData] = useState({
+        km_total: 0,
+        cost_fuel: 0,
+        cost_lodging: 0,
+        cost_food: 0,
+        cost_extra: 0,
+        cost_airfare: 0,
+        cost_car_rental: 0,
+        vehicle: '',
+        currency: 'BRL',
+        fine_amount: 0,
+        fine_distribution: 'PRORATE',
+        fine_target_id: '',
+        occurrence_name: '',
+        occurrence_cost: 0,
+        occurrence_distribution: 'PRORATE',
+        occurrence_target_id: ''
+    });
 
     const fetchOccurrenceTypes = async () => {
         const { data } = await supabase.from('travel_occurrence_types').select('*').order('name');
@@ -81,6 +102,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         cost_airfare: t.cost_airfare || 0,
                         cost_car_rental: t.cost_car_rental || 0,
                         additional_participants: t.additional_participants || '',
+                        status: t.status || 'PROGRAMADA',
+                        group_id: t.group_id,
+                        group_name: t.group_name,
                         isSpecific: true
                     });
                 });
@@ -113,6 +137,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     cost_car_rental: task.cost_car_rental || 0,
                     parent_test_id: task.parent_test_id,
                     parent_test_number: task.parent_test_number, 
+                    status: 'PROGRAMADA',
+                    group_id: task.group_id,
+                    group_name: task.group_name,
                     isSpecific: false
                 });
             }
@@ -433,6 +460,283 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         setShowDetailModal(true);
     };
 
+    const handleApplyProration = async () => {
+        if (!prorationData.vehicle) {
+            notifyError('Campo obrigatório', 'Selecione um veículo para o rateio.');
+            return;
+        }
+
+        const confirm = window.confirm(`Você está prestes a ratear os custos entre ${selectedTrips.length} visitas. Isto irá sobrescrever os dados atuais de KM e Custos destas tarefas. Confirmar?`);
+        if (!confirm) return;
+
+        setIsSaving(true);
+        try {
+            const count = selectedTrips.length;
+            const prorated = {
+                km: (parseFloat(prorationData.km_total) || 0) / count,
+                fuel: (parseFloat(prorationData.cost_fuel) || 0) / count,
+                lodging: (parseFloat(prorationData.cost_lodging) || 0) / count,
+                food: (parseFloat(prorationData.cost_food) || 0) / count,
+                extra: (parseFloat(prorationData.cost_extra) || 0) / count,
+                airfare: (parseFloat(prorationData.cost_airfare) || 0) / count,
+                car_rental: (parseFloat(prorationData.cost_car_rental) || 0) / count,
+                fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) || 0) / count : 0,
+                occurrence_cost: prorationData.occurrence_distribution === 'PRORATE' ? (parseFloat(prorationData.occurrence_cost) || 0) / count : 0
+            };
+
+            const groupId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+            const groupName = prorationData.group_name || `Rateio ${new Date().toLocaleDateString()} - ${count} Visitas`;
+
+            // Encontrar todas as tarefas afetadas
+            const affectedTasks = tasks.filter(task => 
+                task.travels?.some(tr => selectedTrips.includes(tr.id)) ||
+                (task.visitation?.required && selectedTrips.includes(task.id + '_main'))
+            );
+
+            const updates = affectedTasks.map(async task => {
+                let updatePayload = {};
+                const currentTravels = [...(task.travels || [])];
+                let changed = false;
+
+                // Se for viagem específica
+                currentTravels.forEach((tr, idx) => {
+                    if (selectedTrips.includes(tr.id)) {
+                        const isFineTarget = prorationData.fine_distribution === 'SINGLE' && prorationData.fine_target_id === tr.id;
+                        const isOccTarget = prorationData.occurrence_distribution === 'SINGLE' && prorationData.occurrence_target_id === tr.id;
+
+                        currentTravels[idx] = {
+                            ...tr,
+                            km_end: prorated.km,
+                            cost: prorated.fuel + prorated.lodging + prorated.food + prorated.extra + prorated.airfare + prorated.car_rental + prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0) + prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0),
+                            cost_fuel: prorated.fuel,
+                            cost_lodging: prorated.lodging,
+                            cost_food: prorated.food,
+                            cost_extra: prorated.extra,
+                            cost_airfare: prorated.airfare,
+                            cost_car_rental: prorated.car_rental,
+                            vehicle: prorationData.vehicle,
+                            group_id: groupId,
+                            group_name: groupName,
+                            is_finalized: true,
+                            // Multas e Ocorrências
+                            has_fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) > 0) : isFineTarget,
+                            fine_amount: prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0),
+                            occurrence: prorationData.occurrence_name || tr.occurrence,
+                            occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0)
+                        };
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    updatePayload = { travels: currentTravels };
+                } else if (selectedTrips.includes(task.id + '_main')) {
+                    // Viagem genérica
+                    const isFineTarget = prorationData.fine_distribution === 'SINGLE' && prorationData.fine_target_id === task.id + '_main';
+                    const isOccTarget = prorationData.occurrence_distribution === 'SINGLE' && prorationData.occurrence_target_id === task.id + '_main';
+
+                     updatePayload = {
+                        trip_km_end: prorated.km,
+                        trip_cost: prorated.fuel + prorated.lodging + prorated.food + prorated.extra + prorated.airfare + prorated.car_rental + prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0) + prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0),
+                        cost_fuel: prorated.fuel,
+                        cost_lodging: prorated.lodging,
+                        cost_food: prorated.food,
+                        cost_extra: prorated.extra,
+                        cost_airfare: prorated.airfare,
+                        cost_car_rental: prorated.car_rental,
+                        vehicle_info: prorationData.vehicle,
+                        group_id: groupId,
+                        group_name: groupName,
+                        trip_info_finalized: true,
+                        // Multas e Ocorrências
+                        has_fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) > 0) : isFineTarget,
+                        fine_amount: prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0),
+                        occurrence: prorationData.occurrence_name,
+                        occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0)
+                    };
+                }
+
+                if (Object.keys(updatePayload).length > 0) {
+                    await supabase.from('tasks').update(updatePayload).eq('id', task.id);
+                    
+                    // Sincronizar custos de engenharia
+                    if (task.parent_test_id) {
+                         const { data: testData } = await supabase.from('tech_tests').select('op_cost').eq('id', task.parent_test_id).single();
+                         if (testData) {
+                             const travelsCost = (updatePayload.travels || task.travels || []).reduce((acc, tr) => acc + (parseFloat(tr.cost) || 0), 0);
+                             const manualTripCost = parseFloat(updatePayload.trip_cost !== undefined ? updatePayload.trip_cost : task.trip_cost) || 0;
+                             const newGrossTotal = parseFloat(testData.op_cost || 0) + travelsCost + manualTripCost;
+                             await supabase.from('tech_tests').update({ gross_total_cost: newGrossTotal }).eq('id', task.parent_test_id);
+                         }
+                    }
+                }
+            });
+
+            await Promise.all(updates);
+            
+            if (fetchTasks) await fetchTasks();
+            if (onUpdateTests) await onUpdateTests();
+            
+            setIsProrationModalOpen(false);
+            setSelectionMode(false);
+            setSelectedTrips([]);
+            notifySuccess('Rateio Concluído!', 'Os custos foram distribuídos entre as viagens selecionadas.');
+        } catch (error) {
+            console.error('Error applying proration:', error);
+            notifyError('Erro no Rateio', 'Não foi possível aplicar o rateio nas tarefas.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDetachFromGroup = async (targetTrip) => {
+        if (!targetTrip.group_id) return;
+
+        const confirm = window.confirm(`Deseja desvincular esta visita do grupo "${targetTrip.group_name}"?\n\nOs custos das visitas restantes neste grupo serão recalculados automaticamente.`);
+        if (!confirm) return;
+
+        setIsSaving(true);
+        try {
+            // 1. Encontrar todos os membros do grupo ATUALMENTE no sistema (baseado no memo 'trips')
+            const allMembers = trips.filter(t => t.group_id === targetTrip.group_id);
+            const remainingMembers = allMembers.filter(t => t.id !== targetTrip.id);
+
+            // 2. Calcular valores totais para redistribuição
+            const sample = allMembers[0];
+            const prevCount = allMembers.length;
+            const totalKm = (parseFloat(sample.trip_km_end) || 0) * prevCount;
+            const totalFuel = (parseFloat(sample.cost_fuel) || 0) * prevCount;
+            const totalLodging = (parseFloat(sample.cost_lodging) || 0) * prevCount;
+            const totalFood = (parseFloat(sample.cost_food) || 0) * prevCount;
+            const totalExtra = (parseFloat(sample.cost_extra) || 0) * prevCount;
+            const totalAirfare = (parseFloat(sample.cost_airfare) || 0) * prevCount;
+            const totalCarRental = (parseFloat(sample.cost_car_rental) || 0) * prevCount;
+
+            const newCount = remainingMembers.length;
+            const newProrated = {
+                km: totalKm / (newCount || 1),
+                fuel: totalFuel / (newCount || 1),
+                lodging: totalLodging / (newCount || 1),
+                food: totalFood / (newCount || 1),
+                extra: totalExtra / (newCount || 1),
+                airfare: totalAirfare / (newCount || 1),
+                car_rental: totalCarRental / (newCount || 1),
+            };
+
+            // 3. Agrupar TODAS as tarefas que precisam de atualização
+            const tasksToUpdate = {}; // taskId -> payload
+
+            // Função auxiliar para inicializar payload de uma tarefa
+            const getTaskInit = (taskId) => {
+                if (tasksToUpdate[taskId]) return tasksToUpdate[taskId];
+                const t = tasks.find(tk => tk.id === taskId);
+                if (!t) return null;
+                tasksToUpdate[taskId] = {
+                    id: taskId,
+                    travels: t.travels ? [...t.travels] : [],
+                    updates: {}
+                };
+                return tasksToUpdate[taskId];
+            };
+
+            // Processar remanescentes
+            for (const m of remainingMembers) {
+                const ctx = getTaskInit(m.taskId);
+                if (!ctx) continue;
+
+                if (m.isSpecific) {
+                    const trIdx = ctx.travels.findIndex(tr => tr.id === m.id);
+                    if (trIdx !== -1) {
+                        ctx.travels[trIdx] = {
+                            ...ctx.travels[trIdx],
+                            km_end: newProrated.km,
+                            cost_fuel: newProrated.fuel,
+                            cost_lodging: newProrated.lodging,
+                            cost_food: newProrated.food,
+                            cost_extra: newProrated.extra,
+                            cost_airfare: newProrated.airfare,
+                            cost_car_rental: newProrated.car_rental,
+                            cost: newProrated.fuel + newProrated.lodging + newProrated.food + newProrated.extra + newProrated.airfare + newProrated.car_rental + (parseFloat(ctx.travels[trIdx].fine_amount) || 0) + (parseFloat(ctx.travels[trIdx].occurrence_cost) || 0)
+                        };
+                        if (newCount === 1) {
+                            ctx.travels[trIdx].group_id = null;
+                            ctx.travels[trIdx].group_name = null;
+                        }
+                    }
+                } else {
+                    ctx.updates = {
+                        ...ctx.updates,
+                        trip_km_end: newProrated.km,
+                        cost_fuel: newProrated.fuel,
+                        cost_lodging: newProrated.lodging,
+                        cost_food: newProrated.food,
+                        cost_extra: newProrated.extra,
+                        cost_airfare: newProrated.airfare,
+                        cost_car_rental: newProrated.car_rental,
+                        trip_cost: newProrated.fuel + newProrated.lodging + newProrated.food + newProrated.extra + newProrated.airfare + newProrated.car_rental + (parseFloat(tasks.find(tk => tk.id === m.taskId)?.fine_amount) || 0) + (parseFloat(tasks.find(tk => tk.id === m.taskId)?.occurrence_cost) || 0)
+                    };
+                    if (newCount === 1) {
+                        ctx.updates.group_id = null;
+                        ctx.updates.group_name = null;
+                    }
+                }
+            }
+
+            // Processar a desvinculação (target)
+            const targetCtx = getTaskInit(targetTrip.taskId);
+            if (targetCtx) {
+                if (targetTrip.isSpecific) {
+                    const trIdx = targetCtx.travels.findIndex(tr => tr.id === targetTrip.id);
+                    if (trIdx !== -1) {
+                        targetCtx.travels[trIdx] = {
+                            ...targetCtx.travels[trIdx],
+                            group_id: null, group_name: null,
+                            cost: 0, cost_fuel: 0, cost_lodging: 0, cost_food: 0, cost_extra: 0, cost_airfare: 0, cost_car_rental: 0, km_end: 0
+                        };
+                    }
+                } else {
+                    targetCtx.updates = {
+                        ...targetCtx.updates,
+                        group_id: null, group_name: null,
+                        trip_cost: 0, cost_fuel: 0, cost_lodging: 0, cost_food: 0, cost_extra: 0, cost_airfare: 0, cost_car_rental: 0, trip_km_end: 0
+                    };
+                }
+            }
+
+            // 4. Executar atualizações em lote por tarefa
+            for (const taskId in tasksToUpdate) {
+                const ctx = tasksToUpdate[taskId];
+                const finalPayload = { ...ctx.updates };
+                if (ctx.travels.length > 0) finalPayload.travels = ctx.travels;
+
+                if (Object.keys(finalPayload).length > 0) {
+                    const t = tasks.find(tk => tk.id === taskId);
+                    await supabase.from('tasks').update(finalPayload).eq('id', taskId);
+
+                    // Sincronizar custos de engenharia se necessário
+                    if (t?.parent_test_id) {
+                        const { data: testData } = await supabase.from('tech_tests').select('op_cost').eq('id', t.parent_test_id).single();
+                        if (testData) {
+                            const travelsCost = (finalPayload.travels || t.travels || []).reduce((acc, tr) => acc + (parseFloat(tr.cost) || 0), 0);
+                            const manualTripCost = parseFloat(finalPayload.trip_cost !== undefined ? finalPayload.trip_cost : t.trip_cost) || 0;
+                            const newGrossTotal = parseFloat(testData.op_cost || 0) + travelsCost + manualTripCost;
+                            await supabase.from('tech_tests').update({ gross_total_cost: newGrossTotal }).eq('id', t.parent_test_id);
+                        }
+                    }
+                }
+            }
+
+            if (fetchTasks) await fetchTasks();
+            if (onUpdateTests) await onUpdateTests();
+            notifySuccess('Desvinculado!', 'A visita foi removida e os custos foram recalculados.');
+        } catch (error) {
+            console.error('Error detaching:', error);
+            notifyError('Erro ao Desvincular', 'Falha no recálculo dos custos.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return (
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${isMeetingView ? 'h-full' : (isMobile ? 'h-full' : 'h-[calc(100vh-8rem)]')} flex flex-col overflow-hidden relative`}>
             {/* Header & Tabs */}
@@ -481,6 +785,35 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         )}
                         <button onClick={handlePrint} className="flex items-center gap-1.5 md:gap-2 bg-slate-800 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl text-[9px] md:text-sm font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 shadow-lg"><Download size={isMobile ? 14 : 16} /> {isMobile ? 'Exportar' : 'Exportar Excel'}</button>
                     </div>
+                </div>
+
+                {/* Selection & Action Bar */}
+                <div className={`flex items-center justify-between gap-2 mb-2 p-2 rounded-xl border border-dashed transition-all ${selectionMode ? 'bg-indigo-50 border-indigo-200' : 'bg-transparent border-transparent'}`}>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => {
+                                setSelectionMode(!selectionMode);
+                                if (selectionMode) setSelectedTrips([]);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectionMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                        >
+                            {selectionMode ? <X size={12} /> : <ClipboardList size={12} />}
+                            {selectionMode ? 'Cancelar Seleção' : 'Selecionar Para Rateio'}
+                        </button>
+                        {selectionMode && selectedTrips.length > 0 && (
+                            <span className="text-[10px] font-bold text-indigo-600 animate-pulse">
+                                {selectedTrips.length} viagem(ns) selecionada(s)
+                            </span>
+                        )}
+                    </div>
+                    {selectionMode && selectedTrips.length >= 2 && (
+                        <button 
+                            onClick={() => setIsProrationModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-1.5 bg-brand-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-brand-700 shadow-lg shadow-brand-500/20 active:scale-95 transition-all"
+                        >
+                            <DollarSign size={12} /> Lançar Rateio Entre {selectedTrips.length} Visitas
+                        </button>
+                    )}
                 </div>
 
                 {/* Filters Row */}
@@ -537,6 +870,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm print:shadow-none">
                                 <tr>
+                                    {selectionMode && <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 w-10"></th>}
                                     <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">Data</th>
                                     <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">Cliente / Local</th>
                                     <th className="p-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">Detalhes</th>
@@ -555,9 +889,26 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         return (
                                             <React.Fragment key={idx}>
                                                 <tr 
-                                                    onDoubleClick={() => handleOpenDetail(trip)}
-                                                    className={`hover:bg-slate-50 transition-colors cursor-pointer ${isEditing ? 'bg-brand-50/30' : ''}`}
+                                                    onClick={() => {
+                                                        if (selectionMode) {
+                                                            setSelectedTrips(prev => 
+                                                                prev.includes(trip.id) 
+                                                                    ? prev.filter(id => id !== trip.id) 
+                                                                    : [...prev, trip.id]
+                                                            );
+                                                        } else {
+                                                            handleOpenDetail(trip);
+                                                        }
+                                                    }}
+                                                    className={`hover:bg-slate-50 transition-colors cursor-pointer ${isEditing ? 'bg-brand-50/30' : ''} ${selectionMode && selectedTrips.includes(trip.id) ? 'bg-indigo-50/50' : ''}`}
                                                 >
+                                                    {selectionMode && (
+                                                        <td className="p-4 align-top">
+                                                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedTrips.includes(trip.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
+                                                                {selectedTrips.includes(trip.id) && <CheckCircle2 size={12} />}
+                                                            </div>
+                                                        </td>
+                                                    )}
                                                     <td className="p-4 align-top">
                                                         <div className="flex flex-col">
                                                             <span className={`text-xs font-bold ${!trip.isDateDefined ? 'text-amber-600' : 'text-slate-700'}`}>
@@ -569,6 +920,11 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     <td className="p-4 align-top">
                                                         <div className="font-bold text-xs text-slate-800">{trip.client}</div>
                                                         <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-1"><MapPin size={10} /> {trip.location || 'Local não definido'}</div>
+                                                        {trip.group_id && (
+                                                            <div className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter mt-1 flex items-center gap-1">
+                                                                <DollarSign size={10} /> {trip.group_name}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="p-4 align-top">
                                                         <div className="flex flex-col gap-1">
@@ -578,9 +934,12 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     {trip.parent_test_number || 'ENGENHARIA'}
                                                                 </div>
                                                             )}
-                                                            <div className="flex items-center gap-1.5 mt-1">
-                                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase border ${StatusColors[trip.taskStatus]}`}>
-                                                                    {StatusLabels[trip.taskStatus]}
+                                                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase shadow-sm border ${trip.status === 'FINALIZADA' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-blue-600 text-white border-blue-700'}`}>
+                                                                    VIAGEM: {trip.status}
+                                                                </span>
+                                                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase border ${StatusColors[trip.taskStatus]}`}>
+                                                                    TAREFA: {StatusLabels[trip.taskStatus]}
                                                                 </span>
                                                                 {trip.has_fine && (
                                                                     <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded text-[9px] font-black border border-rose-200" title="Possui Multa">
@@ -763,7 +1122,16 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     </button>
                                                                 </>
                                                             ) : (
-                                                                <>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {trip.group_id && (
+                                                                        <button
+                                                                            onClick={() => handleDetachFromGroup(trip)}
+                                                                            className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                                                                            title="Desvincular do Rateio"
+                                                                        >
+                                                                            <Unlink size={14} />
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         onClick={() => handleStartEdit(idx, trip)}
                                                                         className="p-1.5 bg-brand-50 text-brand-600 hover:bg-brand-100 rounded transition-colors"
@@ -778,7 +1146,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     >
                                                                         <ExternalLink size={14} />
                                                                     </button>
-                                                                </>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </td>
@@ -1510,6 +1878,257 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 className="px-8 py-3 bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-slate-700 transition-all flex items-center gap-2 shadow-lg active:scale-95"
                             >
                                 <CheckCircle2 size={16} /> Fechar Visualização
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Proration Modal */}
+            {isProrationModalOpen && (
+                <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+                        <div className="bg-indigo-600 p-6 flex justify-between items-center">
+                            <div className="flex items-center gap-3 text-white">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <DollarSign size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight">Rateio Consolidado</h3>
+                                    <p className="text-xs text-indigo-100 font-medium">Distribuir custos entre {selectedTrips.length} visitas</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsProrationModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Nome da Viagem / Grupo</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Ex: Viagem São Paulo - Maio/2024"
+                                        value={prorationData.group_name || ''}
+                                        onChange={e => setProrationData(p => ({ ...p, group_name: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Veículo Utilizado</label>
+                                    <input 
+                                        type="text" 
+                                        list="vehicle-list"
+                                        placeholder="Selecione ou digite o veículo..."
+                                        value={prorationData.vehicle}
+                                        onChange={e => setProrationData(p => ({ ...p, vehicle: e.target.value }))}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">KM Total da Viagem</label>
+                                    <div className="relative">
+                                        <Car className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.km_total}
+                                            onChange={e => setProrationData(p => ({ ...p, km_total: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Combustível Total</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_fuel}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_fuel: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Hospedagem Total</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_lodging}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_lodging: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Alimentação Total</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_food}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_food: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Passagens Aéreas</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_airfare}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_airfare: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Aluguel de Carro</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_car_rental}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_car_rental: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 pt-4 border-t border-slate-100">
+                                    <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <AlertTriangle size={14} /> Custos Extraordinários (Multas e Incidentes)
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Valor da Multa (Total)</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                                <input 
+                                                    type="number" 
+                                                    value={prorationData.fine_amount}
+                                                    onChange={e => setProrationData(p => ({ ...p, fine_amount: e.target.value }))}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                                                />
+                                            </div>
+                                            {parseFloat(prorationData.fine_amount) > 0 && (
+                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Destino da Multa</p>
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={() => setProrationData(p => ({ ...p, fine_distribution: 'PRORATE' }))}
+                                                            className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${prorationData.fine_distribution === 'PRORATE' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                                                        >
+                                                            Ratear p/ Todos
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setProrationData(p => ({ ...p, fine_distribution: 'SINGLE' }))}
+                                                            className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${prorationData.fine_distribution === 'SINGLE' ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                                                        >
+                                                            Atribuir a Uma
+                                                        </button>
+                                                    </div>
+                                                    {prorationData.fine_distribution === 'SINGLE' && (
+                                                        <select 
+                                                            value={prorationData.fine_target_id}
+                                                            onChange={e => setProrationData(p => ({ ...p, fine_target_id: e.target.value }))}
+                                                            className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-2 focus:ring-rose-500"
+                                                        >
+                                                            <option value="">Selecione a visita...</option>
+                                                            {trips.filter(t => selectedTrips.includes(t.id)).map(t => (
+                                                                <option key={t.id} value={t.id}>{t.client} ({t.id.substring(0,4)})</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Custo de Ocorrência (Total)</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                                <input 
+                                                    type="number" 
+                                                    value={prorationData.occurrence_cost}
+                                                    onChange={e => setProrationData(p => ({ ...p, occurrence_cost: e.target.value }))}
+                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                                                />
+                                            </div>
+                                            {parseFloat(prorationData.occurrence_cost) > 0 && (
+                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="Qual foi a ocorrência?"
+                                                        list="occurrence-list"
+                                                        value={prorationData.occurrence_name}
+                                                        onChange={e => setProrationData(p => ({ ...p, occurrence_name: e.target.value }))}
+                                                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                                                    />
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase mt-2">Destino do Incidente</p>
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={() => setProrationData(p => ({ ...p, occurrence_distribution: 'PRORATE' }))}
+                                                            className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${prorationData.occurrence_distribution === 'PRORATE' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                                                        >
+                                                            Ratear p/ Todos
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setProrationData(p => ({ ...p, occurrence_distribution: 'SINGLE' }))}
+                                                            className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase transition-all ${prorationData.occurrence_distribution === 'SINGLE' ? 'bg-amber-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                                                        >
+                                                            Atribuir a Uma
+                                                        </button>
+                                                    </div>
+                                                    {prorationData.occurrence_distribution === 'SINGLE' && (
+                                                        <select 
+                                                            value={prorationData.occurrence_target_id}
+                                                            onChange={e => setProrationData(p => ({ ...p, occurrence_target_id: e.target.value }))}
+                                                            className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-2 focus:ring-amber-500"
+                                                        >
+                                                            <option value="">Selecione a visita...</option>
+                                                            {trips.filter(t => selectedTrips.includes(t.id)).map(t => (
+                                                                <option key={t.id} value={t.id}>{t.client} ({t.id.substring(0,4)})</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                                <div className="flex gap-3">
+                                    <AlertTriangle className="text-amber-600 shrink-0" size={20} />
+                                    <div>
+                                        <p className="text-xs font-black text-amber-800 uppercase">Resumo do Rateio</p>
+                                        <p className="text-[11px] text-amber-700 font-medium leading-relaxed mt-1">
+                                            Cada uma das {selectedTrips.length} visitas receberá aproximadamente <span className="font-bold">{(parseFloat(prorationData.km_total || 0) / selectedTrips.length).toFixed(1)} KM</span> e <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(((parseFloat(prorationData.cost_fuel || 0) + parseFloat(prorationData.cost_lodging || 0) + parseFloat(prorationData.cost_food || 0) + parseFloat(prorationData.cost_airfare || 0) + parseFloat(prorationData.cost_car_rental || 0)) / selectedTrips.length))}</span> em custos logísticos.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button 
+                                onClick={() => setIsProrationModalOpen(false)}
+                                className="px-6 py-3 text-xs font-black text-slate-500 uppercase tracking-widest hover:text-slate-700 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={handleApplyProration}
+                                disabled={isSaving}
+                                className="px-8 py-3 bg-indigo-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-200 active:scale-95 disabled:opacity-50"
+                            >
+                                {isSaving ? 'Processando...' : 'Confirmar e Aplicar Rateio'}
                             </button>
                         </div>
                     </div>

@@ -3,7 +3,7 @@ import {
     X, History, Layers, Building2, Building, Search, Loader2, Check,
     AlertCircle, Sparkles, Unlock, Eye, Users, MapPin, Printer,
     Trash2, Paperclip, Download, Plus, Map as MapIcon, ClipboardList, MessageSquare,
-    Calendar, FileText, Send, Ban, Save
+    Calendar, FileText, Send, Ban, Save, Clock
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -651,7 +651,17 @@ const TaskModal = ({
     };
 
     const handleAddTravel = () => {
-        setTravels([...travels, { id: generateId(), date: '', isDateDefined: false, team: [''], contacts: '', role: '' }]);
+        setTravels([...travels, { 
+            id: generateId(), 
+            date: '', 
+            isDateDefined: false, 
+            team: [''], 
+            contacts: '', 
+            role: '',
+            status: 'PROGRAMADA',
+            km: '',
+            expenses: ''
+        }]);
     };
 
     const updateTravel = (id, field, value) => {
@@ -689,6 +699,12 @@ const TaskModal = ({
     };
 
     const removeTravel = (id) => {
+        const travelToDelete = travels.find(t => t.id === id);
+        if (travelToDelete?.group_id) {
+            if (!window.confirm(`⚠️ Esta viagem faz parte do grupo "${travelToDelete.group_name}".\n\nSe você a excluir, os custos rateados entre as outras visitas deste grupo podem ficar incorretos.\n\nDeseja remover mesmo assim?`)) {
+                return;
+            }
+        }
         setTravels(travels.filter(t => t.id !== id));
     };
 
@@ -846,10 +862,38 @@ const TaskModal = ({
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        let finalStages = { ...stages };
+        let finalTravels = [...travels];
+
+        // Lógica de finalização automática de etapas e viagens
+        if (status === TaskStatus.DONE) {
+            const openStages = Object.entries(stages).filter(([_, s]) =>
+                !['COMPLETED', 'FINALIZADO', 'SOLUCIONADO', 'DEVOLVIDO'].includes(s.status)
+            );
+            const openTravels = travels.filter(t => t.status !== 'FINALIZADA');
+
+            if (openStages.length > 0 || openTravels.length > 0) {
+                let message = `⚠️ ATENÇÃO: Existem itens pendentes nesta tarefa.\n\n`;
+                if (openStages.length > 0) message += `• ${openStages.length} etapa(s) técnica(s) em aberto.\n`;
+                if (openTravels.length > 0) message += `• ${openTravels.length} viagem(ns) programada(s).\n`;
+                message += `\nDeseja marcar tudo como FINALIZADO automaticamente para concluir a tarefa?`;
+
+                if (window.confirm(message)) {
+                    // Finalizar etapas
+                    Object.keys(finalStages).forEach(key => {
+                        finalStages[key] = { ...finalStages[key], status: 'FINALIZADO' };
+                    });
+                    // Finalizar viagens
+                    finalTravels = travels.map(t => ({ ...t, status: 'FINALIZADA' }));
+                }
+            }
+        }
+
         onSave({
             ...initialData,
             category,
-            title: title || client, // Usa o título preenchido (que já contém o número)
+            title: title || client,
             description,
             status,
             priority,
@@ -867,29 +911,9 @@ const TaskModal = ({
             location,
             geo,
             visitation: { required: visitationRequired },
-            stages: (() => {
-                if (status === TaskStatus.DONE) {
-                    const openStages = Object.entries(stages).filter(([_, s]) =>
-                        !['COMPLETED', 'FINALIZADO', 'SOLUCIONADO', 'DEVOLVIDO'].includes(s.status)
-                    );
-                    if (openStages.length > 0) {
-                        const confirmFinish = window.confirm(
-                            `⚠️ ATENÇÃO: Existem ${openStages.length} etapas que ainda não foram finalizadas.\n\n` +
-                            `Deseja marcar todas as etapas como FINALIZADAS automaticamente?`
-                        );
-                        if (confirmFinish) {
-                            const updatedStages = { ...stages };
-                            Object.keys(updatedStages).forEach(key => {
-                                updatedStages[key] = { ...updatedStages[key], status: 'FINALIZADO' };
-                            });
-                            return updatedStages;
-                        }
-                    }
-                }
-                return stages;
-            })(),
+            stages: finalStages,
+            travels: finalTravels,
             attachments,
-            travels,
             comments,
             assigned_users: assignedUsers,
             visibility,
@@ -1306,12 +1330,43 @@ const TaskModal = ({
                                         <div className="pt-2">
                                             <div className="flex justify-between items-center mb-2 mt-4">
                                                 <h4 className="text-xs font-bold text-slate-200 uppercase">Viagens Agendadas</h4>
-                                                <button type="button" onClick={() => setTravels([...travels, { id: Date.now().toString(), date: '', team: [''], isDateDefined: true }])} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700 font-extrabold shadow-lg transition-all">+ Nova Viagem</button>
+                                                <button type="button" onClick={() => setTravels([...travels, { 
+                                                    id: Date.now().toString(), 
+                                                    date: '', 
+                                                    team: [''], 
+                                                    isDateDefined: true,
+                                                    status: 'PROGRAMADA',
+                                                    km: '',
+                                                    expenses: ''
+                                                }])} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700 font-extrabold shadow-lg transition-all">+ Nova Viagem</button>
                                             </div>
                                             <div className="space-y-3">
                                                 {travels.map((travel, idx) => (
-                                                    <div key={travel.id} className="border border-slate-800 rounded p-4 relative">
-                                                        <button type="button" onClick={() => setTravels(travels.filter(t => t.id !== travel.id))} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-lg"><X size={12} /></button>
+                                                    <div key={travel.id} className={`border rounded p-4 relative transition-all ${travel.status === 'FINALIZADA' ? 'bg-emerald-900/5 border-emerald-500/30' : 'bg-slate-800/40 border-slate-700'}`}>
+                                                        <button type="button" onClick={() => setTravels(travels.filter(t => t.id !== travel.id))} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-lg z-10"><X size={12} /></button>
+                                                        
+                                                        {/* Status Header */}
+                                                        <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/5">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`w-2 h-2 rounded-full animate-pulse ${travel.status === 'FINALIZADA' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Viagem #{idx + 1}</span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const newTravels = [...travels];
+                                                                    newTravels[idx].status = travel.status === 'FINALIZADA' ? 'PROGRAMADA' : 'FINALIZADA';
+                                                                    setTravels(newTravels);
+                                                                }}
+                                                                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all ${travel.status === 'FINALIZADA' 
+                                                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                                                                    : 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'}`}
+                                                            >
+                                                                {travel.status === 'FINALIZADA' ? <Check size={12} /> : <Clock size={12} />}
+                                                                {travel.status === 'FINALIZADA' ? 'FINALIZADA' : 'PROGRAMADA'}
+                                                            </button>
+                                                        </div>
+
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                             <div>
                                                                 <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Quando?</label>
@@ -1321,7 +1376,6 @@ const TaskModal = ({
                                                                             type="button"
                                                                             onClick={() => {
                                                                                 const newTravels = [...travels];
-                                                                                newTravels[idx].isDateDefined = travel.isDateDefined;
                                                                                 newTravels[idx].isDateDefined = !travel.isDateDefined;
                                                                                 setTravels(newTravels);
                                                                             }}
@@ -1361,7 +1415,8 @@ const TaskModal = ({
                                                                     ))}
                                                                 </div>
                                                             </div>
-                                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700">
+
+                                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/5">
                                                                 <div>
                                                                     <label className="text-[10px] text-slate-300 uppercase font-bold mb-1 block">Contato no Cliente</label>
                                                                     <input

@@ -21,7 +21,7 @@ export const Category = {
 };
 
 export const CategoryLabels = {
-    [Category.DEVELOPMENT]: 'Desenvolvimento/Teste/Melhorias',
+    [Category.DEVELOPMENT]: 'Testes/Desenvolvimentos',
     [Category.RNC]: 'Atendimento de RNC',
     [Category.AFTER_SALES]: 'Pós Vendas',
     [Category.TRAINING]: 'Treinamentos',

@@ -376,7 +376,7 @@ const App = () => {
             }
             // 3. Check travels
             if (t.travels && Array.isArray(t.travels)) {
-                if (t.travels.some(tr => tr.isDateDefined && isToday(tr.date))) return true;
+                if (t.travels.some(tr => tr.isDateDefined && isToday(tr.date) && tr.status !== 'FINALIZADA')) return true;
             }
             return false;
         }).length;
@@ -410,6 +410,7 @@ const App = () => {
             if (t.travels && Array.isArray(t.travels)) {
                 const hasOverdueTravel = t.travels.some(tr =>
                     tr.isDateDefined && tr.date &&
+                    tr.status !== 'FINALIZADA' &&
                     new Date(tr.date.includes('T') ? tr.date : `${tr.date}T00:00:00`).getTime() < today
                 );
                 if (hasOverdueTravel) return true;
@@ -463,9 +464,27 @@ const App = () => {
     }, [tasks, currentUser, searchTerm]);
 
     const allClients = useMemo(() => {
-        const set = new Set(tasks.map(t => t.client).filter(Boolean));
+        const set = new Set();
+        tasks.forEach(t => {
+            if (t.client) {
+                const name = t.client.trim();
+                if (name) set.add(name);
+            }
+        });
         return Array.from(set).sort();
     }, [tasks]);
+
+    // Versão deduplicada dos clientes do banco de dados para evitar autocompletes repetidos
+    const uniqueGlobalClients = useMemo(() => {
+        const seen = new Set();
+        return (globalClients || []).filter(c => {
+            if (!c.name) return false;
+            const nameLower = c.name.trim().toLowerCase();
+            if (seen.has(nameLower)) return false;
+            seen.add(nameLower);
+            return true;
+        });
+    }, [globalClients]);
 
 
 
@@ -921,7 +940,7 @@ const App = () => {
             setIsProfileOpen={setIsProfileOpen}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            allClients={allClients}
+            allClients={uniqueGlobalClients}
             setSelectedClient={setSelectedClient}
             formattedHeaderDate={formattedHeaderDate}
             todayTasksCount={todayTasksCount}
@@ -975,7 +994,7 @@ const App = () => {
                 fetchTechFollowups={fetchTechFollowups}
                 notes={notes}
                 theme={theme}
-                allClients={globalClients}
+                allClients={uniqueGlobalClients}
                 mapFilter={mapFilter}
                 setMapFilter={setMapFilter}
                 handleOpenClientReport={handleOpenClientReport}
@@ -1045,7 +1064,7 @@ const App = () => {
                         onDelete={handleDeleteTask}
                         currentUser={currentUser}
                         users={users}
-                        allClients={allClients}
+                        allClients={uniqueGlobalClients}
                         customCategories={customCategories}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
@@ -1094,7 +1113,7 @@ const App = () => {
 
                     {isConsolidatedBIOpen && (
                         <ConsolidatedBIReport
-                            clients={globalClients}
+                            clients={uniqueGlobalClients}
                             tasks={tasks}
                             currentUser={currentUser}
                             onClose={() => setIsConsolidatedBIOpen(false)}

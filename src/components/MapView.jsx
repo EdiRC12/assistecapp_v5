@@ -68,53 +68,75 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
         return Array.from(set).sort();
     }, [tasks]);
 
-    const filteredTasks = useMemo(() => {
-        return tasks.filter(t => {
-            if (!t.geo || !t.geo.lat) return false;
+    const mapItems = useMemo(() => {
+        const items = [];
+        tasks.forEach(t => {
+            if (!t.geo || !t.geo.lat) return;
 
-            // Status Filter
-            if (mapFilter.status === 'ACTIVE') {
-                if (t.status === TaskStatus.DONE || t.status === TaskStatus.CANCELED) return false;
-            } else if (mapFilter.status === 'FINISHED') {
-                if (t.status !== TaskStatus.DONE && t.status !== TaskStatus.CANCELED) return false;
-            }
+            const hasTravels = t.travels && Array.isArray(t.travels) && t.travels.length > 0;
+            
+            if (hasTravels) {
+                t.travels.forEach((tr, idx) => {
+                    let matchesFilter = true;
+                    
+                    // Status Filter (Travel-based)
+                    if (mapFilter.status === 'ACTIVE' && tr.status === 'FINALIZADA') matchesFilter = false;
+                    else if (mapFilter.status === 'FINISHED' && tr.status !== 'FINALIZADA') matchesFilter = false;
 
-            // Date Filter
-            if (mapFilter.month !== 'ALL' || mapFilter.year !== 'ALL') {
-                let matchDate = false;
-                const datesToCheck = [];
-                if (t.due_date) datesToCheck.push(t.due_date);
-                if (t.created_at) datesToCheck.push(t.created_at);
-                if (t.createdAt) datesToCheck.push(t.createdAt);
-                if (t.travels) t.travels.forEach(tr => { if (tr.date) datesToCheck.push(tr.date); });
+                    // Date Filter (Travel-specific)
+                    const travelDate = tr.date || t.due_date || t.created_at;
+                    if (mapFilter.month !== 'ALL' || mapFilter.year !== 'ALL') {
+                        if (!travelDate) matchesFilter = false;
+                        else {
+                            const dateObj = new Date(travelDate);
+                            const mMatch = mapFilter.month === 'ALL' || (dateObj.getUTCMonth() + 1).toString() === mapFilter.month;
+                            const yMatch = mapFilter.year === 'ALL' || dateObj.getUTCFullYear().toString() === mapFilter.year;
+                            if (!mMatch || !yMatch) matchesFilter = false;
+                        }
+                    }
 
-                if (datesToCheck.length === 0) return false;
+                    // Tech Filter
+                    if (mapFilter.userId !== 'ALL') {
+                        const team = Array.isArray(tr.team) ? tr.team : [tr.team];
+                        if (!team.some(m => m === mapFilter.userId)) matchesFilter = false;
+                    }
 
-                matchDate = datesToCheck.some(d => {
-                    const dateObj = new Date(d);
-                    const mMatch = mapFilter.month === 'ALL' || (dateObj.getUTCMonth() + 1).toString() === mapFilter.month;
-                    const yMatch = mapFilter.year === 'ALL' || dateObj.getUTCFullYear().toString() === mapFilter.year;
-                    return mMatch && yMatch;
+                    if (matchesFilter) {
+                        // Jitter a bit if multiple travels for the same task to avoid perfect overlap
+                        const jitter = hasTravels && t.travels.length > 1 ? (idx * 0.00005) : 0;
+                        items.push({
+                            id: `${t.id}-tr-${tr.id || idx}`,
+                            type: 'TRAVEL',
+                            task: t,
+                            travel: tr,
+                            geo: { lat: t.geo.lat + jitter, lng: t.geo.lng + jitter },
+                            status: tr.status,
+                            date: travelDate,
+                            icon: tr.status === 'FINALIZADA' ? greenIcon : (t.parent_test_id ? yellowIcon : (t.parent_followup_id ? redIcon : blueIcon))
+                        });
+                    }
                 });
-                if (!matchDate) return false;
+            } else if (t.visitation?.required) {
+                let matchesFilter = true;
+                if (mapFilter.status === 'ACTIVE' && (t.status === TaskStatus.DONE || t.status === TaskStatus.CANCELED)) matchesFilter = false;
+                else if (mapFilter.status === 'FINISHED' && (t.status !== TaskStatus.DONE && t.status !== TaskStatus.CANCELED)) matchesFilter = false;
+
+                if (mapFilter.userId !== 'ALL') matchesFilter = false;
+
+                if (matchesFilter) {
+                    items.push({
+                        id: t.id,
+                        type: 'TASK',
+                        task: t,
+                        geo: t.geo,
+                        status: t.status,
+                        date: t.due_date,
+                        icon: (t.status === TaskStatus.DONE || t.status === TaskStatus.CANCELED) ? greenIcon : (t.parent_test_id ? yellowIcon : (t.parent_followup_id ? redIcon : blueIcon))
+                    });
+                }
             }
-
-            // Technician Filter
-            if (mapFilter.userId !== 'ALL') {
-                if (!t.travels) return false;
-                const hasTech = t.travels.some(tr => {
-                    const team = Array.isArray(tr.team) ? tr.team : [tr.team];
-                    return team.some(m => m === mapFilter.userId);
-                });
-                if (!hasTech) return false;
-            }
-
-            // Visitation Requirement Check
-            const hasTravelEntries = t.travels && t.travels.length > 0;
-            if (!t.visitation?.required && !hasTravelEntries) return false;
-
-            return true;
         });
+        return items;
     }, [tasks, mapFilter]);
 
     useEffect(() => {
@@ -191,7 +213,7 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
             </div>
 
             <div className="flex-1 relative z-0">
-                {filteredTasks.length === 0 && (
+                {mapItems.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 z-10 text-slate-400 backdrop-blur-[1px]">
                         <div className="text-center">
                             <MapPin size={32} className="mx-auto mb-2 opacity-20" />
@@ -201,35 +223,48 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                 )}
                 <MapContainer center={[-23.5505, -46.6333]} zoom={4} style={{ height: '100%', width: '100%' }}>
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
-                    {filteredTasks.map(t => {
-                        const isFinished = t.status === TaskStatus.DONE || t.status === TaskStatus.CANCELED;
+                    {mapItems.map(item => {
+                        const t = item.task;
                         const isFromTest = !!t.parent_test_id;
                         const isFromFollowup = !!t.parent_followup_id;
 
-                        let markerIcon = blueIcon;
-                        if (isFinished) markerIcon = greenIcon;
-                        else if (isFromTest) markerIcon = yellowIcon;
-                        else if (isFromFollowup) markerIcon = redIcon;
-
                         return (
                             <Marker
-                                key={t.id}
-                                position={[t.geo.lat, t.geo.lng]}
-                                icon={markerIcon}
+                                key={item.id}
+                                position={[item.geo.lat, item.geo.lng]}
+                                icon={item.icon}
                             >
                                 <Popup>
                                     <div className="p-1">
                                         <div className="flex justify-between items-center mb-0.5">
                                             <div className="flex items-center gap-1.5">
-                                                <div className="text-[10px] font-black uppercase tracking-tight text-brand-600">{StatusLabels[t.status]}</div>
+                                                <div className={`text-[10px] font-black uppercase tracking-tight ${item.status === 'FINALIZADA' ? 'text-emerald-600' : 'text-brand-600'}`}>
+                                                    {item.type === 'TRAVEL' ? item.status : StatusLabels[t.status]}
+                                                </div>
                                                 {isFromTest && <span className="bg-yellow-500 text-slate-800 text-[7px] font-black px-1 py-0.5 rounded tracking-wider uppercase">Teste</span>}
                                                 {isFromFollowup && <span className="bg-red-500 text-white text-[7px] font-black px-1 py-0.5 rounded tracking-wider uppercase">Acomp.</span>}
                                             </div>
                                             {t.visibility === 'PRIVATE' && <Lock size={10} className="text-amber-500" title="Privada" />}
                                         </div>
-                                        <div className="font-bold text-slate-800 border-b pb-1 mb-1">{t.client || t.title}</div>
+                                        <div className="font-bold text-slate-800 border-b pb-1 mb-1">
+                                            {item.type === 'TRAVEL' ? `[VIAGEM] ${t.client || t.title}` : t.client || t.title}
+                                        </div>
                                         <div className="text-xs text-slate-600 flex items-start gap-1"><MapPin size={10} className="mt-0.5 shrink-0" /> {t.location}</div>
-                                        {t.assigned_users && t.assigned_users.length > 0 && (
+                                        
+                                        {item.type === 'TRAVEL' && (
+                                            <div className="mt-2 bg-slate-50 p-2 rounded border border-slate-200">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] font-bold text-slate-500">DATA:</span>
+                                                    <span className="text-[10px] font-black text-slate-700">{item.date ? new Date(item.date).toLocaleDateString('pt-BR') : 'A DEFINIR'}</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-600">
+                                                    <span className="font-bold">EQUIPE:</span> {item.travel.team?.join(', ') || 'Nenhum'}
+                                                </div>
+                                                {item.travel.km && <div className="text-[9px] text-slate-500 mt-1">KM: {item.travel.km} | R$ {item.travel.expenses || 0}</div>}
+                                            </div>
+                                        )}
+
+                                        {item.type === 'TASK' && t.assigned_users && t.assigned_users.length > 0 && (
                                             <div className="flex gap-1 mt-1">
                                                 {t.assigned_users.map(uId => {
                                                     const u = (users || []).find(user => user.id === uId);
@@ -240,11 +275,6 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                                                         </div>
                                                     );
                                                 })}
-                                            </div>
-                                        )}
-                                        {t.travels && t.travels.length > 0 && (
-                                            <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 italic">
-                                                Última equipe: {t.travels[t.travels.length - 1].team?.join(', ')}
                                             </div>
                                         )}
                                     </div>

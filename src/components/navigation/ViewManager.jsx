@@ -211,6 +211,7 @@ const ViewManager = ({
                         onClearFilter={() => setTravelsFilter('')}
                         onEditTask={async (t) => { setIsModalOpen(true); setEditingTask(t); await fetchTaskDetail(t.id); }}
                         onUpdateTasks={setTasks}
+                        fetchTasks={fetchTasks}
                         onUpdateTests={fetchTechTests}
                         onBack={() => setViewMode(returnToView || 'kanban')}
                         notifySuccess={notifySuccess}

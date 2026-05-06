@@ -672,6 +672,13 @@ const ControlsView = ({
 
     const handleRegisterClient = async (name) => {
         if (!name) return;
+        
+        // Verificação de segurança: não cadastrar se já existir
+        if (isClientRegistered(name)) {
+            notifyInfo('Aviso', 'Este cliente já consta no seu cadastro oficial.');
+            return;
+        }
+
         setLoading(true);
         try {
             // Tentativa 1: Cadastro com Vínculo de Usuário (Padrão V6)
