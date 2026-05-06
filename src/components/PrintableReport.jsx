@@ -6,6 +6,19 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
     // Helper para formatar categoria
     const getCategoryName = (catId) => {
         if (!catId) return 'N/A';
+        
+        // Mapeamento interno para garantir português se taskTypes falhar ou estiver incompleto
+        const internalLabels = {
+            'DEVELOPMENT': 'Testes / Desenvolvimentos',
+            'RNC': 'Atendimento de RNC',
+            'AFTER_SALES': 'Pós Vendas',
+            'TRAINING': 'Treinamentos',
+            'FAIRS': 'Feiras / Eventos',
+            'TECHNICAL_VISIT': 'Visita Técnica',
+            'COMMERCIAL': 'Comercial',
+            'SERVICE_JOURNEY': 'Jornada de Atendimento'
+        };
+
         if (catId === 'SERVICE_JOURNEY') {
             if (task.followup_id) return 'Dossiê (Acompanhamento)';
             if (task.rnc_id) return 'RNC (Não Conformidade)';
@@ -13,8 +26,12 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
             if (task.sac_id) return 'OT (Ocorrência Técnica)';
             return 'Jornada de Atendimento';
         }
-        const type = taskTypes?.find(t => t.id === catId || t.name === catId);
-        return type ? type.name : catId;
+        
+        // Tenta encontrar nos tipos customizados primeiro
+        const type = taskTypes?.find(t => t.id === catId || t.name === catId || t.label === catId);
+        if (type) return type.label || type.name || catId;
+        
+        return internalLabels[catId] || catId;
     };
 
     return (
@@ -57,12 +74,14 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                         </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-
-                    <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                        <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">Tarefa:</span>
-                        <span className="text-sm font-bold text-slate-800">{getCategoryName(task.category)}</span>
+                    <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
+                        <span className="text-[10px] uppercase font-black text-brand-600">Tarefa:</span>
+                        <span className="text-lg font-black text-slate-900 leading-tight">
+                            {getCategoryName(task.category)}
+                        </span>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-y-2 gap-x-8">
 
                     <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
                         <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">Responsáveis:</span>
