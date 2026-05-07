@@ -3,7 +3,7 @@ import {
     Plus, Search, Briefcase, FlaskConical, 
     MoreHorizontal, ArrowUpCircle, Trash2, 
     Edit2, Calendar, MapPin, Tag, CheckCircle2,
-    Clock, RefreshCw, X, Link2, Info
+    Clock, RefreshCw, X, Link2, Info, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { useVisitationData } from '../../hooks/useVisitationData';
 import useIsMobile from '../../hooks/useIsMobile';
@@ -28,7 +28,9 @@ const VisitationTab = ({
     const { 
         visitationPlanning, 
         loading, 
+        hasMore,
         fetchData, 
+        fetchMore,
         handleDelete 
     } = useVisitationData(currentUser, selectedMonth, selectedYear);
 
@@ -40,6 +42,14 @@ const VisitationTab = ({
     // Migration Modal
     const [showMigrateModal, setShowMigrateModal] = useState(false);
     const [migratingItem, setMigratingItem] = useState(null);
+
+    const [collapsedColumns, setCollapsedColumns] = useState(['CONCLUÍDA']);
+
+    const toggleColumn = (status) => {
+        setCollapsedColumns(prev => 
+            prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+        );
+    };
 
     // Form State for New/Edit
     const [formState, setFormState] = useState({
@@ -235,18 +245,21 @@ const VisitationTab = ({
             </div>
 
             {/* Kanban Columns */}
-            {loading ? (
+            {loading && visitationPlanning.length === 0 ? (
                 <div className="flex items-center justify-center py-20">
                     <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
                 </div>
             ) : (
-                <div className="flex flex-col lg:flex-row gap-6 min-h-[500px] items-start">
+                <div className="flex flex-col lg:flex-row gap-4 min-h-[500px] items-start">
                     {STATUS_COLUMNS.map(status => {
+                        const isCollapsed = collapsedColumns.includes(status);
                         const columnItems = filteredPlanning.filter(p => (p.status || 'AGUARDANDO AGENDAMENTO') === status);
+                        
                         return (
-                            <div key={status} className="flex-1 w-full min-w-[320px] bg-slate-50/50 rounded-[32px] p-4 border border-slate-100 flex flex-col gap-4">
-                                <div className="flex items-center justify-between px-3 py-1 mb-2">
-                                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <div key={status} className={`transition-all duration-500 ease-in-out ${isCollapsed ? 'w-12 md:w-16 min-w-0' : 'flex-1 w-full min-w-[320px]'} bg-slate-50/50 rounded-[32px] p-4 border border-slate-100 flex flex-col gap-4 h-full`}>
+                                {/* Column Header */}
+                                <div onClick={() => toggleColumn(status)} className={`flex items-center justify-between px-3 py-2 mb-2 cursor-pointer transition-all ${isCollapsed ? 'flex-col py-6 gap-6' : ''}`}>
+                                    <h3 className={`text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ${isCollapsed ? 'vertical-text' : ''}`}>
                                         <div className={`w-2 h-2 rounded-full ${
                                             status === 'CONCLUÍDA' ? 'bg-emerald-400' : 
                                             status === 'ADICIONADA A AGENDA' ? 'bg-indigo-400' : 'bg-amber-400'
@@ -254,9 +267,15 @@ const VisitationTab = ({
                                         {status}
                                         <span className="ml-1 bg-slate-200/50 text-slate-500 px-2 py-0.5 rounded-full text-[9px]">{columnItems.length}</span>
                                     </h3>
+                                    {!isCollapsed ? (
+                                        <ChevronLeft size={16} className="text-slate-300" />
+                                    ) : (
+                                        <ChevronRight size={16} className="text-slate-300" />
+                                    )}
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1 scroll-smooth max-h-[calc(100vh-340px)] min-h-[400px]">
+                                {/* Column Content */}
+                                <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1 scroll-smooth max-h-[calc(100vh-340px)] min-h-[400px] ${isCollapsed ? 'hidden' : 'block'}`}>
                                     {columnItems.length === 0 ? (
                                         <div className="bg-white/40 border border-dashed border-slate-200 rounded-3xl py-12 flex flex-col items-center justify-center text-center px-4">
                                             <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center mb-2">
@@ -265,73 +284,84 @@ const VisitationTab = ({
                                             <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tight">Sem registros aqui</p>
                                         </div>
                                     ) : (
-                                        columnItems.map(item => {
-                                            const priority = item.priority || 'MÉDIA';
-                                            
-                                            const priorityColors = {
-                                                'CRÍTICA': { bg: 'bg-rose-50/50', border: 'border-rose-200', bar: 'bg-rose-500', text: 'text-rose-600' },
-                                                'ALTA': { bg: 'bg-orange-50/50', border: 'border-orange-200', bar: 'bg-orange-500', text: 'text-orange-600' },
-                                                'MÉDIA': { bg: 'bg-amber-50/50', border: 'border-amber-200', bar: 'bg-amber-500', text: 'text-amber-600' },
-                                                'BAIXA': { bg: 'bg-slate-50/50', border: 'border-slate-200', bar: 'bg-slate-400', text: 'text-slate-500' }
-                                            };
+                                        <>
+                                            {columnItems.map(item => {
+                                                const priority = item.priority || 'MÉDIA';
+                                                
+                                                const priorityColors = {
+                                                    'CRÍTICA': { bg: 'bg-rose-50/50', border: 'border-rose-200', bar: 'bg-rose-500', text: 'text-rose-600' },
+                                                    'ALTA': { bg: 'bg-orange-50/50', border: 'border-orange-200', bar: 'bg-orange-500', text: 'text-orange-600' },
+                                                    'MÉDIA': { bg: 'bg-amber-50/50', border: 'border-amber-200', bar: 'bg-amber-500', text: 'text-amber-600' },
+                                                    'BAIXA': { bg: 'bg-slate-50/50', border: 'border-slate-200', bar: 'bg-slate-400', text: 'text-slate-500' }
+                                                };
 
-                                            const styles = priorityColors[priority] || priorityColors['MÉDIA'];
+                                                const styles = priorityColors[priority] || priorityColors['MÉDIA'];
 
-                                            return (
-                                                <div key={item.id} className={`bg-white rounded-[24px] border-2 ${styles.border} ${styles.bg} p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2`}>
-                                                    {/* Top highlight bar by Priority */}
-                                                    <div className={`absolute top-0 left-0 right-0 h-1.5 ${styles.bar}`} />
-                                                    
-                                                    <div className="flex justify-between items-start mb-3">
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit ${getPriorityStyles(priority)}`}>
-                                                                {priority}
-                                                            </div>
-                                                            <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit bg-slate-100 text-slate-500`}>
-                                                                {item.type}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button onClick={() => handleOpenModal(item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit2 size={13} /></button>
-                                                            <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={13} /></button>
-                                                        </div>
-                                                    </div>
-
-                                                    <h4 className="font-black text-slate-800 text-sm leading-tight mb-2 uppercase line-clamp-2" title={item.client_name}>
-                                                        {item.client_name}
-                                                    </h4>
-
-                                                    {item.linked_test_id && (
-                                                        <div className="flex items-center gap-2 text-indigo-500 bg-indigo-50/30 p-2 rounded-xl mb-3 border border-indigo-100/30">
-                                                            <FlaskConical size={11} className="shrink-0" />
-                                                            <span className="text-[9px] font-black truncate">
-                                                                {techTests.find(t => t.id === item.linked_test_id)?.title || 'TESTE VINCULADO'}
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    <p className="text-[10px] text-slate-400 font-bold line-clamp-3 mb-4 min-h-[30px] italic">
-                                                        {item.notes || 'Nenhuma observação.'}
-                                                    </p>
-
-                                                    <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                                                        <span className="text-[9px] font-bold text-slate-300 uppercase flex items-center gap-1">
-                                                            <Calendar size={10} /> {new Date(item.created_at).toLocaleDateString('pt-BR')}
-                                                        </span>
+                                                return (
+                                                    <div key={item.id} className={`bg-white rounded-[24px] border-2 ${styles.border} ${styles.bg} p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2`}>
+                                                        {/* Top highlight bar by Priority */}
+                                                        <div className={`absolute top-0 left-0 right-0 h-1.5 ${styles.bar}`} />
                                                         
-                                                        {status !== 'CONCLUÍDA' && (
-                                                            <button 
-                                                                onClick={() => handleOpenMigrate(item)}
-                                                                className="flex items-center gap-1 text-brand-600 bg-brand-50 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-brand-600 hover:text-white transition-all border border-brand-100 shadow-sm"
-                                                            >
-                                                                <ArrowUpCircle size={10} />
-                                                                MIGRAR
-                                                            </button>
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit ${getPriorityStyles(priority)}`}>
+                                                                    {priority}
+                                                                </div>
+                                                                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit bg-slate-100 text-slate-500`}>
+                                                                    {item.type}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => handleOpenModal(item)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit2 size={13} /></button>
+                                                                <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={13} /></button>
+                                                            </div>
+                                                        </div>
+
+                                                        <h4 className="font-black text-slate-800 text-sm leading-tight mb-2 uppercase line-clamp-2" title={item.client_name}>
+                                                            {item.client_name}
+                                                        </h4>
+
+                                                        {item.linked_test_id && (
+                                                            <div className="flex items-center gap-2 text-indigo-500 bg-indigo-50/30 p-2 rounded-xl mb-3 border border-indigo-100/30">
+                                                                <FlaskConical size={11} className="shrink-0" />
+                                                                <span className="text-[9px] font-black truncate">
+                                                                    {techTests.find(t => t.id === item.linked_test_id)?.title || 'TESTE VINCULADO'}
+                                                                </span>
+                                                            </div>
                                                         )}
+
+                                                        <p className="text-[10px] text-slate-400 font-bold line-clamp-3 mb-4 min-h-[30px] italic">
+                                                            {item.notes || 'Nenhuma observação.'}
+                                                        </p>
+
+                                                        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                                                            <span className="text-[9px] font-bold text-slate-300 uppercase flex items-center gap-1">
+                                                                <Calendar size={10} /> {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                                                            </span>
+                                                            
+                                                            {status !== 'CONCLUÍDA' && (
+                                                                <button 
+                                                                    onClick={() => handleOpenMigrate(item)}
+                                                                    className="flex items-center gap-1 text-brand-600 bg-brand-50 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-brand-600 hover:text-white transition-all border border-brand-100 shadow-sm"
+                                                                >
+                                                                    <ArrowUpCircle size={10} />
+                                                                    MIGRAR
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })
+                                                );
+                                            })}
+                                            {hasMore && (
+                                                <button 
+                                                    onClick={fetchMore}
+                                                    className="w-full py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[24px] text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {loading ? <RefreshCw className="animate-spin" size={14} /> : <ChevronDown size={14} />}
+                                                    Carregar mais planejamentos
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

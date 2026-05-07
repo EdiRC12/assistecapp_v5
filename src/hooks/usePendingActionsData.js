@@ -4,18 +4,41 @@ import { supabase } from '../supabaseClient';
 export const usePendingActionsData = (currentUser) => {
     const [actions, setActions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [hasMore, setHasMore] = useState(true);
+    const [page, setPage] = useState(0);
+    const PAGE_SIZE = 50;
 
-    const fetchActions = async () => {
+    const fetchActions = async (isLoadMore = false) => {
         if (!currentUser?.id) return;
-        setLoading(true);
+        
+        if (!isLoadMore) {
+            setLoading(true);
+            setPage(0);
+        }
+
+        const currentPage = isLoadMore ? page + 1 : 0;
+
         try {
             const { data, error } = await supabase
                 .from('visit_pending_actions')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
             if (error) throw error;
-            setActions(data || []);
+            
+            if (isLoadMore) {
+                setActions(prev => [...prev, ...(data || [])]);
+                setPage(currentPage);
+            } else {
+                setActions(data || []);
+            }
+
+            if (data.length < PAGE_SIZE) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
         } catch (error) {
             console.error('[usePendingActionsData] Error fetching:', error);
         } finally {
@@ -52,6 +75,12 @@ export const usePendingActionsData = (currentUser) => {
         };
     }, [currentUser?.id]);
 
+    const fetchMore = () => {
+        if (!loading && hasMore) {
+            fetchActions(true);
+        }
+    };
+
     const handleToggleStatus = async (action) => {
         const newStatus = action.status === 'PENDENTE' ? 'CONCLUÍDO' : 'PENDENTE';
         return handleUpdateStatus(action.id, newStatus);
@@ -87,7 +116,9 @@ export const usePendingActionsData = (currentUser) => {
         actions,
         setActions,
         loading,
+        hasMore,
         fetchActions,
+        fetchMore,
         handleToggleStatus,
         handleUpdateStatus,
         handleDelete

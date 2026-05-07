@@ -575,9 +575,9 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
     }
 
     return (
-        <div ref={calendarRef} className="h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div ref={calendarRef} className="h-full flex flex-col bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-300">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-center justify-between p-3 md:p-4 border-b border-slate-200 bg-slate-50 gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between p-3 md:p-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm gap-3">
                 <div className="flex items-center gap-2 md:gap-4 w-full sm:w-auto">
                     {viewMode === 'DAY' && (
                         <button
@@ -589,36 +589,36 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                             <span className="text-sm font-bold md:hidden">Voltar</span>
                         </button>
                     )}
-                    <h2 className="text-lg md:text-2xl font-bold text-slate-800 capitalize flex-1 sm:min-w-[200px] truncate">
-                        {viewMode === 'MONTH' ? <>{monthNames[month]} <span className="text-slate-500 font-medium">{year}</span></> :
+                    <h2 className="text-lg md:text-2xl font-black text-slate-800 capitalize flex-1 sm:min-w-[200px] truncate tracking-tight">
+                        {viewMode === 'MONTH' ? <>{monthNames[month]} <span className="text-brand-500 font-medium">{year}</span></> :
                             viewMode === 'WEEK' ? <span className="text-base md:text-lg">Semana ({weekDays[0].getDate()}/{weekDays[0].getMonth() + 1} - {weekDays[6].getDate()}/{weekDays[6].getMonth() + 1})</span> :
                                 viewMode === 'DAY' ? <>{day} de {monthNames[month]}</> :
                                     <span className="text-slate-800 font-bold">{year}</span>}
                     </h2>
                     <div className="flex items-center bg-white rounded-lg border border-slate-300 shadow-sm shrink-0">
                         <button onClick={handlePrev} className="p-1.5 md:p-2 hover:bg-slate-100 text-slate-600 rounded-l-lg"><ChevronLeft size={20} /></button>
-                        <button onClick={handleToday} className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:sm font-medium border-l border-r border-slate-300 hover:bg-slate-100 text-slate-700">Hoje</button>
+                        <button onClick={handleToday} className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:sm font-bold border-l border-r border-slate-300 hover:bg-slate-100 text-slate-700">Hoje</button>
                         <button onClick={handleNext} className="p-1.5 md:p-2 hover:bg-slate-100 text-slate-600 rounded-r-lg"><ChevronRight size={20} /></button>
                     </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto mt-1 sm:mt-0">
-                    <div className="flex bg-slate-200 p-0.5 rounded-lg shrink-0 overflow-x-auto">
-                        <button onClick={() => setViewMode('WEEK')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'WEEK' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><List size={14} /> Semana</button>
-                        <button onClick={() => setViewMode('MONTH')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'MONTH' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><CalendarIcon size={14} /> Mês</button>
-                        <button onClick={() => setViewMode('YEAR')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'YEAR' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Grid size={14} /> Ano</button>
+                    <div className="flex bg-slate-200/50 p-0.5 rounded-lg shrink-0 overflow-x-auto border border-slate-300">
+                        <button onClick={() => setViewMode('WEEK')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'WEEK' ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><List size={14} /> Semana</button>
+                        <button onClick={() => setViewMode('MONTH')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'MONTH' ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><CalendarIcon size={14} /> Mês</button>
+                        <button onClick={() => setViewMode('YEAR')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'YEAR' ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><Grid size={14} /> Ano</button>
                     </div>
                     {(viewMode === 'MONTH' || viewMode === 'WEEK') && (
-                        <div className="hidden lg:flex gap-4 text-xs font-medium text-slate-500 border-l pl-4 border-slate-300">
+                        <div className="hidden lg:flex gap-4 text-[9px] font-bold text-slate-400 border-l pl-4 border-slate-300 uppercase tracking-widest">
                             <div className="flex items-center gap-1.5">
-                                <div className="w-3 h-3 rounded bg-red-600 border border-red-700"></div>
+                                <div className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm shadow-red-200"></div>
                                 <span>Atrasado</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <div className="w-3 h-3 rounded bg-emerald-600 border border-emerald-700"></div>
+                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-sm shadow-emerald-200"></div>
                                 <span>Finalizado</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <div className="w-3 h-3 rounded bg-blue-600 border border-blue-700"></div>
+                                <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-sm shadow-blue-200"></div>
                                 <span>Programado / Prazo</span>
                             </div>
                         </div>
@@ -630,7 +630,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
             {/* Content */}
             {viewMode === 'MONTH' && (
                 <>
-                    <div className="grid border-b border-slate-300 bg-slate-200" style={{ gridTemplateColumns: gridTemplate }}>
+                    <div className="grid border-b border-slate-200 bg-slate-100/30" style={{ gridTemplateColumns: gridTemplate }}>
                         {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, i) => {
                             const isWeekend = i === 0 || i === 6;
                             const isExpanded = i === 0 ? getWeekendStatus.sun : i === 6 ? getWeekendStatus.sat : true;
@@ -638,9 +638,11 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                 <div
                                     key={i}
                                     onClick={() => isWeekend && setMinimizedWeekends(!minimizedWeekends)}
-                                    className={`py-3 text-center text-[10px] md:text-xs font-black uppercase tracking-wider transition-all ${isWeekend ? 'cursor-pointer hover:bg-white/20' : ''}`}
+                                    className={`py-3 text-center text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${isWeekend ? 'cursor-pointer hover:bg-brand-50' : ''}`}
                                     style={{
-                                        color: isWeekend ? '#64748b' : '#0f172a',
+                                        color: isWeekend ? '#94a3b8' : '#64748b',
+                                        backgroundColor: isWeekend ? '#f8fafc' : '#ffffff',
+                                        borderBottom: '1px solid #f1f5f9'
                                     }}
                                 >
                                     {isExpanded ? d : d[0]}
@@ -650,7 +652,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                     </div>
                     <div className="flex-1 grid auto-rows-fr overflow-y-auto" style={{ gridTemplateColumns: gridTemplate }}>
                         {calendarDays.map((calDay, index) => {
-                            if (calDay === null) return <div key={`empty-${index}`} className="bg-slate-50/50 border-b border-r border-slate-100 min-h-[100px] md:min-h-[120px]" />;
+                            if (calDay === null) return <div key={`empty-${index}`} className="bg-slate-50/20 border-b border-r border-slate-100 min-h-[100px] md:min-h-[120px]" />;
                             const cDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(calDay).padStart(2, '0')}`;
                             const dEvents = getEventsForDay(calDay);
                             const isCurrentMonth = true; // calendarDays only contains days of the current month (nulls handled above)
@@ -673,17 +675,15 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                             setViewMode('DAY');
                                         }
                                     }}
-                                    className={`border-b border-r border-slate-200 p-0.5 md:p-2 min-h-[65px] md:min-h-[120px] flex flex-col gap-0 md:gap-1 group ${isDrag ? 'bg-emerald-50 ring-2 ring-emerald-400' : isToday ? 'bg-blue-50/30' : 'hover:bg-slate-50 cursor-pointer md:cursor-default'}`}
+                                    className={`border-b border-r border-slate-100 p-0.5 md:p-2 min-h-[65px] md:min-h-[120px] flex flex-col gap-0 md:gap-1 group transition-colors duration-200 ${isDrag ? 'bg-emerald-50 ring-2 ring-emerald-400 z-10' : isToday ? 'ring-inset ring-2 ring-brand-500/20 bg-brand-50/30' : 'hover:bg-blue-50/30 cursor-pointer md:cursor-default'}`}
                                     style={{
-                                        backgroundColor: isWeekend ? '#f1f5f9' : (isCurrentMonth ? '#ffffff' : '#f8fafc'),
-                                        opacity: !isCurrentMonth ? 0.6 : (isWeekend ? 0.9 : 1),
-                                        borderLeft: isWeekend && index % 7 === 6 ? '2px solid #e2e8f0' : 'none',
+                                        backgroundColor: isWeekend ? '#f0f7ff' : (isCurrentMonth ? '#ffffff' : '#f8fafc'),
+                                        opacity: !isCurrentMonth ? 0.4 : 1,
                                     }}
                                 >
                                     <div className="flex justify-between items-start mb-0 md:mb-1 cursor-pointer" onDoubleClick={() => handleDayDoubleClick(calDay)} title="Clique duplo para ver detalhes">
-                                        <span className={`text-[8px] md:text-xs w-4 h-4 md:w-7 md:h-7 flex items-center justify-center rounded-full transition-all hover:scale-110 ${isToday ? 'bg-brand-600 text-white font-bold shadow-md' : 'bg-white'}`}
+                                        <span className={`text-[9px] md:text-xs w-4 h-4 md:w-7 md:h-7 flex items-center justify-center rounded-full transition-all duration-300 hover:scale-125 ${isToday ? 'bg-brand-600 text-white font-black shadow-lg shadow-brand-200 ring-4 ring-brand-100' : 'bg-transparent text-slate-400 group-hover:text-slate-600'}`}
                                             style={!isToday ? {
-                                                color: isCurrentMonth ? (isWeekend ? '#64748b' : '#334155') : '#cbd5e1',
                                                 fontWeight: '800'
                                             } : {}}
                                         >

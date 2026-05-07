@@ -254,46 +254,73 @@ export const buildAIDataPackage = (notes, mediaItems, taskContext) => {
  * Esta função não depende de rede ou chaves de IA e serve como fallback definitivo.
  */
 export const generateNativeReportFallback = (data, status) => {
+    console.log("[AI] Gerando Fallback Nativo (Versão HTML v2)...");
     const isFinal = status === 'FINAL';
 
     // Início direto no Objetivo para evitar redundância com o cabeçalho do PDF
-    let content = `### OBJETIVO DA VISITA\n`;
-    content += `${data.title || 'Manutenção Técnica'}\n\n`;
+    let content = `<h3>OBJETIVO DA VISITA</h3>`;
+    content += `<p>${data.title || 'Manutenção Técnica'}</p>`;
 
     if (data.description && data.description !== 'Não informado') {
-        content += `### DESCRIÇÃO DO CHAMADO\n`;
-        content += `${data.description}\n\n`;
+        content += `<h3>DESCRIÇÃO DO CHAMADO</h3>`;
+        content += `<p>${data.description}</p>`;
     }
 
-    content += `### RESUMO DE ATIVIDADES DA TAREFA\n`;
-    content += `**Etapas e Checklist:**\n${data.stagesList}\n\n`;
+    content += `<h3>RESUMO DE ATIVIDADES DA TAREFA</h3>`;
+    content += `<p><strong>Etapas e Checklist:</strong></p>`;
+    
+    const stagesHtml = data.stagesList ? 
+        `<ul>${data.stagesList.split('\n').map(s => `<li>${s}</li>`).join('')}</ul>` : 
+        `<p>Nenhuma etapa registrada.</p>`;
+    content += stagesHtml;
 
     if (data.commentsList) {
-        content += `**Comentários da Tarefa:**\n${data.commentsList}\n\n`;
+        content += `<h3>COMENTÁRIOS DA TAREFA</h3>`;
+        content += `<p>${data.commentsList.replace(/\n/g, '<br>')}</p>`;
     }
 
-    content += `**Notas Gerais do Técnico:**\n${data.rawNotes || 'Sem observações registradas.'}\n\n`;
+    content += `<h3>NOTAS GERAIS DO TÉCNICO</h3>`;
+    content += `<p>${(data.rawNotes || 'Sem observações registradas.').replace(/\n/g, '<br>')}</p>`;
 
-    content += `### CONCLUSÃO\n`;
-    content += `[DESCREVA AQUI SUA ANÁLISE TÉCNICA FINAL SOBRE A CAUSA E SOLUÇÃO]\n\n`;
+    content += `<h3>CONCLUSÃO</h3>`;
+    content += `<p>[DESCREVA AQUI SUA ANÁLISE TÉCNICA FINAL SOBRE A CAUSA E SOLUÇÃO]</p>`;
 
-    content += `### AÇÕES PÓS VISITA\n`;
-    content += `O Que | Quem | Quando\n`;
-    content += `--- | --- | ---\n`;
+    content += `<h3>AÇÕES PÓS VISITA</h3>`;
+    
+    // Tabela simples em HTML para Ações Pós-Visita
+    content += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color: #f8fafc; text-align: left;">
+                <th style="padding: 8px; border: 1px solid #e2e8f0;">Status</th>
+                <th style="padding: 8px; border: 1px solid #e2e8f0;">O Que</th>
+                <th style="padding: 8px; border: 1px solid #e2e8f0;">Quem</th>
+                <th style="padding: 8px; border: 1px solid #e2e8f0;">Quando</th>
+            </tr>
+        </thead>
+        <tbody>`;
 
-    // Se houver ações manuais passadas pelo editor, usar elas
     if (data.manualActions && data.manualActions.length > 0) {
         data.manualActions.forEach(action => {
             const what = action.what || 'Não informado';
             const who = action.who || '-';
             const when = action.when || '-';
             const statusStr = action.completed ? '✅' : '⏳';
-            content += `${statusStr} ${what} | ${who} | ${when}\n`;
+            content += `<tr>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${statusStr}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${what}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${who}</td>
+                <td style="padding: 8px; border: 1px solid #e2e8f0;">${when}</td>
+            </tr>`;
         });
     } else {
-        content += `Acompanhar Solução | Téc. Responsável | Próxima Visita\n`;
+        content += `<tr>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">⏳</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">Acompanhar Solução</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">Téc. Responsável</td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0;">Próxima Visita</td>
+        </tr>`;
     }
-    content += `\n`;
+    content += `</tbody></table><br>`;
 
     return {
         reportText: content,
@@ -421,55 +448,43 @@ export const getProactiveSuggestion = async (taskData, existingTasks, existingCl
  * Gera um relatório técnico da jornada completa (SAC -> RNC -> Kanban) de forma nativa.
  */
 export const generateServiceJourneyReport = async (notes, history, context) => {
-    // Mapeamentos de Tarefas
-    const tasksList = (context.tasks || [])
-        .map(t => `- [${t.status === 'DONE' ? 'x' : ' '}] ${t.title}${t.description ? ` (${t.description})` : ''}`)
-        .join('\n');
-
-    // Mapeamento de Timeline (WhatsApp, Email, Telefone, etc) do SAC
-    const timelineLogs = (context.sac?.timeline || [])
-        .map(item => {
-            const dateStr = item.date ? new Date(item.date).toLocaleString('pt-BR') : 'Sem data';
-            return `> **[${item.type || 'NOTA'}]** ${dateStr} - ${item.user || 'N/I'}:\n> ${item.text}`;
-        })
-        .join('\n\n');
-
+    console.log("[AI] Gerando Relatório de Jornada (Versão HTML v2)...");
     const now = new Date();
     const sacDate = new Date(context.sac?.created_at || now);
     const cycleDays = Math.ceil(Math.abs(now - sacDate) / (1000 * 60 * 60 * 24));
 
     // Cálculo de Valor Total
-    const qty = parseFloat(context.rnc?.quantity || context.sac.quantity || 0);
-    const unitPrice = parseFloat(context.rnc?.unit_price || context.sac.unit_price || 0);
+    const qty = parseFloat(context.rnc?.quantity || context.sac?.quantity || 0);
+    const unitPrice = parseFloat(context.rnc?.unit_price || context.sac?.unit_price || 0);
     const totalPriceFormatted = (qty * unitPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     // --- CASO ESPECIAL: ACOMPANHAMENTO / DOSSIÊ ---
     if (context.sac?.is_followup) {
-        let content = `### ORIGEM DO ACOMPANHAMENTO (DOSSIÊ)\n`;
-        content += `**Dossiê:** #${context.sac.followup_number || 'N/A'}\n`;
-        content += `**Cliente:** ${context.sac.client_name || 'Não informado'}\n`;
-        content += `**Assunto:** ${context.sac.title || 'Não informado'}\n`;
-        content += `**Observação Técnica Base:** ${context.sac.notes || 'Não informado'}\n`;
-        content += `**Objetivo Operacional:** ${context.sac.monitoring_objective || 'Não definido'}\n\n`;
+        let content = `<h3>ORIGEM DO ACOMPANHAMENTO (DOSSIÊ)</h3>`;
+        content += `<p><strong>Dossiê:</strong> #${context.sac.followup_number || 'N/A'}<br>`;
+        content += `<strong>Cliente:</strong> ${context.sac.client_name || 'Não informado'}<br>`;
+        content += `<strong>Assunto:</strong> ${context.sac.title || 'Não informado'}<br>`;
+        content += `<strong>Observação Técnica Base:</strong> ${context.sac.notes || 'Não informado'}<br>`;
+        content += `<strong>Objetivo Operacional:</strong> ${context.sac.monitoring_objective || 'Não definido'}</p>`;
 
-        content += `### STATUS DO MONITORAMENTO\n`;
-        content += `**Estabilidade:** ${context.sac.stability_status || 'N/A'}\n`;
-        content += `**Ciclo de Revisão:** ${context.sac.review_cycle || 'MENSAL'}\n`;
-        content += `**Prioridade:** ${context.sac.priority || 'MEDIA'}\n\n`;
+        content += `<h3>STATUS DO MONITORAMENTO</h3>`;
+        content += `<p><strong>Estabilidade:</strong> ${context.sac.stability_status || 'N/A'}<br>`;
+        content += `<strong>Ciclo de Revisão:</strong> ${context.sac.review_cycle || 'MENSAL'}<br>`;
+        content += `<strong>Prioridade:</strong> ${context.sac.priority || 'MEDIA'}</p>`;
 
         // Checklist de Monitoramento
         const checklist = (context.sac.checklist || [])
-            .map(item => `- [${item.completed ? 'x' : ' '}] ${item.text || item.title}`)
-            .join('\n');
+            .map(item => `<li>[${item.completed ? 'x' : ' '}] ${item.text || item.title}</li>`)
+            .join('');
 
-        content += `### CHECKLIST DE MONITORAMENTO\n`;
-        content += `${checklist || 'Sem itens no checklist.'}\n\n`;
+        content += `<h3>CHECKLIST DE MONITORAMENTO</h3>`;
+        content += `<ul>${checklist || '<li>Sem itens no checklist.</li>'}</ul>`;
 
         // Parecer de Auditoria
-        content += `### PARECER DE AUDITORIA DE JORNADA\n`;
-        content += `**Duração do Ciclo:** ${cycleDays} dias\n`;
-        content += `**Notas do Auditor:** ${notes || 'Sem observações adicionais.'}\n\n`;
-        content += `[DESCREVA AQUI A VALIDAÇÃO FINAL DA EFICÁCIA DO ATENDIMENTO]\n`;
+        content += `<h3>PARECER DE AUDITORIA DE JORNADA</h3>`;
+        content += `<p><strong>Duração do Ciclo:</strong> ${cycleDays} dias<br>`;
+        content += `<strong>Notas do Auditor:</strong> ${notes || 'Sem observações adicionais.'}</p>`;
+        content += `<p>[DESCREVA AQUI A VALIDAÇÃO FINAL DA EFICÁCIA DO ATENDIMENTO]</p>`;
 
         return {
             reportText: content,
@@ -479,88 +494,88 @@ export const generateServiceJourneyReport = async (notes, history, context) => {
 
     // --- CASO PADRÃO: SAC / RNC ---
     // Cabeçalho e Dados do SAC
-    let content = context.sac?.is_virtual ? `### ORIGEM DA RNC (Monitoramento Direto)\n` : `### CHAMADO ORIGINAL (SAC)\n`;
-    content += `**Atendimento:** #${context.sac?.appointment_number || 'N/A'}\n`;
-    content += `**Cliente:** ${context.sac?.client_name || 'Não informado'}\n`;
-    content += `**Assunto:** ${context.sac?.subject || 'Não informado'}\n`;
-    content += `**Descrição:** ${context.sac?.description || 'Não informado'}\n`;
+    let content = context.sac?.is_virtual ? `<h3>ORIGEM DA RNC (Monitoramento Direto)</h3>` : `<h3>CHAMADO ORIGINAL (SAC)</h3>`;
+    content += `<p><strong>Atendimento:</strong> #${context.sac?.appointment_number || 'N/A'}<br>`;
+    content += `<strong>Cliente:</strong> ${context.sac?.client_name || 'Não informado'}<br>`;
+    content += `<strong>Assunto:</strong> ${context.sac?.subject || 'Não informado'}<br>`;
+    content += `<strong>Descrição:</strong> ${context.sac?.description || 'Não informado'}</p>`;
 
     // Adicionar campos comerciais do SAC caso a RNC ainda não exista ou esteja incompleta
-    if (context.sac?.invoice_number) content += `**NF:** ${context.sac.invoice_number}\n`;
-    if (context.sac?.op) content += `**OP:** ${context.sac.op}\n`;
-    if (context.sac?.item_number || context.sac?.item_name) {
-        content += `**Item:** ${context.sac.item_number ? `${context.sac.item_number} - ` : ''}${context.sac.item_name || ''}\n`;
+    if (context.sac?.invoice_number || context.sac?.op || context.sac?.item_number || context.sac?.item_name) {
+        content += `<p>`;
+        if (context.sac?.invoice_number) content += `<strong>NF:</strong> ${context.sac.invoice_number}<br>`;
+        if (context.sac?.op) content += `<strong>OP:</strong> ${context.sac.op}<br>`;
+        if (context.sac?.item_number || context.sac?.item_name) {
+            content += `<strong>Item:</strong> ${context.sac.item_number ? `${context.sac.item_number} - ` : ''}${context.sac.item_name || ''}<br>`;
+        }
+        // Adicionar valores comerciais se houver no SAC
+        if (context.sac?.quantity > 0 || context.sac?.unit_price > 0) {
+            const sQty = parseFloat(context.sac.quantity || 0);
+            const sPrice = parseFloat(context.sac.unit_price || 0);
+            const sTotal = (sQty * sPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            content += `<strong>Quantidade:</strong> ${sQty} | <strong>Preço Unit.:</strong> R$ ${sPrice.toFixed(2)} | <strong>Total:</strong> ${sTotal}`;
+        }
+        content += `</p>`;
     }
-
-    // Adicionar valores comerciais se houver no SAC
-    if (context.sac?.quantity > 0 || context.sac?.unit_price > 0) {
-        const sQty = parseFloat(context.sac.quantity || 0);
-        const sPrice = parseFloat(context.sac.unit_price || 0);
-        const sTotal = (sQty * sPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        content += `**Quantidade:** ${sQty} | **Preço Unit.:** R$ ${sPrice.toFixed(2)} | **Total:** ${sTotal}\n`;
-    }
-    content += `\n`;
 
     // Dados da RNC (Se houver)
-    content += `### REGISTRO DE NÃO CONFORMIDADE (RNC)\n`;
+    content += `<h3>REGISTRO DE NÃO CONFORMIDADE (RNC)</h3>`;
     if (context.rnc) {
-        content += `**RNC:** #${context.rnc.rnc_number}\n`;
-        content += `**Nota Fiscal (NF):** ${context.rnc.invoice_number || context.sac?.invoice_number || 'Não informada'}\n`;
-        content += `**Ordem de Produção (OP):** ${context.rnc.op || context.sac?.op || 'Não informada'}\n`;
-        content += `**Lote:** ${context.rnc.batch_number || context.sac?.batch_number || 'Não informado'}\n`;
+        content += `<p><strong>RNC:</strong> #${context.rnc.rnc_number}<br>`;
+        content += `<strong>Nota Fiscal (NF):</strong> ${context.rnc.invoice_number || context.sac?.invoice_number || 'Não informada'}<br>`;
+        content += `<strong>Ordem de Produção (OP):</strong> ${context.rnc.op || context.sac?.op || 'Não informada'}<br>`;
+        content += `<strong>Lote:</strong> ${context.rnc.batch_number || context.sac?.batch_number || 'Não informado'}<br>`;
 
-        // Suporte a item_code (RNC) ou item_number (SAC)
         const itemCode = context.rnc.item_code || context.sac?.item_number;
         const itemName = context.rnc.item_name || context.sac?.item_name;
-        content += `**Item:** ${itemCode ? `${itemCode} - ` : ''}${itemName || 'Não informado'}\n`;
+        content += `<strong>Item:</strong> ${itemCode ? `${itemCode} - ` : ''}${itemName || 'Não informado'}<br>`;
+        content += `<strong>Quantidade:</strong> ${qty} | <strong>Preço Unit.:</strong> R$ ${unitPrice.toFixed(2)} | <strong>Total:</strong> ${totalPriceFormatted}<br>`;
 
-        content += `**Quantidade:** ${qty} | **Preço Unit.:** R$ ${unitPrice.toFixed(2)} | **Total:** ${totalPriceFormatted}\n`;
-
-        // Suporte a requester_name (RNC) ou contact_name (SAC)
         const requester = context.rnc.requester_name || context.sac?.contact_name;
         const sector = context.rnc.requester_sector || context.sac?.contact_sector;
-        content += `**Solicitante:** ${requester || 'Não informado'} (${sector || 'Setor N/I'})\n\n`;
+        content += `<strong>Solicitante:</strong> ${requester || 'Não informado'} (${sector || 'Setor N/I'})</p>`;
 
         // Seção Financeira de Devolução na RNC
         if (context.rnc.has_return) {
             const uom = context.rnc.uom || 'un';
-            content += `#### RASTREABILIDADE FINANCEIRA DE DEVOLUÇÃO\n`;
-            content += `**Quantidade Devolvida:** ${context.rnc.returned_quantity} ${uom}\n`;
+            content += `<h4>RASTREABILIDADE FINANCEIRA DE DEVOLUÇÃO</h4>`;
+            content += `<p><strong>Quantidade Devolvida:</strong> ${context.rnc.returned_quantity} ${uom}<br>`;
 
             const dest = context.rnc.return_destination === 'REWORK' ? 'RETRABALHO (Rework)' :
                 context.rnc.return_destination === 'DISCARD' ? 'DESCARTE (Loss/Discard)' : 'Não definido';
-            content += `**Destino da Mercadoria:** ${dest}\n`;
+            content += `<strong>Destino da Mercadoria:</strong> ${dest}</p>`;
 
             if (context.rnc.return_destination === 'REWORK') {
                 const finalQty = context.rnc.final_quantity || 0;
                 const newPrice = context.rnc.new_unit_price || 0;
                 const newTotal = (finalQty * newPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-                content += `**Quantidade Final (Pós-Retrabalho):** ${finalQty} ${uom}\n`;
-                content += `**Novo Preço Unitário:** R$ ${newPrice.toFixed(2)}\n`;
-                content += `**Valor Re-faturado Estimado:** ${newTotal}\n`;
+                content += `<p><strong>Quantidade Final (Pós-Retrabalho):</strong> ${finalQty} ${uom}<br>`;
+                content += `<strong>Novo Preço Unitário:</strong> R$ ${newPrice.toFixed(2)}<br>`;
+                content += `<strong>Valor Re-faturado Estimado:</strong> ${newTotal}<br>`;
 
                 const returnedQty = parseFloat(context.rnc.returned_quantity || 0);
                 const loss = returnedQty - finalQty;
                 if (loss > 0) {
-                    content += `**Perda de Processo no Retrabalho:** ${loss.toFixed(2)} ${uom}\n`;
+                    content += `<strong>Perda de Processo no Retrabalho:</strong> ${loss.toFixed(2)} ${uom}</p>`;
+                } else {
+                    content += `</p>`;
                 }
             } else if (context.rnc.return_destination === 'DISCARD') {
-                content += `**Impacto Financeiro:** Perda total de ${context.rnc.returned_quantity} ${uom} (Prejuízo estimado: ${totalPriceFormatted})\n`;
+                content += `<p><strong>Impacto Financeiro:</strong> Perda total de ${context.rnc.returned_quantity} ${uom} (Prejuízo estimado: ${totalPriceFormatted})</p>`;
             }
-            content += `\n`;
         }
 
-        content += `**Causa Raiz (Ishikawa):** ${context.rnc.root_cause_ishikawa || 'Não informada'}\n\n`;
+        content += `<p><strong>Causa Raiz (Ishikawa):</strong> ${context.rnc.root_cause_ishikawa || 'Não informada'}</p>`;
     } else {
-        content += `Nenhuma RNC vinculada a este atendimento no momento.\n\n`;
+        content += `<p>Nenhuma RNC vinculada a este atendimento no momento.</p>`;
     }
 
     // Parecer de Auditoria
-    content += `### PARECER DE AUDITORIA DE JORNADA\n`;
-    content += `**Duração do Ciclo:** ${cycleDays} dias\n`;
-    content += `**Notas do Auditor:** ${notes || 'Sem observações adicionais.'}\n\n`;
-    content += `[DESCREVA AQUI A VALIDAÇÃO FINAL DA EFICÁCIA DO ATENDIMENTO]\n`;
+    content += `<h3>PARECER DE AUDITORIA DE JORNADA</h3>`;
+    content += `<p><strong>Duração do Ciclo:</strong> ${cycleDays} dias<br>`;
+    content += `<strong>Notas do Auditor:</strong> ${notes || 'Sem observações adicionais.'}</p>`;
+    content += `<p>[DESCREVA AQUI A VALIDAÇÃO FINAL DA EFICÁCIA DO ATENDIMENTO]</p>`;
 
     return {
         reportText: content,

@@ -34,6 +34,7 @@ const AppLayout = ({
     dailyHubTab,
     setDailyHubTab,
     dailyHubButtonRef,
+    dailyHubButtonRefHorizontal,
     tasks,
     notes,
     handleSaveNote,
@@ -112,6 +113,44 @@ const AppLayout = ({
                                 </button>
                             ))}
                         </div>
+
+                        {/* Horizontal Indicators */}
+                        <div className="flex items-center gap-1 border-l border-slate-200 ml-2 pl-2">
+                            <div ref={dailyHubButtonRefHorizontal} className="flex items-center gap-1">
+                                <button
+                                    onClick={() => { setDailyHubTab('TASKS'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'TASKS' ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white border-brand-700 shadow-sm' : 'bg-white border-slate-200/60 text-brand-700 hover:bg-brand-50'}`}
+                                    title="Tarefas"
+                                >
+                                    <CalendarIcon size={13} className={isDailyHubOpen && dailyHubTab === 'TASKS' ? 'text-white' : 'text-brand-500'} />
+                                    <span className="text-[10px] font-black">{todayTasksCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => { setDailyHubTab('NOTES'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'NOTES' ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white border-amber-600 shadow-sm' : 'bg-white border-slate-200/60 text-amber-700 hover:bg-brand-50'}`}
+                                    title="Notas"
+                                >
+                                    <StickyNote size={13} className={isDailyHubOpen && dailyHubTab === 'NOTES' ? 'text-white' : 'text-amber-500'} />
+                                    <span className="text-[10px] font-black">{todayNotesCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => { setDailyHubTab('OVERDUE'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'OVERDUE' ? 'bg-gradient-to-br from-red-500 to-red-700 text-white border-red-700 shadow-sm' : 'bg-white border-slate-200/60 text-red-700 hover:bg-red-50'}`}
+                                    title="Atrasos"
+                                >
+                                    <AlertTriangle size={13} className={totalOverdueCount > 0 ? 'animate-pulse' : ''} />
+                                    <span className="text-[10px] font-black">{totalOverdueCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => setIsPoliPanelOpen(!isPoliPanelOpen)}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-300 ${isPoliPanelOpen ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white border-purple-700 shadow-sm' : 'bg-white border-slate-200/60 text-purple-600 hover:bg-purple-50'}`}
+                                    title="IA POLI"
+                                >
+                                    <Sparkles size={13} className={suggestions.length > 0 && !isPoliPanelOpen ? 'animate-pulse' : ''} />
+                                    <span className="text-[10px] font-black tracking-tight">POLI</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -147,26 +186,90 @@ const AppLayout = ({
                 fixed inset-y-0 left-0 z-50 md:relative
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}>
-                <div className={`p-4 border-b ${theme.border} flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+                <div className={`p-4 border-b ${theme.border} flex flex-col gap-1`}>
+                    <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+                        {!isSidebarCollapsed && (
+                            <div className="flex items-center gap-2 overflow-hidden animate-fade text-brand-600">
+                                <CheckSquareIcon size={32} className="shrink-0" />
+                                <h1 className="text-2xl font-bold truncate tracking-tight">Assistec</h1>
+                            </div>
+                        )}
+                        {isSidebarCollapsed && <CheckSquareIcon size={24} className="text-brand-600" />}
+                        <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-1.5 hover:bg-black/5 rounded-lg text-slate-500 opacity-50 hover:opacity-100 transition-all hidden md:block">
+                            {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                        </button>
+                        <button onClick={() => setIsMobileMenuOpen(false)} className="p-1.5 hover:bg-black/5 rounded-lg text-slate-500 opacity-50 hover:opacity-100 transition-all md:hidden">
+                            <X size={20} />
+                        </button>
+                    </div>
                     {!isSidebarCollapsed && (
-                        <div className="flex items-center gap-2 overflow-hidden animate-fade">
-                            <CheckSquareIcon size={32} className="text-brand-600 shrink-0" />
-                            <h1 className="text-2xl font-bold text-brand-600 truncate">Assistec</h1>
+                        <div className="px-1 animate-in fade-in slide-in-from-left-2 duration-500">
+                            <p className={`text-[10px] ${theme.subtext} font-medium opacity-70`}>Bem-vindo,</p>
+                            <p className={`text-sm font-black ${theme.text} leading-tight truncate`}>{currentUser.username}</p>
                         </div>
                     )}
-                    {isSidebarCollapsed && <CheckSquareIcon size={24} className="text-brand-600" />}
-                    <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-1.5 hover:bg-black/5 rounded-lg text-slate-500 opacity-50 hover:opacity-100 transition-all hidden md:block">
-                        {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-                    </button>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-1.5 hover:bg-black/5 rounded-lg text-slate-500 opacity-50 hover:opacity-100 transition-all md:hidden">
-                        <X size={20} />
-                    </button>
                 </div>
-                {!isSidebarCollapsed && (
-                    <div className="px-4 pb-1">
-                        <p className={`text-xs ${theme.subtext} mt-1 truncate`}>Bem-vindo, <span className={`font-semibold ${theme.text}`}>{currentUser.username}</span></p>
-                    </div>
-                )}
+
+                {/* Sidebar Indicators (Extra Slim Premium) */}
+                <div className={`px-3 py-2 border-b ${theme.border} bg-slate-50/40 backdrop-blur-sm`}>
+                    {!isSidebarCollapsed ? (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between px-1">
+                                <span className={`text-[10px] font-black ${theme.text} tracking-tight opacity-60`}>Hoje, {formattedHeaderDate}</span>
+                            </div>
+                            <div ref={dailyHubButtonRef} className="grid grid-cols-4 gap-1">
+                                <button
+                                    onClick={() => { setDailyHubTab('TASKS'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'TASKS' ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white border-brand-700 shadow-md shadow-brand-100' : 'bg-white border-slate-200/60 text-brand-700 hover:bg-brand-50 hover:border-brand-200'}`}
+                                    title="Tarefas"
+                                >
+                                    <CalendarIcon size={11} className={isDailyHubOpen && dailyHubTab === 'TASKS' ? 'text-white' : 'text-brand-500'} />
+                                    <span className="text-[10px] font-black leading-none">{todayTasksCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => { setDailyHubTab('NOTES'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'NOTES' ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white border-amber-600 shadow-md shadow-amber-100' : 'bg-white border-slate-200/60 text-amber-700 hover:bg-brand-50 hover:border-brand-200'}`}
+                                    title="Notas"
+                                >
+                                    <StickyNote size={11} className={isDailyHubOpen && dailyHubTab === 'NOTES' ? 'text-white' : 'text-amber-500'} />
+                                    <span className="text-[10px] font-black leading-none">{todayNotesCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => { setDailyHubTab('OVERDUE'); setIsDailyHubOpen(true); }}
+                                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] border transition-all duration-300 ${isDailyHubOpen && dailyHubTab === 'OVERDUE' ? 'bg-gradient-to-br from-red-500 to-red-700 text-white border-red-700 shadow-md shadow-red-100' : 'bg-white border-slate-200/60 text-red-700 hover:bg-red-50 hover:border-brand-200'}`}
+                                    title="Atrasos"
+                                >
+                                    <AlertTriangle size={11} className={totalOverdueCount > 0 ? 'animate-pulse' : ''} />
+                                    <span className="text-[10px] font-black leading-none">{totalOverdueCount}</span>
+                                </button>
+                                <button
+                                    onClick={() => setIsPoliPanelOpen(!isPoliPanelOpen)}
+                                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] border transition-all duration-300 ${isPoliPanelOpen ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white border-purple-700 shadow-md shadow-purple-100' : 'bg-white border-slate-200/60 text-purple-600 hover:bg-purple-50 hover:border-purple-200'}`}
+                                    title="IA POLI"
+                                >
+                                    <Sparkles size={11} className={suggestions.length > 0 && !isPoliPanelOpen ? 'animate-pulse' : ''} />
+                                    <span className="text-[9px] font-black leading-none tracking-tight">POLI</span>
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2">
+                            <button
+                                onClick={() => { setDailyHubTab('TASKS'); setIsDailyHubOpen(true); }}
+                                className="w-10 h-10 rounded-xl bg-white border border-slate-200/60 flex items-center justify-center text-brand-600 relative hover:bg-brand-50 transition-all shadow-sm"
+                            >
+                                <CalendarIcon size={14} />
+                                {todayTasksCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-white">{todayTasksCount}</span>}
+                            </button>
+                            <button
+                                onClick={() => setIsPoliPanelOpen(!isPoliPanelOpen)}
+                                className="w-10 h-10 rounded-xl bg-white border border-slate-200/60 flex items-center justify-center text-purple-600 hover:bg-purple-50 transition-all shadow-sm"
+                            >
+                                <Sparkles size={14} />
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <nav className="flex-1 p-2 space-y-1 overflow-y-auto custom-scrollbar">
                     {menuItems.map(item => (
                         <button
@@ -255,129 +358,36 @@ const AppLayout = ({
             </aside>
 
             {/* Main Content Area */}
-            <main className={`flex-1 flex flex-col p-4 md:p-6 overflow-hidden relative ${isMobile ? 'pb-[80px]' : ''}`}>
-                <header className="mb-2 flex flex-col gap-2 md:grid md:grid-cols-[1fr_auto_1fr] md:items-center relative">
-                    <div className="order-2 md:order-1 flex items-center gap-2">
+            <main className={`flex-1 flex flex-col p-0 overflow-hidden relative ${isMobile ? 'pb-[80px]' : ''}`}>
+                {/* Mobile Compact Header */}
+                {isMobile && (
+                    <header className="p-4 flex items-center justify-between shrink-0 bg-white border-b border-slate-100 z-10">
                         <button
                             onClick={() => setIsMobileMenuOpen(true)}
-                            className={`p-1.5 ${theme.text} hover:bg-black/5 rounded-lg md:hidden shrink-0 border border-slate-200 bg-white`}
+                            className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl border border-slate-100"
                         >
-                            <Menu size={18} />
+                            <Menu size={20} />
                         </button>
-
-                        <div className="flex-1 md:w-64 max-w-sm relative group animate-slide">
-                            <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 transition-colors ${theme.subtext} group-focus-within:text-brand-600`} size={14} />
-                            <input
-                                type="text"
-                                placeholder="Buscar cliente..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className={`w-full pl-8 pr-3 py-1.5 ${theme.card} rounded-full ${UI_TOKENS.SHADOW_SM} outline-none focus:ring-2 focus:ring-brand-500 text-xs md:text-sm ${UI_TOKENS.TRANSITION_ALL} text-current placeholder:opacity-50 border border-slate-200/60`}
-                            />
-                            {searchTerm.length > 0 && (
-                                <div className="absolute top-full left-0 w-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-                                    {(() => {
-                                        const suggestions = allClients.filter(c => c.toLowerCase().includes(searchTerm.toLowerCase()));
-                                        if (suggestions.length === 0) return <div className="p-3 text-xs text-slate-400 italic text-center">Nenhum cliente encontrado</div>;
-                                        return (
-                                            <ul className="max-h-60 overflow-y-auto custom-scrollbar">
-                                                {suggestions.map(client => (
-                                                    <li
-                                                        key={client}
-                                                        onClick={() => {
-                                                            setSelectedClient(client);
-                                                            setViewMode('clients');
-                                                            setSearchTerm('');
-                                                            setIsMobileMenuOpen(false);
-                                                        }}
-                                                        className="px-4 py-2 text-xs md:text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-600 cursor-pointer border-b border-slate-50 last:border-none flex items-center gap-2"
-                                                    >
-                                                        <UserIcon size={14} className="opacity-50" />
-                                                        {client}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        );
-                                    })()}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div
-                        ref={dailyHubButtonRef}
-                        className={`order-1 md:order-2 p-1.5 md:p-0 ${theme.header} md:bg-transparent rounded-xl md:rounded-none shadow-sm md:shadow-none border md:border-none ${theme.border} flex items-center justify-center gap-4 animate-fade relative`}
-                    >
                         <div className="flex flex-col items-center">
-                            <span className="text-[8px] md:text-[9px] font-black uppercase tracking-tight text-brand-600 leading-none mb-0.5">Hoje</span>
-                            <span className={`text-xs md:text-sm font-bold ${theme.text} leading-none whitespace-nowrap`}>{formattedHeaderDate}</span>
+                            <span className="text-[8px] font-black text-brand-600 uppercase tracking-widest">Assistec</span>
+                            <span className="text-[11px] font-bold text-slate-800">{formattedHeaderDate}</span>
                         </div>
-                        <div className="h-6 w-px bg-slate-200/80" />
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => {
-                                    if (!isDailyHubOpen || dailyHubTab !== 'TASKS') {
-                                        setDailyHubTab('TASKS');
-                                        setIsDailyHubOpen(true);
-                                    } else setIsDailyHubOpen(false);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all hover:scale-105 shadow-sm border ${isDailyHubOpen && dailyHubTab === 'TASKS' ? 'bg-brand-600 text-white border-brand-700 shadow-brand-200' : 'bg-white text-brand-700 border-brand-100 hover:bg-brand-50'}`}
-                                title="Tarefas de Hoje"
-                            >
-                                <CalendarIcon size={14} className={isDailyHubOpen && dailyHubTab === 'TASKS' ? 'text-white' : 'text-brand-500'} />
-                                <span className="text-xs font-black">{todayTasksCount}</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (!isDailyHubOpen || dailyHubTab !== 'NOTES') {
-                                        setDailyHubTab('NOTES');
-                                        setIsDailyHubOpen(true);
-                                    } else setIsDailyHubOpen(false);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all hover:scale-105 shadow-sm border ${isDailyHubOpen && dailyHubTab === 'NOTES' ? 'bg-amber-500 text-white border-amber-600 shadow-amber-200' : 'bg-white text-amber-700 border-amber-100 hover:bg-amber-50'}`}
-                                title="Notas e Lembretes"
-                            >
-                                <StickyNote size={14} className={isDailyHubOpen && dailyHubTab === 'NOTES' ? 'text-white' : 'text-amber-500'} />
-                                <span className="text-xs font-black">{todayNotesCount}</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (!isDailyHubOpen || dailyHubTab !== 'OVERDUE') {
-                                        setDailyHubTab('OVERDUE');
-                                        setIsDailyHubOpen(true);
-                                    } else setIsDailyHubOpen(false);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all hover:scale-105 shadow-sm border ${isDailyHubOpen && dailyHubTab === 'OVERDUE' ? 'bg-red-600 text-white border-red-700 shadow-red-200' : 'bg-white text-red-700 border-red-200 hover:bg-red-50'} group`}
-                                title={`${totalOverdueCount} Itens em Atraso`}
-                            >
-                                <AlertTriangle size={14} className={`${isDailyHubOpen && dailyHubTab === 'OVERDUE' ? 'text-white' : (totalOverdueCount > 0 ? 'text-red-500 animate-pulse' : 'text-red-300')} group-hover:scale-110`} />
-                                <span className="text-xs font-black">{totalOverdueCount}</span>
-                            </button>
-                        </div>
-                        <DailyHub
-                            isOpen={isDailyHubOpen}
-                            onClose={() => setIsDailyHubOpen(false)}
-                            tasks={tasks}
-                            notes={notes}
-                            onSaveNote={handleSaveNote}
-                            onDeleteNote={handleDeleteNote}
-                            currentUser={currentUser}
-                            onEditTask={(t) => { setEditingTask(t); setIsModalOpen(true); fetchTaskDetail(t.id); }}
-                            initialTab={dailyHubTab}
-                            buttonRef={dailyHubButtonRef}
-                        />
-                    </div>
-
-                    <div className="order-3 md:order-3 flex items-center justify-end gap-2">
                         <button
-                            onClick={() => setIsPoliPanelOpen(!isPoliPanelOpen)}
-                            className={`bg-purple-100 text-purple-600 p-1.5 rounded-full hover:bg-purple-200 transition-all hover:scale-105 shadow-sm hidden md:flex relative ${isPoliPanelOpen ? 'ring-2 ring-purple-400 ring-offset-2' : ''} ${suggestions.length > 0 && !isPoliPanelOpen ? 'animate-pulse-purple ring-2 ring-purple-300' : ''}`}
-                            title="Sugestões da POLI"
+                            onClick={() => {
+                                setDailyHubTab('TASKS');
+                                setIsDailyHubOpen(true);
+                            }}
+                            className="p-2 text-brand-600 bg-brand-50 rounded-xl relative"
                         >
-                            <Sparkles size={16} />
+                            <CalendarIcon size={20} />
+                            {todayTasksCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                                    {todayTasksCount}
+                                </span>
+                            )}
                         </button>
-                    </div>
-                </header>
+                    </header>
+                )}
 
                 <div className="flex-1 relative flex flex-col min-h-0">
                     {children}

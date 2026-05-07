@@ -188,8 +188,18 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                 <h2 className="text-xs uppercase font-black text-black mb-2 border-b border-slate-200 pb-1">Descrição Técnica</h2>
                 <div className="text-sm leading-relaxed text-slate-800">
                     {(() => {
-                        // Agrupa o conteúdo em seções delimitadas por títulos ###
-                        // Isso garante que título e conteúdo nunca sejam separados em páginas diferentes
+                        const isHtml = (content || "").trim().startsWith('<');
+
+                        if (isHtml) {
+                            return (
+                                <div 
+                                    className="rich-text-content"
+                                    dangerouslySetInnerHTML={{ __html: content }} 
+                                />
+                            );
+                        }
+
+                        // Lógica Legada para Markdown/Texto Puro (Retrocompatibilidade)
                         const lines = (content || "").split('\n');
                         const sections = [];
                         let currentSection = { title: null, lines: [], isRnc3rd: false };
@@ -197,7 +207,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
 
                         lines.forEach((line) => {
                             if (line.trim().startsWith('###')) {
-                                // Finaliza a seção anterior
                                 if (currentSection.lines.length > 0 || currentSection.title !== null) {
                                     sections.push({ ...currentSection });
                                 }
@@ -211,13 +220,12 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                                 currentSection.lines.push(line);
                             }
                         });
-                        // Empurra a última seção
+                        
                         if (currentSection.lines.length > 0 || currentSection.title !== null) {
                             sections.push(currentSection);
                         }
 
                         const renderLine = (line, i, allLines) => {
-                            // Negritos **texto**
                             if (line.includes('**')) {
                                 const parts = line.split(/(\*\*.*?\*\*)/g);
                                 return (
@@ -232,7 +240,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                                 );
                             }
 
-                            // Tabelas Markdown
                             if (line.includes('|')) {
                                 const cells = line.split('|').map(c => c.trim()).filter(c => c !== '');
                                 if (cells.length > 0 && !line.includes('---')) {
@@ -251,7 +258,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                                 if (line.includes('---')) return null;
                             }
 
-                            // Linha comum
                             return (
                                 <p key={i} className={`mb-1 ${line.trim() === '' ? 'h-3' : ''}`}>
                                     {line}
@@ -261,9 +267,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
 
                         return sections.map((section, si) => (
                             <div key={si}>
-                                {/* Quebra de página forçada antes da 3ª seção apenas para RNC */}
                                 {section.isRnc3rd && <div className="page-break" />}
-
                                 {section.title && (
                                     <h3
                                         className="text-sm font-black text-brand-700 mt-6 mb-2 uppercase border-b border-brand-100 pb-1"
@@ -321,14 +325,50 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                             </td>
                             <td className="w-1/2 pl-8 border-none p-0 text-center align-bottom shadow-none">
                                 <div className="border-b-2 border-slate-300 h-12 mb-2 w-full shadow-none"></div>
-                                <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-1 shadow-none">Assinatura do Cliente</p>
-                                <p className="text-[11px] font-bold text-slate-400 shadow-none">Responsável Legal / Recebedor</p>
-                                <p className="text-[7px] text-slate-300 font-bold uppercase mt-1 italic shadow-none">Assinatura no local de atendimento</p>
+                                <p className="text-[10px] uppercase font-black text-black tracking-widest mb-1 shadow-none">Assinatura do Cliente</p>
+                                <p className="text-[11px] font-bold text-slate-900 shadow-none">Responsável Legal / Recebedor</p>
+                                <p className="text-[7px] text-slate-600 font-bold uppercase mt-1 italic shadow-none">Assinatura no local de atendimento</p>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+
+            {/* Styles for Rich Text Content */}
+            <style>{`
+                .rich-text-content h1, .rich-text-content h2, .rich-text-content h3 {
+                    font-weight: 900;
+                    color: #0f172a;
+                    margin-top: 1.5rem;
+                    margin-bottom: 0.5rem;
+                    text-transform: uppercase;
+                    border-bottom: 1px solid #f1f5f9;
+                    font-size: 0.875rem;
+                }
+                .rich-text-content p {
+                    margin-bottom: 0.75rem;
+                    line-height: 1.6;
+                }
+                .rich-text-content ul, .rich-text-content ol {
+                    margin-bottom: 1rem !important;
+                    padding-left: 1.5rem !important;
+                    display: block !important;
+                }
+                .rich-text-content ul {
+                    list-style-type: disc !important;
+                }
+                .rich-text-content ol {
+                    list-style-type: decimal !important;
+                }
+                .rich-text-content li {
+                    margin-bottom: 0.25rem;
+                    display: list-item !important;
+                }
+                .rich-text-content strong {
+                    font-weight: 800;
+                    color: #0f172a;
+                }
+            `}</style>
         </div>
     );
 });

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2, Unlink
+    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2, Unlink, Printer
 } from 'lucide-react';
 import {
     TaskStatus, StatusLabels, CategoryLabels, StatusColors
@@ -22,12 +22,14 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
     const [editData, setEditData] = useState({}); // data being edited
     const [isSaving, setIsSaving] = useState(false);
     const [occurrenceTypes, setOccurrenceTypes] = useState([]);
+    const [vehicleIssueTypes, setVehicleIssueTypes] = useState([]);
     const [selectedTripForDetail, setSelectedTripForDetail] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [newParticipantName, setNewParticipantName] = useState('');
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTrips, setSelectedTrips] = useState([]); // Array of trip IDs
     const [isProrationModalOpen, setIsProrationModalOpen] = useState(false);
+    const [printOrientation, setPrintOrientation] = useState('landscape'); // 'portrait' or 'landscape'
     const [prorationData, setProrationData] = useState({
         km_total: 0,
         cost_fuel: 0,
@@ -52,8 +54,14 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         if (data) setOccurrenceTypes(data);
     };
 
+    const fetchVehicleIssueTypes = async () => {
+        const { data } = await supabase.from('vehicle_issue_types').select('*').order('name');
+        if (data) setVehicleIssueTypes(data);
+    };
+
     React.useEffect(() => {
         fetchOccurrenceTypes();
+        fetchVehicleIssueTypes();
     }, []);
 
     // Flatten tasks into trips
@@ -94,6 +102,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         occurrence: t.occurrence || '',
                         occurrence_obs: t.occurrence_obs || '',
                         occurrence_cost: t.occurrence_cost || 0,
+                        // Veículo Condição
+                        vehicle_status: t.vehicle_status || 'CONFORME',
+                        vehicle_issue: t.vehicle_issue || '',
                         // Custos detalhados
                         cost_fuel: t.cost_fuel || 0,
                         cost_lodging: t.cost_lodging || 0,
@@ -138,6 +149,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     parent_test_id: task.parent_test_id,
                     parent_test_number: task.parent_test_number, 
                     status: 'PROGRAMADA',
+                    vehicle_status: task.vehicle_status || 'CONFORME',
+                    vehicle_issue: task.vehicle_issue || '',
                     group_id: task.group_id,
                     group_name: task.group_name,
                     isSpecific: false
@@ -204,7 +217,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             tripCount: filteredTrips.length,
             clientCount: new Set(filteredTrips.map(t => t.client)).size,
             byPerson: {},
-            byVehicle: {}
+            byVehicle: {},
+            irregularityCount: 0,
+            irregularityRanking: {} // { issue: { total: 0, vehicles: { vName: count } } }
         };
 
         filteredTrips.forEach(t => {
@@ -230,6 +245,19 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             if (t.occurrence) {
                 stats.totalOccurrenceLoss += parseFloat(t.occurrence_cost) || 0;
                 stats.occurrenceCount += 1;
+            }
+
+            // Irregularidades
+            if (t.vehicle_status === 'IRREGULAR') {
+                stats.irregularityCount += 1;
+                const issue = t.vehicle_issue || 'Não Especificado';
+                const vName = t.vehicle_info || 'Não Identificado';
+                
+                if (!stats.irregularityRanking[issue]) {
+                    stats.irregularityRanking[issue] = { total: 0, vehicles: {} };
+                }
+                stats.irregularityRanking[issue].total += 1;
+                stats.irregularityRanking[issue].vehicles[vName] = (stats.irregularityRanking[issue].vehicles[vName] || 0) + 1;
             }
 
             // Agrupamento por Veículo
@@ -322,6 +350,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             cost_extra: trip.cost_extra || 0,
             cost_airfare: trip.cost_airfare || 0,
             cost_car_rental: trip.cost_car_rental || 0,
+            vehicle_status: trip.vehicle_status || 'CONFORME',
+            vehicle_issue: trip.vehicle_issue || '',
             additional_participants: trip.additional_participants ? trip.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : []
         });
     };
@@ -362,7 +392,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     vehicle_info: vehicle,
                     trip_cost: cost,
                     trip_cost_currency: editData.currency || 'BRL',
-                    trip_info_finalized: isFinalized
+                    trip_info_finalized: isFinalized,
+                    vehicle_status: editData.vehicle_status || 'CONFORME',
+                    vehicle_issue: editData.vehicle_issue || ''
                 };
             } else {
                 const totalCost = 
@@ -398,6 +430,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         cost_extra: parseFloat(editData.cost_extra) || 0,
                         cost_airfare: parseFloat(editData.cost_airfare) || 0,
                         cost_car_rental: parseFloat(editData.cost_car_rental) || 0,
+                        vehicle_status: editData.vehicle_status || 'CONFORME',
+                        vehicle_issue: editData.vehicle_issue || '',
                         additional_participants: Array.isArray(editData.additional_participants) ? editData.additional_participants.join(', ') : editData.additional_participants
                     };
                 }
@@ -408,6 +442,12 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             if (editData.occurrence && !occurrenceTypes.some(o => o.name === editData.occurrence)) {
                 await supabase.from('travel_occurrence_types').upsert({ name: editData.occurrence });
                 fetchOccurrenceTypes();
+            }
+
+            // Gerenciar tipo de problema de veículo no banco se for novo
+            if (editData.vehicle_issue && !vehicleIssueTypes.some(o => o.name === editData.vehicle_issue)) {
+                await supabase.from('vehicle_issue_types').upsert({ name: editData.vehicle_issue });
+                fetchVehicleIssueTypes();
             }
 
             // --- ATUALIZAÇÃO OTIMISTA (LOCAL) ---
@@ -453,6 +493,16 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const getPeriodLabel = () => {
+        if (!filters.date) return 'PERÍODO TOTAL';
+        if (filters.dateMode === 'MONTH') {
+            const [year, month] = filters.date.split('-');
+            const months = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+            return `${months[parseInt(month)-1]} / ${year}`;
+        }
+        return new Date(filters.date).toLocaleDateString('pt-BR');
     };
 
     const handleOpenDetail = (trip) => {
@@ -783,6 +833,22 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 </div>
                             </div>
                         )}
+                        <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 border border-slate-200">
+                            <span className="text-[8px] font-black text-slate-400 uppercase px-2">Layout:</span>
+                            <button 
+                                onClick={() => setPrintOrientation('portrait')}
+                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex items-center gap-1 ${printOrientation === 'portrait' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <div className="w-2 h-3 border-2 border-current rounded-sm"></div> Retrato
+                            </button>
+                            <button 
+                                onClick={() => setPrintOrientation('landscape')}
+                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all flex items-center gap-1 ${printOrientation === 'landscape' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <div className="w-3 h-2 border-2 border-current rounded-sm"></div> Paisagem
+                            </button>
+                        </div>
+                        <button onClick={() => window.print()} className="flex items-center gap-1.5 md:gap-2 bg-blue-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-lg"><Printer size={isMobile ? 14 : 16} /> {isMobile ? 'Imprimir' : 'Imprimir Relatório'}</button>
                         <button onClick={handlePrint} className="flex items-center gap-1.5 md:gap-2 bg-slate-800 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl text-[9px] md:text-sm font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 shadow-lg"><Download size={isMobile ? 14 : 16} /> {isMobile ? 'Exportar' : 'Exportar Excel'}</button>
                     </div>
                 </div>
@@ -865,6 +931,23 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
 
             {/* Content Area */}
             <div className="flex-1 overflow-auto bg-white" id="print-area">
+                {/* Print Header */}
+                <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-4 mb-6">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-slate-900 text-white p-3 rounded-2xl">
+                            <Plane size={32} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Relatório de Gestão de Viagens</h1>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controle de Frota e Deslocamentos Assistec</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Período de Referência</div>
+                        <div className="text-xl font-black text-brand-600 uppercase">{getPeriodLabel()}</div>
+                    </div>
+                </div>
+
                 {viewTab === 'LISTA' ? (
                     <div className="min-w-full inline-block align-middle">
                         <table className="w-full text-left border-collapse">
@@ -889,7 +972,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         return (
                                             <React.Fragment key={idx}>
                                                 <tr 
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                        // Ignorar clique se for em elementos interativos
+                                                        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
+                                                        
                                                         if (selectionMode) {
                                                             setSelectedTrips(prev => 
                                                                 prev.includes(trip.id) 
@@ -897,6 +983,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     : [...prev, trip.id]
                                                             );
                                                         } else {
+                                                            // Não abrir detalhes se estiver editando esta linha
+                                                            if (isEditing) return;
                                                             handleOpenDetail(trip);
                                                         }
                                                     }}
@@ -964,8 +1052,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     <td className="p-4 align-top min-w-[200px]">
                                                         {isEditing ? (
                                                             <div className="flex flex-col gap-3 w-full max-w-[200px] bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-                                                                {/* Veículo */}
-                                                                <div className="flex flex-col gap-1">
+                                                                   <div className="flex flex-col gap-1">
                                                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                                                                         <Car size={10} /> Veículo
                                                                     </label>
@@ -1035,6 +1122,55 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                         className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-[9px] font-bold outline-none focus:border-brand-500 shadow-sm"
                                                                     />
                                                                 </div>
+
+                                                                {/* Condição do Veículo */}
+                                                                <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Condição do Veículo</label>
+                                                                    <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                                                        <button 
+                                                                            onClick={() => setEditData(p => ({ ...p, vehicle_status: 'CONFORME', vehicle_issue: '' }))}
+                                                                            className={`flex-1 py-1 rounded-md text-[8px] font-black transition-all ${editData.vehicle_status === 'CONFORME' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        >
+                                                                            OK
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => setEditData(p => ({ ...p, vehicle_status: 'IRREGULAR' }))}
+                                                                            className={`flex-1 py-1 rounded-md text-[8px] font-black transition-all ${editData.vehicle_status === 'IRREGULAR' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        >
+                                                                            IRREGULAR
+                                                                        </button>
+                                                                    </div>
+                                                                    
+                                                                    {editData.vehicle_status === 'IRREGULAR' && (
+                                                                        <div className="mt-1 animate-in slide-in-from-top-1 flex gap-1">
+                                                                            <input 
+                                                                                type="text" 
+                                                                                list="vehicle-issue-list"
+                                                                                placeholder="Qual o problema?"
+                                                                                value={editData.vehicle_issue}
+                                                                                onChange={e => setEditData(p => ({ ...p, vehicle_issue: e.target.value }))}
+                                                                                className="flex-1 px-2 py-1 bg-white border border-rose-200 rounded text-[8px] font-bold outline-none focus:border-rose-500 shadow-sm placeholder:font-normal"
+                                                                            />
+                                                                            <button 
+                                                                                onClick={async () => {
+                                                                                    if (editData.vehicle_issue) {
+                                                                                        const { error } = await supabase.from('vehicle_issue_types').upsert({ name: editData.vehicle_issue });
+                                                                                        if (!error) {
+                                                                                            fetchVehicleIssueTypes();
+                                                                                            notifySuccess('Registrado!', 'Tipo de irregularidade salvo.');
+                                                                                        } else {
+                                                                                            notifyError('Erro', 'Não foi possível salvar o tipo de irregularidade.');
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                                className="px-1.5 bg-rose-500 text-white rounded hover:bg-rose-600 transition-colors shadow-sm"
+                                                                                title="Salvar sugestão"
+                                                                            >
+                                                                                <Save size={10} />
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-col">
@@ -1047,6 +1183,11 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                 {trip.additional_participants && (
                                                                     <div className="text-[8px] text-slate-400 font-bold mt-0.5 uppercase">
                                                                         + {trip.additional_participants.split(',').length} acompanhante(s)
+                                                                    </div>
+                                                                )}
+                                                                {trip.vehicle_status === 'IRREGULAR' && (
+                                                                    <div className="mt-1 flex items-center gap-1 text-[8px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 w-fit uppercase" title={trip.vehicle_issue}>
+                                                                        <AlertTriangle size={8} /> IRREGULAR: {trip.vehicle_issue}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1354,14 +1495,23 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 </div>
                             </div>
 
-                            <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg hover:shadow-xl transition-shadow flex items-center gap-4 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:scale-110 transition-transform"><DollarSign size={80} className="text-white" /></div>
-                                <div className="p-4 bg-slate-800 text-brand-400 rounded-2xl z-10"><BarChart3 size={24} /></div>
-                                <div className="z-10">
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Custo Geral Consolidado</div>
-                                    <div className="text-2xl font-black text-brand-400 leading-none">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summaryData.totalConsolidated)}
-                                    </div>
+                            <div className="bg-rose-50 p-5 rounded-3xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
+                                <div className="p-4 bg-white text-rose-500 rounded-2xl shadow-sm"><Car size={24} /></div>
+                                <div>
+                                    <div className="text-[10px] font-black text-rose-400 uppercase tracking-[0.15em] mb-1">Irregularidades Frota</div>
+                                    <div className="text-2xl font-black text-rose-600 leading-none">{summaryData.irregularityCount} <span className="text-xs font-bold text-rose-300">RELATOS</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Summary Consolidated */}
+                        <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg hover:shadow-xl transition-shadow flex items-center gap-4 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:scale-110 transition-transform"><DollarSign size={80} className="text-white" /></div>
+                            <div className="p-4 bg-slate-800 text-brand-400 rounded-2xl z-10"><BarChart3 size={24} /></div>
+                            <div className="z-10">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Custo Geral Consolidado</div>
+                                <div className="text-2xl font-black text-brand-400 leading-none">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summaryData.totalConsolidated)}
                                 </div>
                             </div>
                         </div>
@@ -1505,6 +1655,57 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     </td>
                                                     <td className="p-6 text-xs text-amber-600 text-right font-black">
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.incidentCost)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Ranking de Irregularidades de Frota */}
+                        <div className="bg-white rounded-[40px] border border-rose-100 shadow-sm overflow-hidden border-l-4 border-l-rose-500 mb-8">
+                            <div className="p-6 border-b border-rose-50 bg-rose-50/10 flex justify-between items-center">
+                                <h3 className="text-xs font-black text-rose-800 uppercase tracking-widest flex items-center gap-2">
+                                    <AlertTriangle size={18} className="text-rose-500" /> Auditoria e Ranking de Irregularidades
+                                </h3>
+                                <div className="text-[10px] font-bold text-rose-400 uppercase tracking-tighter">{summaryData.irregularityCount} relatos de problemas</div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-rose-50/30">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-rose-500 uppercase tracking-widest">Tipo de Irregularidade</th>
+                                            <th className="p-6 text-[10px] font-black text-rose-500 uppercase tracking-widest text-center">Frequência Total</th>
+                                            <th className="p-6 text-[10px] font-black text-rose-500 uppercase tracking-widest">Veículos com este Relato</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-rose-50">
+                                        {Object.entries(summaryData.irregularityRanking).length === 0 ? (
+                                            <tr><td colSpan="3" className="p-12 text-center text-slate-400 italic font-medium bg-slate-50/20">Nenhuma irregularidade registrada no período.</td></tr>
+                                        ) : (
+                                            Object.entries(summaryData.irregularityRanking)
+                                                .sort((a, b) => b[1].total - a[1].total)
+                                                .map(([issue, data]) => (
+                                                <tr key={issue} className="hover:bg-rose-50/20 transition-colors">
+                                                    <td className="p-6">
+                                                        <div className="text-xs font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                                                            {issue}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-6 text-center">
+                                                        <span className="px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-black">{data.total} <span className="text-[10px] opacity-70">x</span></span>
+                                                    </td>
+                                                    <td className="p-6">
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {Object.entries(data.vehicles).map(([v, count]) => (
+                                                                <span key={v} className="px-2 py-1 bg-white border border-rose-200 rounded-lg text-[9px] font-bold text-rose-600 uppercase">
+                                                                    {v} <span className="text-slate-400">({count})</span>
+                                                                </span>
+                                                            ))}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))
@@ -1945,7 +2146,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         <input 
                                             type="number" 
                                             value={prorationData.cost_fuel}
-                                            onChange={e => setProrationData(p => ({ ...p, cost_fuel: e.target.value }))}
+                                            onChange={e => setEditData(p => ({ ...p, cost_fuel: e.target.value }))}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                                         />
                                     </div>
@@ -2146,15 +2347,54 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     <option key={v.id} value={`${v.model} (${v.plate})`} />
                 ))}
             </datalist>
+            <datalist id="vehicle-issue-list">
+                {vehicleIssueTypes.map((o, i) => (
+                    <option key={i} value={o.name} />
+                ))}
+            </datalist>
 
-            {/* Print Styles */}
+             {/* Print Styles */}
             <style>{`
                 @media print {
-                    @page { margin: 1cm; size: landscape; }
+                    @page { margin: 1.2cm; size: ${printOrientation}; }
+                    body { background: white !important; }
                     body * { visibility: hidden; }
                     #print-area, #print-area * { visibility: visible; }
-                    #print-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; overflow: visible; }
-                    ::-webkit-scrollbar { display: none; }
+                    #print-area { 
+                        position: static !important;
+                        width: 100%;
+                        display: block !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                    }
+                    
+                    /* Garantir que a tabela e conteúdos fluam entre páginas */
+                    .min-w-full, table { 
+                        display: table !important; 
+                        width: 100% !important; 
+                        table-layout: auto !important;
+                    }
+
+                    /* Evitar quebras de página no meio de elementos */
+                    tr, .bg-white, .rounded-[40px], .card { 
+                        page-break-inside: avoid !important; 
+                        break-inside: avoid !important; 
+                    }
+
+                    .print\\:hidden { display: none !important; }
+                    
+                    /* Garantir cores e fundos */
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    
+                    .bg-slate-50 { background-color: #f8fafc !important; }
+                    .bg-rose-50 { background-color: #fff1f2 !important; }
+                    .bg-brand-600 { background-color: #0ea5e9 !important; }
+                    .bg-slate-900 { background-color: #0f172a !important; }
+                    
+                    .rounded-3xl, .rounded-xl, .rounded-[40px] { border-radius: 8px !important; border: 1px solid #eee !important; }
+                    
+                    ::-webkit-scrollbar { display: none !important; }
+                    * { overflow: visible !important; }
                 }
             `}</style>
         </div >

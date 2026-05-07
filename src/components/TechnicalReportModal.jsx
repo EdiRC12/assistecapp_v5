@@ -54,9 +54,9 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
 
                 {/* Attachments Section - ONLY VISIBLE ON SCREEN */}
                 {report.media_urls && report.media_urls.length > 0 && (
-                    <div className="bg-slate-50 px-8 py-3 border-b border-slate-200 flex items-center gap-4 shrink-0 overflow-x-auto no-scrollbar">
+                    <div className="bg-slate-50 px-4 md:px-8 py-3 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 shrink-0">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Anexos do Relatório:</span>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                             {report.media_urls.map((m, idx) => (
                                 <button
                                     key={idx}

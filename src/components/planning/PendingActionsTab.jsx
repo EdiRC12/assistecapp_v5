@@ -4,7 +4,7 @@ import {
     Clock, CheckCircle2, Search, Filter,
     CheckSquare, Plus, Trash2, Layers, X,
     Calendar, Link2, ClipboardList, ChevronDown, ChevronUp, ExternalLink, Building2, ArrowUpCircle, Tag, RefreshCw,
-    ArrowRight, ArrowLeft, Play, Check, AlertCircle, FlaskConical, Edit2
+    ArrowRight, ArrowLeft, Play, Check, AlertCircle, FlaskConical, Edit2, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 import { usePendingActionsData } from '../../hooks/usePendingActionsData';
@@ -39,7 +39,9 @@ const PendingActionsTab = ({
         actions, 
         setActions, 
         loading, 
+        hasMore,
         fetchActions, 
+        fetchMore,
         handleToggleStatus, 
         handleUpdateStatus,
         handleDelete 
@@ -49,6 +51,13 @@ const PendingActionsTab = ({
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [showAddModal, setShowAddModal] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState({});
+    const [collapsedColumns, setCollapsedColumns] = useState(['CONCLUÍDO']);
+
+    const toggleColumn = (status) => {
+        setCollapsedColumns(prev => 
+            prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+        );
+    };
 
     // Migration modal state
     const [migratingAction, setMigratingAction] = useState(null);
@@ -236,15 +245,15 @@ const PendingActionsTab = ({
 
             {/* Stats Compact */}
             <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-amber-200">
+                <div onClick={() => toggleColumn('PENDENTE')} className={`bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-amber-200 cursor-pointer ${collapsedColumns.includes('PENDENTE') ? 'opacity-50' : 'ring-2 ring-amber-400'}`}>
                     <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center shrink-0"><Clock size={16} className="text-amber-500" /></div>
                     <div><p className="text-lg font-black text-slate-800 leading-none">{totalPending}</p><p className="text-[8px] font-black text-slate-400 uppercase">A Fazer</p></div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-indigo-200">
+                <div onClick={() => toggleColumn('EM ANDAMENTO')} className={`bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-indigo-200 cursor-pointer ${collapsedColumns.includes('EM ANDAMENTO') ? 'opacity-50' : 'ring-2 ring-indigo-400'}`}>
                     <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center shrink-0"><RefreshCw size={16} className="text-indigo-600 animate-spin" /></div>
                     <div><p className="text-lg font-black text-slate-800 leading-none">{totalInProgress}</p><p className="text-[8px] font-black text-slate-400 uppercase">Fazendo</p></div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-emerald-200">
+                <div onClick={() => toggleColumn('CONCLUÍDO')} className={`bg-white rounded-xl border border-slate-200 p-2 flex items-center gap-2 shadow-sm transition-all hover:border-emerald-200 cursor-pointer ${collapsedColumns.includes('CONCLUÍDO') ? 'opacity-50' : 'ring-2 ring-emerald-400'}`}>
                     <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center shrink-0"><CheckCircle2 size={16} className="text-emerald-500" /></div>
                     <div><p className="text-lg font-black text-slate-800 leading-none">{totalDone}</p><p className="text-[8px] font-black text-slate-400 uppercase">Feito</p></div>
                 </div>
@@ -266,102 +275,121 @@ const PendingActionsTab = ({
 
             {/* Content Container */}
             {/* Kanban Board */}
-            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 overflow-hidden">
-                {loading ? (
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 overflow-hidden">
+                {loading && actions.length === 0 ? (
                     <div className="flex-1 flex items-center justify-center py-20"><div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" /></div>
                 ) : (
-                    STATUS_OPTIONS_PENDING.map(({ id: status, label, color, ghost }) => (
-                        <div key={status} className={`flex-1 flex flex-col min-w-[300px] h-full ${isMobile && statusFilter !== 'ALL' && statusFilter !== status ? 'hidden' : ''}`}>
-                            {/* Column Header */}
-                            <div className="flex items-center justify-between mb-4 bg-white/50 p-3 rounded-2xl border border-slate-100/50">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${color} animate-pulse`} />
-                                    <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{label}</h3>
-                                    <span className="bg-slate-100 text-slate-400 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                                        {actions.filter(a => a.status === status).length}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Column Content */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pb-10">
-                                {actions.filter(a => 
-                                    a.status === status && 
-                                    (a.description || '').toLowerCase().includes(searchTerm.toLowerCase())
-                                ).length === 0 ? (
-                                    <div className={`p-10 border-2 border-dashed border-slate-100 rounded-[32px] flex flex-col items-center justify-center gap-2 ${ghost}`}>
-                                        <AlertCircle size={24} className="text-slate-200" />
-                                        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tight">Sem tarefas aqui</p>
+                    STATUS_OPTIONS_PENDING.map(({ id: status, label, color, ghost }) => {
+                        const isCollapsed = collapsedColumns.includes(status);
+                        return (
+                            <div key={status} className={`flex flex-col transition-all duration-500 ease-in-out ${isCollapsed ? 'w-12 md:w-16 min-w-0' : 'flex-1 min-w-[300px]'} h-full ${isMobile && statusFilter !== 'ALL' && statusFilter !== status ? 'hidden' : ''}`}>
+                                {/* Column Header */}
+                                <div onClick={() => toggleColumn(status)} className={`flex items-center justify-between mb-4 p-3 rounded-2xl border cursor-pointer transition-all ${isCollapsed ? 'bg-slate-100 border-slate-200 flex-col py-6 gap-6' : 'bg-white border-slate-100'}`}>
+                                    <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+                                        <div className={`w-2 h-2 rounded-full ${color} ${!isCollapsed ? 'animate-pulse' : ''}`} />
+                                        <h3 className={`text-[11px] font-black text-slate-500 uppercase tracking-widest ${isCollapsed ? 'vertical-text' : ''}`}>{label}</h3>
+                                        <span className="bg-slate-100 text-slate-400 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                            {actions.filter(a => a.status === status).length}
+                                        </span>
                                     </div>
-                                ) : (
-                                    actions.filter(a => 
+                                    {!isCollapsed ? (
+                                        <ChevronLeft size={16} className="text-slate-300" />
+                                    ) : (
+                                        <ChevronRight size={16} className="text-slate-300" />
+                                    )}
+                                </div>
+
+                                {/* Column Content */}
+                                <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-4 pb-10 px-0.5 ${isCollapsed ? 'hidden' : 'block'}`}>
+                                    {actions.filter(a => 
                                         a.status === status && 
                                         (a.description || '').toLowerCase().includes(searchTerm.toLowerCase())
-                                    ).map(action => {
-                                        const prio = action.priority || 'MÉDIA';
-                                        const styles = PRIORITY_COLORS[prio] || PRIORITY_COLORS['MÉDIA'];
+                                    ).length === 0 ? (
+                                        <div className={`p-10 border-2 border-dashed border-slate-100 rounded-[32px] flex flex-col items-center justify-center gap-2 ${ghost}`}>
+                                            <AlertCircle size={24} className="text-slate-200" />
+                                            <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tight">Sem tarefas aqui</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {actions.filter(a => 
+                                                a.status === status && 
+                                                (a.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                            ).map(action => {
+                                                const prio = action.priority || 'MÉDIA';
+                                                const styles = PRIORITY_COLORS[prio] || PRIORITY_COLORS['MÉDIA'];
 
-                                        return (
-                                            <div key={action.id} className={`bg-white rounded-[24px] border-2 ${styles.border} ${styles.bg} p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2`}>
-                                                {/* Top highlight bar */}
-                                                <div className={`absolute top-0 left-0 right-0 h-1.5 ${styles.bar}`} />
-                                                
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit ${
-                                                            prio === 'CRÍTICA' ? 'bg-rose-100 text-rose-700' :
-                                                            prio === 'ALTA' ? 'bg-orange-100 text-orange-700' :
-                                                            prio === 'MÉDIA' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                            {prio}
+                                                return (
+                                                    <div key={action.id} className={`bg-white rounded-[24px] border-2 ${styles.border} ${styles.bg} p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden animate-in fade-in slide-in-from-bottom-2`}>
+                                                        {/* Top highlight bar */}
+                                                        <div className={`absolute top-0 left-0 right-0 h-1.5 ${styles.bar}`} />
+                                                        
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase w-fit ${
+                                                                    prio === 'CRÍTICA' ? 'bg-rose-100 text-rose-700' :
+                                                                    prio === 'ALTA' ? 'bg-orange-100 text-orange-700' :
+                                                                    prio === 'MÉDIA' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                                                                }`}>
+                                                                    {prio}
+                                                                </div>
+                                                                {(action.client_name || action.linked_task_id) && (
+                                                                    <div className="flex items-center gap-1 text-[8px] font-black text-brand-600 uppercase truncate max-w-[150px]">
+                                                                        <Building2 size={10} className="shrink-0" />
+                                                                        {action.client_name || tasks.find(t => t.id === action.linked_task_id)?.client || 'PENDÊNCIA'}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => handleOpenModal(action)} title="Editar" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit2 size={13} /></button>
+                                                                <button onClick={() => openMigrateModal(action)} title="Migrar para Tarefa" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><ArrowUpCircle size={13} /></button>
+                                                                <button onClick={() => handleDelete(action.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={13} /></button>
+                                                            </div>
                                                         </div>
-                                                        {(action.client_name || action.linked_task_id) && (
-                                                            <div className="flex items-center gap-1 text-[8px] font-black text-brand-600 uppercase truncate max-w-[150px]">
-                                                                <Building2 size={10} className="shrink-0" />
-                                                                {action.client_name || tasks.find(t => t.id === action.linked_task_id)?.client || 'PENDÊNCIA'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => handleOpenModal(action)} title="Editar" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit2 size={13} /></button>
-                                                        <button onClick={() => openMigrateModal(action)} title="Migrar para Tarefa" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><ArrowUpCircle size={13} /></button>
-                                                        <button onClick={() => handleDelete(action.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={13} /></button>
-                                                    </div>
-                                                </div>
 
-                                                <p className="text-sm font-black text-slate-700 leading-tight mb-3">
-                                                    {action.description}
-                                                </p>
+                                                        <p className="text-sm font-black text-slate-700 leading-tight mb-3">
+                                                            {action.description}
+                                                        </p>
 
-                                                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-[9px] font-bold text-slate-300 uppercase flex items-center gap-1">
-                                                            <Calendar size={10} /> {action.deadline ? new Date(action.deadline + 'T12:00:00').toLocaleDateString('pt-BR') : 'Sem prazo'}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    <div className="flex items-center gap-2">
-                                                        {status === 'PENDENTE' && (
-                                                            <button onClick={() => handleUpdateStatus(action.id, 'EM ANDAMENTO')} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowRight size={14} /></button>
-                                                        )}
-                                                        {status === 'EM ANDAMENTO' && (
-                                                            <div className="flex gap-1">
-                                                                <button onClick={() => handleUpdateStatus(action.id, 'PENDENTE')} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-600 hover:text-white transition-all shadow-sm"><ArrowLeft size={14} /></button>
-                                                                <button onClick={() => handleUpdateStatus(action.id, 'CONCLUÍDO')} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"><Check size={14} /></button>
+                                                        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-[9px] font-bold text-slate-300 uppercase flex items-center gap-1">
+                                                                    <Calendar size={10} /> {action.deadline ? new Date(action.deadline + 'T12:00:00').toLocaleDateString('pt-BR') : 'Sem prazo'}
+                                                                </span>
                                                             </div>
-                                                        )}
-                                                        {status === 'CONCLUÍDO' && (
-                                                            <button onClick={() => handleUpdateStatus(action.id, 'EM ANDAMENTO')} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowLeft size={14} /></button>
-                                                        )}
+                                                            
+                                                            <div className="flex items-center gap-2">
+                                                                {status === 'PENDENTE' && (
+                                                                    <button onClick={() => handleUpdateStatus(action.id, 'EM ANDAMENTO')} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowRight size={14} /></button>
+                                                                )}
+                                                                {status === 'EM ANDAMENTO' && (
+                                                                    <div className="flex gap-1">
+                                                                        <button onClick={() => handleUpdateStatus(action.id, 'PENDENTE')} className="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-600 hover:text-white transition-all shadow-sm"><ArrowLeft size={14} /></button>
+                                                                        <button onClick={() => handleUpdateStatus(action.id, 'CONCLUÍDO')} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"><Check size={14} /></button>
+                                                                    </div>
+                                                                )}
+                                                                {status === 'CONCLUÍDO' && (
+                                                                    <button onClick={() => handleUpdateStatus(action.id, 'EM ANDAMENTO')} className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowLeft size={14} /></button>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
+                                                );
+                                            })}
+                                            {hasMore && (
+                                                <button 
+                                                    onClick={fetchMore}
+                                                    className="w-full py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[24px] text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    {loading ? <RefreshCw className="animate-spin" size={14} /> : <ChevronDown size={14} />}
+                                                    Carregar mais pendências
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
 

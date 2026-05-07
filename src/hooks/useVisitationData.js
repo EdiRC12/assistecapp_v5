@@ -4,15 +4,26 @@ import { supabase } from '../supabaseClient';
 export const useVisitationData = (currentUser, selectedMonth, selectedYear) => {
     const [visitationPlanning, setVisitationPlanning] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [hasMore, setHasMore] = useState(true);
+    const [page, setPage] = useState(0);
+    const PAGE_SIZE = 50;
 
-    const fetchData = async () => {
+    const fetchData = async (isLoadMore = false) => {
         if (!currentUser?.id) return;
-        setLoading(true);
+        
+        if (!isLoadMore) {
+            setLoading(true);
+            setPage(0);
+        }
+
+        const currentPage = isLoadMore ? page + 1 : 0;
+
         try {
             let query = supabase
                 .from('visitation_planning')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
 
             // Filter by date if provided (using created_at or a specific date field)
             if (selectedMonth !== 'ALL' && selectedYear !== 'ALL') {
@@ -23,7 +34,19 @@ export const useVisitationData = (currentUser, selectedMonth, selectedYear) => {
 
             const { data, error } = await query;
             if (error) throw error;
-            setVisitationPlanning(data || []);
+            
+            if (isLoadMore) {
+                setVisitationPlanning(prev => [...prev, ...(data || [])]);
+                setPage(currentPage);
+            } else {
+                setVisitationPlanning(data || []);
+            }
+
+            if (data.length < PAGE_SIZE) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
         } catch (error) {
             console.error('[useVisitationData] Error fetching:', error);
         } finally {
@@ -57,6 +80,12 @@ export const useVisitationData = (currentUser, selectedMonth, selectedYear) => {
         };
     }, [currentUser?.id, selectedMonth, selectedYear]);
 
+    const fetchMore = () => {
+        if (!loading && hasMore) {
+            fetchData(true);
+        }
+    };
+
     const handleDelete = async (id) => {
         if (!window.confirm("Deseja realmente excluir este planejamento?")) return false;
         try {
@@ -73,7 +102,9 @@ export const useVisitationData = (currentUser, selectedMonth, selectedYear) => {
         visitationPlanning,
         setVisitationPlanning,
         loading,
+        hasMore,
         fetchData,
+        fetchMore,
         handleDelete
     };
 };

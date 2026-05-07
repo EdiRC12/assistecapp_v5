@@ -17,6 +17,7 @@ const DailyHub = ({
     currentUser,
     onEditTask,
     initialTab = 'TASKS',
+    layoutMode = 'VERTICAL',
     buttonRef // Nova prop para posicionar o portal
 }) => {
     const [activeTab, setActiveTab] = useState(initialTab); // TASKS, NOTES
@@ -41,10 +42,19 @@ const DailyHub = ({
     useEffect(() => {
         if (isOpen && buttonRef?.current) {
             const rect = buttonRef.current.getBoundingClientRect();
-            setPosition({
-                top: rect.bottom + 8,
-                left: rect.left + rect.width / 2
-            });
+            if (layoutMode === 'HORIZONTAL') {
+                // Abrir para baixo no modo horizontal
+                setPosition({
+                    top: rect.bottom + 12,
+                    left: Math.min(window.innerWidth - 460, rect.left - 200) // Tenta alinhar mas evita sair da tela
+                });
+            } else {
+                // Abrir à direita da barra lateral
+                setPosition({
+                    top: Math.max(20, rect.top - 40),
+                    left: rect.right + 12
+                });
+            }
         }
     }, [isOpen, buttonRef]);
 
@@ -227,11 +237,10 @@ const DailyHub = ({
         <>
         <div className="fixed inset-0 z-[9998] bg-black/5" onClick={onClose} />
         <div
-            className="fixed w-[95vw] md:w-[450px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[9999] overflow-hidden animate-in slide-in-from-top-4 duration-300"
+            className={`fixed w-[95vw] md:w-[450px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[9999] overflow-hidden animate-in duration-300 ${layoutMode === 'HORIZONTAL' ? 'slide-in-from-top-4' : 'slide-in-from-left-4'}`}
             style={{
                 top: `${position.top}px`,
-                left: `${position.left}px`,
-                transform: 'translateX(-50%)'
+                left: `${position.left}px`
             }}
         >
             {/* Header Tabs */}

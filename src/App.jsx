@@ -73,6 +73,7 @@ const App = () => {
     const [isDailyHubOpen, setIsDailyHubOpen] = useState(false);
     const [dailyHubTab, setDailyHubTab] = useState('TASKS');
     const dailyHubButtonRef = useRef(null);
+    const dailyHubButtonRefHorizontal = useRef(null);
 
     // Technical Report View State (Full Report)
     const [selectedTechReport, setSelectedTechReport] = useState(null);
@@ -951,6 +952,7 @@ const App = () => {
             dailyHubTab={dailyHubTab}
             setDailyHubTab={setDailyHubTab}
             dailyHubButtonRef={dailyHubButtonRef}
+            dailyHubButtonRefHorizontal={dailyHubButtonRefHorizontal}
             tasks={tasks}
             notes={notes}
             handleSaveNote={handleSaveNote}
@@ -1209,6 +1211,20 @@ const App = () => {
                             notifyError={notifyError}
                         />
                     )}
+
+                    <DailyHub
+                        isOpen={isDailyHubOpen}
+                        onClose={() => setIsDailyHubOpen(false)}
+                        tasks={tasks}
+                        notes={notes}
+                        onSaveNote={handleSaveNote}
+                        onDeleteNote={handleDeleteNote}
+                        currentUser={currentUser}
+                        onEditTask={handleEditTask}
+                        initialTab={dailyHubTab}
+                        layoutMode={currentUser?.layout_mode}
+                        buttonRef={currentUser?.layout_mode === 'HORIZONTAL' ? dailyHubButtonRefHorizontal : dailyHubButtonRef}
+                    />
                 </>
             )}
             <ToastContainer notifications={notifications} onRemove={removeNotification} />

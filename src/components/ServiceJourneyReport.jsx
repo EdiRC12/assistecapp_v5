@@ -5,6 +5,14 @@ import { supabase } from '../supabaseClient';
 import logo from '../assets/logo_plastimarau.png';
 import PrintableReport from './PrintableReport';
 
+const RichTextEditor = React.lazy(() => import('./RichTextEditor'));
+
+const stripHtml = (html) => {
+    if (!html) return "";
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
+};
+
 const ServiceJourneyReport = ({
     journey,
     currentUser,
@@ -98,7 +106,8 @@ const ServiceJourneyReport = ({
         setIsGenerating(true);
         setTimeout(async () => {
             try {
-                const result = await generateServiceJourneyReport(rawNotes, [], journey);
+                const cleanRawNotes = stripHtml(rawNotes);
+                const result = await generateServiceJourneyReport(cleanRawNotes, [], journey);
                 setContent(result.reportText);
                 setViewMode('editor'); // Garante que volta para o editor ao gerar
             } catch (error) {
@@ -127,15 +136,19 @@ const ServiceJourneyReport = ({
                 is_ri: journey.sac?.is_ri
             });
 
+            const reportContent = content || rawNotes || "";
+            const contentLength = reportContent.length;
+            
+            console.log(`[ServiceJourneyReport] Iniciando salvamento. Tamanho do conteúdo: ${contentLength} caracteres.`);
+
             const reportData = {
-                // Se for RI, gravamos como sac_id para respeitar a FK que aponta para sac_tickets (conforme erro F12)
                 sac_id: (journey.sac?.id && !journey.sac?.is_followup) ? journey.sac.id : null,
                 followup_id: journey.sac?.is_followup ? journey.sac.id : null,
                 rnc_id: journey.rnc?.id || null,
                 user_id: currentUser.id,
                 title,
                 client_name: effectiveClientName,
-                content: content || rawNotes,
+                content: reportContent,
                 raw_notes: rawNotes,
                 status: isFinal ? 'FINALIZADO' : 'DRAFT',
                 report_type: journey.sac?.is_return ? 'SERVICE_RETURN' : 'SERVICE_JOURNEY',
@@ -146,7 +159,7 @@ const ServiceJourneyReport = ({
             // Removemos ri_id do payload pois ele causa erro de FK no banco atual
             delete reportData.ri_id;
 
-            console.log('[ServiceJourneyReport] Payload Final Enviado:', reportData);
+            console.log('[ServiceJourneyReport] Payload Final Enviado:', { ...reportData, content: reportData.content.substring(0, 100) + '...' });
 
             if (isFinal) {
                 reportData.signed_by = currentUser.id;
@@ -170,7 +183,13 @@ const ServiceJourneyReport = ({
             }
 
             const { data, error } = result;
-            if (error) throw error;
+            if (error) {
+                console.error("[ServiceJourneyReport] Detalhes do erro de banco:", error);
+                if (error.code === '57014') {
+                    throw new Error("O servidor demorou muito para responder (Timeout). Isso pode acontecer se o texto for muito longo ou se houver instabilidade no Supabase. Tente salvar novamente em instantes.");
+                }
+                throw error;
+            }
 
             // Se for FINALIZADO, fechar o SAC/RNC raiz
             if (isFinal) {
@@ -581,13 +600,19 @@ const ServiceJourneyReport = ({
                                         </div>
                                     )}
 
-                                    <textarea
-                                        value={content}
-                                        disabled={isLocked}
-                                        onChange={(e) => setContent(e.target.value)}
-                                        placeholder="Clique em 'Preparar Relatório' para gerar o conteúdo automaticamente ou escreva aqui..."
-                                        className="w-full h-[500px] px-8 py-6 bg-white border border-slate-200 rounded-[32px] font-medium text-slate-700 outline-none focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 shadow-xl leading-relaxed custom-scrollbar disabled:opacity-50 disabled:bg-slate-50"
-                                    />
+                                    <React.Suspense fallback={
+                                        <div className="w-full bg-white border border-slate-200 rounded-[32px] h-[500px] flex flex-col items-center justify-center gap-4 text-slate-400">
+                                            <Loader2 className="animate-spin text-brand-600" size={32} />
+                                            <p className="font-bold animate-pulse uppercase text-[10px] tracking-widest">Carregando Editor de Auditoria...</p>
+                                        </div>
+                                    }>
+                                        <RichTextEditor
+                                            value={content}
+                                            onChange={setContent}
+                                            disabled={isLocked}
+                                            placeholder="Clique em 'Preparar Relatório' para gerar o conteúdo automaticamente ou escreva aqui..."
+                                        />
+                                    </React.Suspense>
                                 </div>
                             </div>
                         </div>

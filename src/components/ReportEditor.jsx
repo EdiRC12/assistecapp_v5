@@ -8,6 +8,14 @@ import { useReactToPrint } from 'react-to-print';
 import { INITIAL_NATIVE_CATEGORIES } from '../constants/taskConstants';
 import PrintableReport from './PrintableReport';
 import logo from '../assets/logo_plastimarau.png';
+const RichTextEditor = React.lazy(() => import('./RichTextEditor'));
+
+// Utilitário para limpar HTML antes de enviar para a IA
+const stripHtml = (html) => {
+    if (!html) return "";
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
+};
 
 // Tipos de tarefa nativos
 const NATIVE_TASK_TYPES = INITIAL_NATIVE_CATEGORIES.map(cat => ({
@@ -270,7 +278,8 @@ const ReportEditor = ({
         }
         setIsGenerating(true);
         try {
-            const refined = await refineReportText(content || rawNotes, {
+            const cleanContent = stripHtml(content || rawNotes);
+            const refined = await refineReportText(cleanContent, {
                 client: task.client,
                 category: task.category,
                 reportType: reportType
@@ -446,7 +455,8 @@ const ReportEditor = ({
         setIsGenerating(true);
         try {
             const reportStatusTarget = reportType === 'FINAL' ? 'FINAL' : 'PARCIAL';
-            const dataPackage = buildAIDataPackage(rawNotes, mediaList, {
+            const cleanRawNotes = stripHtml(rawNotes);
+            const dataPackage = buildAIDataPackage(cleanRawNotes, mediaList, {
                 ...task,
                 userName: currentUser?.username,
                 manualStatus: reportType === 'FINAL' ? 'FINALIZADO' : 'EM_ABERTO',
@@ -460,8 +470,9 @@ const ReportEditor = ({
 
             if (useAI) {
                 // Geração com IA (Gemini/OpenAI)
+                const cleanRawNotes = stripHtml(rawNotes);
                 const relevantMedia = mediaList.filter(m => m.aiDescription || m.extractedText);
-                result = await generateReportWithGemini(rawNotes, relevantMedia, {
+                result = await generateReportWithGemini(cleanRawNotes, relevantMedia, {
                     ...task,
                     userName: currentUser?.username,
                     manualStatus: reportType === 'FINAL' ? 'FINALIZADO' : 'EM_ABERTO',
@@ -1159,13 +1170,19 @@ const ReportEditor = ({
                             </button>
                         </div>
                     </div>
-                    <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        disabled={isFinalized}
-                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-sm min-h-[400px] leading-relaxed focus:outline-none focus:border-brand-500 disabled:bg-slate-50 font-medium text-slate-700 shadow-inner"
-                        placeholder="O conteúdo do relatório aparecerá aqui após a geração ou digitação..."
-                    />
+                    <React.Suspense fallback={
+                        <div className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-sm min-h-[400px] flex flex-col items-center justify-center gap-4 text-slate-400">
+                            <Loader2 className="animate-spin text-brand-600" size={32} />
+                            <p className="font-bold animate-pulse">Carregando ferramentas de edição...</p>
+                        </div>
+                    }>
+                        <RichTextEditor
+                            value={content}
+                            onChange={setContent}
+                            disabled={isFinalized}
+                            placeholder="O conteúdo do relatório aparecerá aqui após a geração ou digitação..."
+                        />
+                    </React.Suspense>
                 </div>
 
                 <div className="space-y-4 pt-6 border-t-2 border-slate-100">
