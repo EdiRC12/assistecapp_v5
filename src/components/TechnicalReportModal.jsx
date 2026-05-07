@@ -93,7 +93,9 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                 solicitante: report.solicitante,
                                 contato: report.contato,
                                 produto: report.produto,
-                                description: report.tasks?.description
+                                description: report.tasks?.description,
+                                op: report.tasks?.op || report.op,
+                                item: report.tasks?.item || report.item
                             }}
                             content={report.content || report.ai_analysis || report.raw_notes}
                             media={report.media_urls || []}

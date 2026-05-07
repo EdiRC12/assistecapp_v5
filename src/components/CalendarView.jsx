@@ -115,6 +115,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                             priority: priority,
                             travelId: travel.id,
                             travelIdx: idx,
+                            isTravelFinalized: travel.status === 'FINALIZADA' || travel.is_finalized,
                             detailsData: { description: `Viagem agendada. Contato: ${travel.contacts || 'Não informado'} (${travel.role || '-'})` }
                         });
                     }
@@ -143,7 +144,10 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                     : rawIdentifier;
 
                 const counter = (total > 1 && ev.type !== 'DEADLINE') ? `[${idx + 1}/${total}] ` : '';
-                const isOverdue = ev.date < todayStr && !ev.isCompleted;
+                
+                // Melhoria na detecção de atraso para viagens e etapas
+                const isCompleted = ev.isCompleted || ev.isTravelFinalized;
+                const isOverdue = ev.date < todayStr && !isCompleted;
 
                 const isFromTest = !!ev.originalTask.parent_test_id;
                 const isFromFollowup = !!ev.originalTask.parent_followup_id;
@@ -161,6 +165,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
 
                 finalEvents.push({
                     ...ev,
+                    isCompleted, // Normalizamos o status de conclusão
                     isOverdue,
                     isFromTest,
                     isFromFollowup,
@@ -602,7 +607,22 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                         <button onClick={() => setViewMode('MONTH')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'MONTH' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><CalendarIcon size={14} /> Mês</button>
                         <button onClick={() => setViewMode('YEAR')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'YEAR' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Grid size={14} /> Ano</button>
                     </div>
-                    {(viewMode === 'MONTH' || viewMode === 'WEEK') && (<div className="hidden lg:flex gap-4 text-xs font-medium text-slate-500 border-l pl-4 border-slate-300"><div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-100 border border-red-300"></div><span>Atrasado</span></div><div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300"></div><span>Visita</span></div><div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-amber-100 border border-amber-300"></div><span>Etapa</span></div><div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-100 border border-blue-300"></div><span>Prazo</span></div></div>)}
+                    {(viewMode === 'MONTH' || viewMode === 'WEEK') && (
+                        <div className="hidden lg:flex gap-4 text-xs font-medium text-slate-500 border-l pl-4 border-slate-300">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-red-600 border border-red-700"></div>
+                                <span>Atrasado</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-emerald-600 border border-emerald-700"></div>
+                                <span>Finalizado</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded bg-blue-600 border border-blue-700"></div>
+                                <span>Programado / Prazo</span>
+                            </div>
+                        </div>
+                    )}
                     {viewMode === 'DAY' && <button onClick={() => setViewMode(previousViewMode || (isMobile ? 'WEEK' : 'MONTH'))} className="hidden sm:block text-xs text-brand-600 font-bold hover:underline">Voltar</button>}
                 </div>
             </div>
@@ -694,21 +714,21 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                                         onDoubleClick={(e) => { e.stopPropagation(); onEditTask(ev.originalTask); setSelectedEventId(null); }}
                                                         className={`w-full px-0.5 py-0.5 md:px-2 md:py-1.5 rounded-sm md:rounded text-[7px] md:text-[10px] font-bold border shadow-sm cursor-grab flex items-center gap-0.5 md:gap-1 transition-all duration-300 leading-tight md:leading-normal
                                                             ${ev.isOverdue ? 'bg-red-600 text-white border-red-700' :
-                                                                ev.type === 'DEADLINE' ? 'bg-blue-600 text-white border-blue-700' :
+                                                                ev.isCompleted ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                                ev.type === 'DEADLINE' || (ev.type === 'VISIT' && !ev.isCompleted) ? 'bg-blue-600 text-white border-blue-700' :
                                                                 ev.isFromTest ? 'bg-indigo-600 text-white border-indigo-700' :
-                                                                    ev.isFromFollowup ? 'bg-emerald-600 text-white border-emerald-700' :
-                                                                        priorityClass} 
+                                                                    priorityClass} 
                                                             ${isSel ? 'ring-2 ring-brand-500 z-50 scale-105 shadow-md' : 'z-10'} 
                                                             ${isRelated && !isSel ? 'ring-1 ring-brand-300 border-brand-200' : ''} 
                                                             ${otherFocusActive ? 'opacity-20 grayscale-[0.5]' : 'opacity-100'} 
-                                                            ${ev.isCompleted ? 'opacity-50 line-through grayscale-[0.3]' : ''}`}
+                                                            ${ev.isCompleted ? 'opacity-80 line-through' : ''}`}
                                                         style={{
                                                             borderLeftWidth: '3px',
                                                             borderLeftColor: ev.isOverdue ? '#fff' :
-                                                                ev.type === 'DEADLINE' ? '#93c5fd' :
+                                                                ev.isCompleted ? '#a7f3d0' :
+                                                                ev.type === 'DEADLINE' || (ev.type === 'VISIT' && !ev.isCompleted) ? '#93c5fd' :
                                                                 ev.isFromTest ? '#a5b4fc' :
-                                                                    ev.isFromFollowup ? '#6ee7b7' :
-                                                                        (ev.isCompleted ? '#94a3b8' : (ev.priority === Priority.HIGH ? '#dc2626' : ev.priority === Priority.MEDIUM ? '#d97706' : '#0284c7'))
+                                                                    (ev.priority === Priority.HIGH ? '#dc2626' : ev.priority === Priority.MEDIUM ? '#d97706' : '#0284c7')
                                                         }}
                                                     >
                                                         {ev.isOverdue && <AlertCircle size={10} className="shrink-0 animate-pulse" />}

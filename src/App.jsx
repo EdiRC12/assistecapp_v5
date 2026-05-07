@@ -1126,6 +1126,8 @@ const App = () => {
                             report={selectedTechReport}
                             onClose={() => setSelectedTechReport(null)}
                             onFileView={handleViewTechnicalReport}
+                            taskTypes={customCategories || []}
+                            currentUser={currentUser}
                         />
                     )}
 

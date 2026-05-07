@@ -76,32 +76,42 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
 
                     <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
                         <span className="text-[10px] uppercase font-black text-brand-600">Tarefa:</span>
-                        <span className="text-lg font-black text-slate-900 leading-tight">
+                        <span className="text-base font-black text-slate-900 leading-snug">
                             {getCategoryName(task.category)}
                         </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-
-                    <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                        <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">Responsáveis:</span>
-                        <span className="text-sm font-bold text-slate-800">{task.responsible_names || currentUser?.username || 'N/A'}</span>
-                    </div>
-
-                    {(task.op || task.item || task.item_number) && (
-                        <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                            <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">OP / Item:</span>
-                            <span className="text-xs font-bold text-slate-800">
-                                {task.op && `OP: ${task.op}`}
-                                {(task.op && (task.item || task.item_number)) ? ' | ' : ''}
-                                {(task.item || task.item_number) && `Item: ${task.item || task.item_number}`}
+                    {/* Linha de OP - Linha exclusiva */}
+                    {task.op && (
+                        <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Ordem de Produção (OP):</span>
+                            <span className="text-sm font-bold text-slate-800 leading-snug">
+                                {task.op}
                             </span>
                         </div>
                     )}
 
+                    {/* Linha de Item - Linha exclusiva */}
+                    {task.item && (
+                        <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Item / Descrição:</span>
+                            <span className="text-sm font-bold text-slate-800 leading-snug">
+                                {task.item}
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-y-2 gap-x-8">
+
+                    <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
+                        <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Responsáveis:</span>
+                        <span className="text-sm font-bold text-slate-800">{task.responsible_names || currentUser?.username || 'N/A'}</span>
+                    </div>
+
+
                     {(task.pedido || task.purchase_order) && (
                         <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                            <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">Pedido:</span>
+                            <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Pedido:</span>
                             <span className="text-sm font-bold text-slate-800">{task.pedido || task.purchase_order}</span>
                         </div>
                     )}
@@ -121,8 +131,8 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                     )}
 
                     <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                        <span className="text-[9px] uppercase font-black text-slate-400 min-w-[80px]">Status Emissão:</span>
-                        <span className="text-[10px] font-black text-brand-600 uppercase">{isFinalized ? 'FINALIZADO' : 'PARCIAL'}</span>
+                        <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Status Emissão:</span>
+                        <span className="text-[10px] font-black text-slate-900 uppercase">{isFinalized ? 'FINALIZADO' : 'PARCIAL'}</span>
                     </div>
                 </div>
                 </div>
@@ -250,22 +260,14 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                         };
 
                         return sections.map((section, si) => (
-                            <div
-                                key={si}
-                                style={{
-                                    breakInside: 'avoid',
-                                    pageBreakInside: 'avoid',
-                                    orphans: 4,
-                                    widows: 4
-                                }}
-                            >
+                            <div key={si}>
                                 {/* Quebra de página forçada antes da 3ª seção apenas para RNC */}
                                 {section.isRnc3rd && <div className="page-break" />}
 
                                 {section.title && (
                                     <h3
                                         className="text-sm font-black text-brand-700 mt-6 mb-2 uppercase border-b border-brand-100 pb-1"
-                                        style={{ breakAfter: 'avoid', pageBreakAfter: 'avoid' }}
+                                        style={{ breakAfter: 'avoid', pageBreakAfter: 'avoid', orphans: 3, widows: 3 }}
                                     >
                                         {section.title}
                                     </h3>

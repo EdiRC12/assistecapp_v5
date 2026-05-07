@@ -246,6 +246,10 @@ const ViewManager = ({
                 <ErrorBoundary componentName="ReportsView" currentUser={currentUser} notifyError={notifyError}>
                     <ReportsView
                         tasks={tasks}
+                        categories={customCategories}
+                        users={users}
+                        clients={allClients}
+                        currentUser={currentUser}
                         onOpenReport={handleOpenReport}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}

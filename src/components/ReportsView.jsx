@@ -65,8 +65,8 @@ const ReportsView = ({ onEditTask, currentUser, categories = [], users = [], tas
                     .from('task_reports')
                     .select(`
                         *,
-                        tasks:task_id (id, title, client, category, trip_cost, trip_cost_currency),
-                        users:user_id (username)
+                        tasks:task_id (id, title, client, category, trip_cost, trip_cost_currency, op, item),
+                        users:user_id (username, color)
                     `)
                     .eq('status', type)
                     .not('report_type', 'eq', 'SERVICE_JOURNEY');
@@ -953,7 +953,7 @@ const ReportsView = ({ onEditTask, currentUser, categories = [], users = [], tas
                 report={selectedReport}
                 onClose={() => setSelectedReport(null)}
                 currentUser={currentUser}
-                taskTypes={categories?.map(c => ({ id: c.id, name: c.label }))}
+                taskTypes={categories}
                 onEditTask={async (taskId) => {
                     const { data: task } = await supabase.from('tasks').select('*').eq('id', taskId).single();
                     if (task) { onEditTask(task); setSelectedReport(null); }
