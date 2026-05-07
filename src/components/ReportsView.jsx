@@ -15,7 +15,7 @@ import * as XLSX from 'xlsx';
 import ReportModal from './controls/modals/ReportModal';
 import { MONTHS } from '../utils/controlsReporting';
 
-const ReportsView = ({ onEditTask, currentUser, categories = [], users = [], tasks: allTasks = [], clients = [], notifySuccess, notifyError, notifyInfo }) => {
+const ReportsView = ({ onEditTask, setIsModalOpen, setEditingTask, fetchTaskDetail, currentUser, categories = [], users = [], tasks: allTasks = [], clients = [], notifySuccess, notifyError, notifyInfo }) => {
     const isMobile = useIsMobile();
     const [reports, setReports] = useState([]);
     const [mainCategory, setMainCategory] = useState(null); // 'TASKS', 'CONTROLS' or 'SERVICE'
@@ -905,8 +905,23 @@ const ReportsView = ({ onEditTask, currentUser, categories = [], users = [], tas
                                                 <button onClick={() => setSelectedReport(report)} className="p-1.5 text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Ver Detalhes"><Eye size={16} /></button>
                                                 {!isMobile && (
                                                     <button onClick={async () => {
-                                                        const { data: task } = await supabase.from('tasks').select('*').eq('id', report.task_id).single();
-                                                        if (task) onEditTask(task);
+                                                        // Tenta encontrar localmente primeiro para ser instantâneo
+                                                        let task = allTasks.find(t => t.id === report.task_id);
+                                                        
+                                                        // Se não achar (ex: tarefa muito antiga não carregada), busca no banco
+                                                        if (!task && report.task_id) {
+                                                            const { data } = await supabase.from('tasks').select('*').eq('id', report.task_id).single();
+                                                            task = data;
+                                                        }
+
+                                                        if (task) {
+                                                            if (setEditingTask) setEditingTask(task);
+                                                            if (setIsModalOpen) setIsModalOpen(true);
+                                                            if (fetchTaskDetail) fetchTaskDetail(task.id);
+                                                            if (!setEditingTask && onEditTask) onEditTask(task);
+                                                        } else {
+                                                            notifyError("Erro", "Tarefa vinculada não encontrada.");
+                                                        }
                                                     }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Tarefa"><Edit size={16} /></button>
                                                 )}
                                             </>

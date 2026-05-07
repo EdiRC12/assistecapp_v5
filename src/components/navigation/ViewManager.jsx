@@ -251,6 +251,10 @@ const ViewManager = ({
                         clients={allClients}
                         currentUser={currentUser}
                         onOpenReport={handleOpenReport}
+                        onEditTask={onEditTask}
+                        setIsModalOpen={setIsModalOpen}
+                        setEditingTask={setEditingTask}
+                        fetchTaskDetail={fetchTaskDetail}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                     />
