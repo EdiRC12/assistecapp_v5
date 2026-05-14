@@ -326,12 +326,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         const map = {};
         let colorIdx = 0;
         const colors = [
-            'bg-indigo-50/40 border-l-[6px] border-l-indigo-500',
-            'bg-emerald-50/40 border-l-[6px] border-l-emerald-500',
-            'bg-amber-50/40 border-l-[6px] border-l-amber-500',
-            'bg-rose-50/40 border-l-[6px] border-l-rose-500',
-            'bg-sky-50/40 border-l-[6px] border-l-sky-500',
-            'bg-violet-50/40 border-l-[6px] border-l-violet-500'
+            'bg-blue-50/60 border-l-[6px] border-l-blue-500',
+            'bg-amber-50/60 border-l-[6px] border-l-amber-400',
+            'bg-emerald-50/60 border-l-[6px] border-l-emerald-500',
+            'bg-purple-50/60 border-l-[6px] border-l-purple-500'
         ];
         
         filteredTrips.forEach(trip => {
@@ -1075,7 +1073,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                         isEditing 
                                                             ? 'bg-brand-50/50' 
                                                             : (selectionMode && selectedTrips.includes(trip.id)) 
-                                                                ? 'bg-indigo-100/50' 
+                                                                ? 'bg-slate-200/70 border-l-[6px] border-l-slate-400' 
                                                                 : (trip.group_id ? groupColorMap[trip.group_id] : 'hover:bg-slate-50')
                                                     }`}
                                                 >
