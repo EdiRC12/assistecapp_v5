@@ -326,10 +326,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         const map = {};
         let colorIdx = 0;
         const colors = [
-            'bg-blue-50/60 border-l-[6px] border-l-blue-500',
-            'bg-amber-50/60 border-l-[6px] border-l-amber-400',
-            'bg-emerald-50/60 border-l-[6px] border-l-emerald-500',
-            'bg-purple-50/60 border-l-[6px] border-l-purple-500'
+            'bg-blue-100/80 border-l-[8px] border-l-blue-600',
+            'bg-amber-100/80 border-l-[8px] border-l-amber-500',
+            'bg-emerald-100/80 border-l-[8px] border-l-emerald-600',
+            'bg-purple-100/80 border-l-[8px] border-l-purple-600'
         ];
         
         filteredTrips.forEach(trip => {
