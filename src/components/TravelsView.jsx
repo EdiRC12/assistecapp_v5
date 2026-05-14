@@ -46,7 +46,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         occurrence_name: '',
         occurrence_cost: 0,
         occurrence_distribution: 'PRORATE',
-        occurrence_target_id: ''
+        occurrence_target_id: '',
+        additional_participants: []
     });
 
     const fetchOccurrenceTypes = async () => {
@@ -526,8 +527,45 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             occurrence_name: '',
             occurrence_cost: 0,
             occurrence_distribution: 'PRORATE',
-            occurrence_target_id: ''
+            occurrence_target_id: '',
+            additional_participants: []
         });
+        setIsProrationModalOpen(true);
+    };
+
+    const handleEditGroup = (targetTrip) => {
+        if (!targetTrip.group_id) return;
+        
+        const allMembers = trips.filter(t => t.group_id === targetTrip.group_id);
+        const count = allMembers.length;
+        const sample = allMembers[0];
+        
+        // Determinar se multa/ocorrência eram rateadas ou específicas
+        const allSameFine = allMembers.every(t => t.fine_amount === sample.fine_amount);
+        const allSameOcc = allMembers.every(t => t.occurrence_cost === sample.occurrence_cost);
+
+        setProrationData({
+            group_name: sample.group_name || '',
+            km_total: (parseFloat(sample.trip_km_end) || 0) * count,
+            cost_fuel: (parseFloat(sample.cost_fuel) || 0) * count,
+            cost_lodging: (parseFloat(sample.cost_lodging) || 0) * count,
+            cost_food: (parseFloat(sample.cost_food) || 0) * count,
+            cost_extra: (parseFloat(sample.cost_extra) || 0) * count,
+            cost_airfare: (parseFloat(sample.cost_airfare) || 0) * count,
+            cost_car_rental: (parseFloat(sample.cost_car_rental) || 0) * count,
+            vehicle: sample.vehicle_info || '',
+            currency: sample.trip_cost_currency || 'BRL',
+            fine_amount: allSameFine ? (parseFloat(sample.fine_amount) || 0) * count : allMembers.reduce((acc, t) => acc + (parseFloat(t.fine_amount) || 0), 0),
+            fine_distribution: allSameFine ? 'PRORATE' : 'SINGLE',
+            fine_target_id: allSameFine ? '' : allMembers.find(t => t.fine_amount > 0)?.id || '',
+            occurrence_name: sample.occurrence || '',
+            occurrence_cost: allSameOcc ? (parseFloat(sample.occurrence_cost) || 0) * count : allMembers.reduce((acc, t) => acc + (parseFloat(t.occurrence_cost) || 0), 0),
+            occurrence_distribution: allSameOcc ? 'PRORATE' : 'SINGLE',
+            occurrence_target_id: allSameOcc ? '' : allMembers.find(t => t.occurrence_cost > 0)?.id || '',
+            additional_participants: sample.additional_participants ? sample.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : []
+        });
+        
+        setSelectedTrips(allMembers.map(t => t.id));
         setIsProrationModalOpen(true);
     };
 
@@ -552,7 +590,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 airfare: (parseFloat(prorationData.cost_airfare) || 0) / count,
                 car_rental: (parseFloat(prorationData.cost_car_rental) || 0) / count,
                 fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) || 0) / count : 0,
-                occurrence_cost: prorationData.occurrence_distribution === 'PRORATE' ? (parseFloat(prorationData.occurrence_cost) || 0) / count : 0
+                occurrence_cost: prorationData.occurrence_distribution === 'PRORATE' ? (parseFloat(prorationData.occurrence_cost) || 0) / count : 0,
+                participants: Array.isArray(prorationData.additional_participants) ? prorationData.additional_participants.join(', ') : (prorationData.additional_participants || '')
             };
 
             const groupId = Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -589,11 +628,12 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             group_id: groupId,
                             group_name: groupName,
                             is_finalized: true,
-                            // Multas e Ocorrências
+                            // Multas e Ocorrências e Acompanhantes
                             has_fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) > 0) : isFineTarget,
                             fine_amount: prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0),
                             occurrence: prorationData.occurrence_name || tr.occurrence,
-                            occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0)
+                            occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0),
+                            additional_participants: prorated.participants
                         };
                         changed = true;
                     }
@@ -619,11 +659,12 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         group_id: groupId,
                         group_name: groupName,
                         trip_info_finalized: true,
-                        // Multas e Ocorrências
+                        // Multas e Ocorrências e Acompanhantes
                         has_fine: prorationData.fine_distribution === 'PRORATE' ? (parseFloat(prorationData.fine_amount) > 0) : isFineTarget,
                         fine_amount: prorated.fine + (isFineTarget ? parseFloat(prorationData.fine_amount || 0) : 0),
                         occurrence: prorationData.occurrence_name,
-                        occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0)
+                        occurrence_cost: prorated.occurrence_cost + (isOccTarget ? parseFloat(prorationData.occurrence_cost || 0) : 0),
+                        additional_participants: prorated.participants
                     };
                 }
 
@@ -1286,13 +1327,22 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             ) : (
                                                                 <div className="flex items-center gap-1.5">
                                                                     {trip.group_id && (
-                                                                        <button
-                                                                            onClick={() => handleDetachFromGroup(trip)}
-                                                                            className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
-                                                                            title="Desvincular do Rateio"
-                                                                        >
-                                                                            <Unlink size={14} />
-                                                                        </button>
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleEditGroup(trip)}
+                                                                                className="p-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded transition-colors shadow-sm"
+                                                                                title="Editar Rateio do Grupo"
+                                                                            >
+                                                                                <DollarSign size={14} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleDetachFromGroup(trip)}
+                                                                                className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                                                                                title="Desvincular do Rateio"
+                                                                            >
+                                                                                <Unlink size={14} />
+                                                                            </button>
+                                                                        </>
                                                                     )}
                                                                     <button
                                                                         onClick={() => handleStartEdit(idx, trip)}
@@ -2230,6 +2280,52 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                             onChange={e => setProrationData(p => ({ ...p, cost_extra: e.target.value }))}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                                         />
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 pt-2 border-t border-slate-100">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                        <Users size={14} className="text-indigo-500" /> Acompanhantes da Viagem (Grupo)
+                                    </label>
+                                    <div className="flex gap-2 mb-3">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nome do acompanhante..." 
+                                            value={newParticipantName}
+                                            onChange={e => setNewParticipantName(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (newParticipantName.trim()) {
+                                                        setProrationData(p => ({ ...p, additional_participants: [...(p.additional_participants || []), newParticipantName.trim()] }));
+                                                        setNewParticipantName('');
+                                                    }
+                                                }
+                                            }}
+                                            className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                if (newParticipantName.trim()) {
+                                                    setProrationData(p => ({ ...p, additional_participants: [...(p.additional_participants || []), newParticipantName.trim()] }));
+                                                    setNewParticipantName('');
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 transition-all shadow-md active:scale-95"
+                                        >
+                                            ADICIONAR
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(prorationData.additional_participants || []).map((name, i) => (
+                                            <span key={i} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-100 animate-in zoom-in-90">
+                                                {name}
+                                                <X size={14} className="cursor-pointer hover:text-rose-500 transition-colors" onClick={() => setProrationData(p => ({ ...p, additional_participants: p.additional_participants.filter((_, idx) => idx !== i) }))} />
+                                            </span>
+                                        ))}
+                                        {(!prorationData.additional_participants || prorationData.additional_participants.length === 0) && (
+                                            <span className="text-[10px] text-slate-400 italic">Nenhum acompanhante adicionado ao grupo.</span>
+                                        )}
                                     </div>
                                 </div>
 
