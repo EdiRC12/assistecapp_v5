@@ -869,7 +869,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
     };
 
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${isMeetingView ? 'h-full' : (isMobile ? 'h-full' : 'h-[calc(100vh-4.5rem)]')} flex flex-col overflow-hidden relative`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${isMeetingView ? 'h-full' : (isMobile ? 'h-full' : 'h-[calc(100vh-3.5rem)]')} flex flex-col overflow-hidden relative`}>
             {/* Header & Tabs */}
             <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-slate-200 bg-slate-50 print:hidden`}>
                 <div className={`flex justify-between items-center ${isMobile ? 'mb-2' : 'mb-4'}`}>
@@ -1092,7 +1092,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             {trip.isDateDefined && <span className="text-[10px] text-slate-400 uppercase">{new Date(trip.date).toLocaleDateString('pt-BR', { weekday: 'short' })}</span>}
                                                         </div>
                                                     </td>
-                                                    <td className="py-2.5 px-4 align-top">
+                                                    <td className="p-4 align-top">
                                                         <div className="font-bold text-xs text-slate-800">{trip.client}</div>
                                                         <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-1"><MapPin size={10} /> {trip.location || 'Local não definido'}</div>
                                                         {trip.group_id && (
@@ -1101,7 +1101,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="py-2.5 px-4 align-top">
+                                                    <td className="p-4 align-top">
                                                         <div className="flex flex-col gap-1">
                                                             <div className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded inline-block w-fit">{CategoryLabels[trip.category]}</div>
                                                             {trip.parent_test_id && (
@@ -1129,7 +1129,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="py-2.5 px-4 align-top">
+                                                    <td className="p-4 align-top">
                                                         <div className="flex flex-wrap gap-1">
                                                             {trip.team.length > 0 ? trip.team.map((m, i) => (
                                                                 <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[9px] font-medium border border-blue-100">{m}</span>
@@ -1329,7 +1329,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="py-2.5 px-4 align-top">
+                                                    <td className="p-4 align-top">
                                                         <div className="flex items-center gap-2">
                                                             {isEditing ? (
                                                                 <>
