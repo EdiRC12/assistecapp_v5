@@ -505,9 +505,30 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         return new Date(filters.date).toLocaleDateString('pt-BR');
     };
 
-    const handleOpenDetail = (trip) => {
-        setSelectedTripForDetail(trip);
-        setShowDetailModal(true);
+    const handleOpenProrationModal = () => {
+        const selectedData = trips.filter(t => selectedTrips.includes(t.id));
+        const firstVehicle = selectedData[0]?.vehicle_info || '';
+        const allSameVehicle = selectedData.every(t => t.vehicle_info === firstVehicle);
+        
+        setProrationData({
+            km_total: 0,
+            cost_fuel: 0,
+            cost_lodging: 0,
+            cost_food: 0,
+            cost_extra: 0,
+            cost_airfare: 0,
+            cost_car_rental: 0,
+            vehicle: allSameVehicle ? firstVehicle : '',
+            currency: 'BRL',
+            fine_amount: 0,
+            fine_distribution: 'PRORATE',
+            fine_target_id: '',
+            occurrence_name: '',
+            occurrence_cost: 0,
+            occurrence_distribution: 'PRORATE',
+            occurrence_target_id: ''
+        });
+        setIsProrationModalOpen(true);
     };
 
     const handleApplyProration = async () => {
@@ -874,7 +895,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     </div>
                     {selectionMode && selectedTrips.length >= 2 && (
                         <button 
-                            onClick={() => setIsProrationModalOpen(true)}
+                            onClick={handleOpenProrationModal}
                             className="flex items-center gap-2 px-4 py-1.5 bg-brand-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-brand-700 shadow-lg shadow-brand-500/20 active:scale-95 transition-all"
                         >
                             <DollarSign size={12} /> Lançar Rateio Entre {selectedTrips.length} Visitas
@@ -2146,7 +2167,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         <input 
                                             type="number" 
                                             value={prorationData.cost_fuel}
-                                            onChange={e => setEditData(p => ({ ...p, cost_fuel: e.target.value }))}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_fuel: e.target.value }))}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                                         />
                                     </div>
@@ -2195,6 +2216,18 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                             type="number" 
                                             value={prorationData.cost_car_rental}
                                             onChange={e => setProrationData(p => ({ ...p, cost_car_rental: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Outros Custos / Extra</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                        <input 
+                                            type="number" 
+                                            value={prorationData.cost_extra}
+                                            onChange={e => setProrationData(p => ({ ...p, cost_extra: e.target.value }))}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                                         />
                                     </div>
@@ -2310,7 +2343,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                     <div>
                                         <p className="text-xs font-black text-amber-800 uppercase">Resumo do Rateio</p>
                                         <p className="text-[11px] text-amber-700 font-medium leading-relaxed mt-1">
-                                            Cada uma das {selectedTrips.length} visitas receberá aproximadamente <span className="font-bold">{(parseFloat(prorationData.km_total || 0) / selectedTrips.length).toFixed(1)} KM</span> e <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(((parseFloat(prorationData.cost_fuel || 0) + parseFloat(prorationData.cost_lodging || 0) + parseFloat(prorationData.cost_food || 0) + parseFloat(prorationData.cost_airfare || 0) + parseFloat(prorationData.cost_car_rental || 0)) / selectedTrips.length))}</span> em custos logísticos.
+                                            Cada uma das {selectedTrips.length} visitas receberá aproximadamente <span className="font-bold">{(parseFloat(prorationData.km_total || 0) / selectedTrips.length).toFixed(1)} KM</span> e <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(((parseFloat(prorationData.cost_fuel || 0) + parseFloat(prorationData.cost_lodging || 0) + parseFloat(prorationData.cost_food || 0) + parseFloat(prorationData.cost_airfare || 0) + parseFloat(prorationData.cost_car_rental || 0) + parseFloat(prorationData.cost_extra || 0)) / selectedTrips.length))}</span> em custos logísticos.
                                         </p>
                                     </div>
                                 </div>
