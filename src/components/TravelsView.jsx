@@ -869,7 +869,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
     };
 
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${isMeetingView ? 'h-full' : (isMobile ? 'h-full' : 'h-[calc(100vh-6.5rem)]')} flex flex-col overflow-hidden relative`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${isMeetingView ? 'h-full' : (isMobile ? 'h-full' : 'h-[calc(100vh-4.5rem)]')} flex flex-col overflow-hidden relative`}>
             {/* Header & Tabs */}
             <div className={`${isMobile ? 'p-3' : 'p-4'} border-b border-slate-200 bg-slate-50 print:hidden`}>
                 <div className={`flex justify-between items-center ${isMobile ? 'mb-2' : 'mb-4'}`}>
@@ -1078,13 +1078,13 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     }`}
                                                 >
                                                     {selectionMode && (
-                                                        <td className="py-2.5 px-4 align-top">
+                                                        <td className="p-4 align-top">
                                                             <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedTrips.includes(trip.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
                                                                 {selectedTrips.includes(trip.id) && <CheckCircle2 size={12} />}
                                                             </div>
                                                         </td>
                                                     )}
-                                                    <td className="py-2.5 px-4 align-top">
+                                                    <td className="p-4 align-top">
                                                         <div className="flex flex-col">
                                                             <span className={`text-xs font-bold ${!trip.isDateDefined ? 'text-amber-600' : 'text-slate-700'}`}>
                                                                 {trip.isDateDefined ? new Date(trip.date).toLocaleDateString() : 'A Definir'}
