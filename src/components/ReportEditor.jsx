@@ -67,8 +67,21 @@ const ReportEditor = ({
 
     // Novos campos comerciais/pós-venda
     const [solicitanteVisita, setSolicitanteVisita] = useState(report?.solicitante || '');
-    const [contatoCliente, setContatoCliente] = useState(report?.contato || '');
-    const [produtoRelacionado, setProdutoRelacionado] = useState(report?.produto || '');
+    
+    // Suporte a múltiplos contatos
+    const [contacts, setContacts] = useState(() => {
+        const names = (report?.contato || '').split(',').map(s => s.trim()).filter(Boolean);
+        const roles = (report?.produto || '').split('/').map(s => s.trim()).filter(Boolean);
+        
+        if (names.length === 0) return [{ name: '', role: '' }];
+        
+        return names.map((name, i) => ({
+            name: name,
+            role: roles[i] || ''
+        }));
+    });
+
+    const [reportLocation, setReportLocation] = useState(report?.location || '');
     const [manualActions, setManualActions] = useState(Array.isArray(report?.manual_actions) ? report.manual_actions : []);
     const [newActionWhat, setNewActionWhat] = useState('');
     const [newActionWho, setNewActionWho] = useState('');
@@ -162,8 +175,8 @@ const ReportEditor = ({
                 }
                 // Carregar campos comerciais do rascunho
                 setSolicitanteVisita(draft.solicitanteVisita || '');
-                setContatoCliente(draft.contatoCliente || '');
-                setProdutoRelacionado(draft.produtoRelacionado || '');
+                setReportLocation(draft.reportLocation || '');
+                if (draft.contacts) setContacts(draft.contacts);
                 setManualActions(draft.manualActions || []);
             }
         } else if (report?.media_urls && Array.isArray(report.media_urls)) {
@@ -182,11 +195,11 @@ const ReportEditor = ({
             }));
             localStorage.setItem(draftKey, JSON.stringify({
                 rawNotes, content, title, mediaList: mediaToSave,
-                solicitanteVisita, contatoCliente, produtoRelacionado, manualActions
+                solicitanteVisita, contacts, reportLocation, manualActions
             }));
         }, 1000);
         return () => clearTimeout(timeout);
-    }, [rawNotes, content, title, mediaList, task.id, solicitanteVisita, contatoCliente, produtoRelacionado, manualActions]);
+    }, [rawNotes, content, title, mediaList, task.id, solicitanteVisita, contacts, reportLocation, manualActions]);
 
     // CRÍTICO: Resetar estados quando task ou report mudam
     useEffect(() => {
@@ -210,8 +223,8 @@ const ReportEditor = ({
             setMediaList([]);
             // Resetar novos campos comerciais
             setSolicitanteVisita('');
-            setContatoCliente('');
-            setProdutoRelacionado('');
+            setContacts([{ name: '', role: '' }]);
+            setReportLocation('');
             setManualActions([]);
             setNewActionWhat('');
             setNewActionWho('');
@@ -223,11 +236,18 @@ const ReportEditor = ({
             console.log('ReportEditor: Editando relatório existente - carregando dados');
             setTitle(report.title || newDefaultTitle);
             setRawNotes(report.raw_notes || '');
-            setContent(report.content || '');
-            setMediaList(report.media_urls || []);
-            setSuggestedActions(report.suggested_actions || []);
-            setReportType(currentType);
-            setIsLocked(currentIsLocked);
+            setReportLocation(report.location || '');
+            
+            // Reconstituir contatos estruturados
+            const names = (report.contato || '').split(',').map(s => s.trim()).filter(Boolean);
+            const roles = (report.produto || '').split('/').map(s => s.trim()).filter(Boolean);
+            if (names.length > 0) {
+                setContacts(names.map((n, i) => ({ name: n, role: roles[i] || '' })));
+            } else {
+                setContacts([{ name: '', role: '' }]);
+            }
+
+            setManualActions(report.manual_actions || []);
         }
     }, [task.id, report?.id, report?.status]); // Adicionado report?.status para reagir a mudanças de status
 
@@ -430,6 +450,47 @@ const ReportEditor = ({
         }
     };
 
+    // NOVO: Agregação de contatos de múltiplas viagens
+    const handleImportTravelContacts = () => {
+        if (!task.travels || task.travels.length === 0) {
+            notifyInfo("Não há viagens registradas nesta tarefa para importar contatos.");
+            return;
+        }
+
+        const newContacts = [];
+        task.travels.forEach(t => {
+            if (t.contacts && t.contacts.trim()) {
+                const names = t.contacts.split(/[,;/]/).map(n => n.trim()).filter(Boolean);
+                const roles = (t.role || '').split(/[/]/).map(r => r.trim()).filter(Boolean);
+                
+                names.forEach((n, i) => {
+                    if (n && !newContacts.find(c => c.name.toLowerCase() === n.toLowerCase())) {
+                        newContacts.push({
+                            name: n,
+                            role: roles[i] || roles[0] || ''
+                        });
+                    }
+                });
+            }
+        });
+
+        if (newContacts.length > 0) {
+            setContacts(newContacts);
+            notifySuccess("Sincronização", "Contatos e cargos importados das viagens!");
+        } else {
+            notifyInfo("Nenhum contato ou cargo encontrado nas viagens.");
+        }
+    };
+
+    // Auto-importar contatos se for um relatório novo
+    useEffect(() => {
+        const hasNoContacts = contacts.length === 0 || (contacts.length === 1 && !contacts[0].name);
+        if (!report?.id && task?.travels?.length > 0 && hasNoContacts) {
+            console.log("ReportEditor: Auto-importando contatos das viagens para novo relatório.");
+            handleImportTravelContacts();
+        }
+    }, [task.id, report?.id]);
+
     const startEditingDescription = (idx, currentDesc) => {
         setEditingMediaIdx(idx);
         setTempDescription(currentDesc || '');
@@ -461,8 +522,8 @@ const ReportEditor = ({
                 userName: currentUser?.username,
                 manualStatus: reportType === 'FINAL' ? 'FINALIZADO' : 'EM_ABERTO',
                 solicitanteVisita,
-                contatoCliente,
-                produtoRelacionado,
+                contatoCliente: contacts.map(c => c.name).filter(Boolean).join(', '),
+                produtoRelacionado: contacts.map(c => c.role).filter(Boolean).join(' / '),
                 manualActions
             });
 
@@ -479,8 +540,8 @@ const ReportEditor = ({
                     taskTypes,
                     // Passar dados extras para a IA
                     solicitanteVisita,
-                    contatoCliente,
-                    produtoRelacionado,
+                    contatoCliente: contacts.map(c => c.name).filter(Boolean).join(', '),
+                    produtoRelacionado: contacts.map(c => c.role).filter(Boolean).join(' / '),
                     manualActions
                 });
             } else {
@@ -585,6 +646,7 @@ const ReportEditor = ({
             const reportData = {
                 task_id: task.id,
                 user_id: currentUser?.id,
+                client_name: task.client, // Adicionado para garantir rastreabilidade na lista
                 title,
                 raw_notes: rawNotes,
                 content,
@@ -593,8 +655,9 @@ const ReportEditor = ({
                 status: finalize ? 'FINALIZADO' : 'EM_ABERTO',
                 report_type: reportType,
                 solicitante: solicitanteVisita,
-                contato: contatoCliente,
-                produto: produtoRelacionado,
+                contato: contacts.map(c => c.name).filter(Boolean).join(', '),
+                produto: contacts.map(c => c.role).filter(Boolean).join(' / '),
+                location: reportLocation,
                 manual_actions: manualActions,
                 updated_at: new Date().toISOString()
             };
@@ -839,10 +902,20 @@ const ReportEditor = ({
                 {/* DADOS DE GESTÃO COMERCIAL - NOVO MODELO PADRÃO */}
                 {!isFinalized && (
                     <div className="p-5 bg-brand-50/50 rounded-2xl border-2 border-brand-100 space-y-5 shadow-sm">
-                        <h3 className="text-[10px] font-black text-brand-600 uppercase tracking-[0.15em] flex items-center gap-2">
-                            <Plus size={14} className="bg-brand-600 text-white rounded-full p-0.5" />
-                            Dados de Gestão Comercial e Pós-Venda
-                        </h3>
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-[10px] font-black text-brand-600 uppercase tracking-[0.15em] flex items-center gap-2">
+                                <Plus size={14} className="bg-brand-600 text-white rounded-full p-0.5" />
+                                Dados de Gestão Comercial e Pós-Venda
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={handleImportTravelContacts}
+                                className="text-[10px] font-black bg-brand-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 hover:bg-brand-700 transition-all shadow-sm"
+                                title="Importar nomes e setores lançados nas viagens"
+                            >
+                                <Copy size={12} /> Sincronizar Viagens
+                            </button>
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                             {/* Solicitante da Visita */}
@@ -872,26 +945,70 @@ const ReportEditor = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contato no Cliente</label>
-                                <input
-                                    type="text"
-                                    value={contatoCliente}
-                                    onChange={(e) => setContatoCliente(e.target.value)}
-                                    placeholder="Ex: Angélica (Qualidade)"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all shadow-inner"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cargo em Pauta</label>
-                                <input
-                                    type="text"
-                                    value={produtoRelacionado}
-                                    onChange={(e) => setProdutoRelacionado(e.target.value)}
-                                    placeholder="Ex: Gerente de Produção"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all shadow-inner"
-                                />
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Localização (Cidade/UF)</label>
+                                    <input
+                                        type="text"
+                                        value={reportLocation}
+                                        onChange={(e) => setReportLocation(e.target.value)}
+                                        placeholder="Ex: Curitiba/PR"
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all shadow-inner"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 space-y-1.5">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contatos no Cliente e Cargos</label>
+                                        <button 
+                                            onClick={() => setContacts([...contacts, { name: '', role: '' }])}
+                                            className="text-[9px] font-black text-brand-600 hover:text-brand-700 flex items-center gap-1 uppercase bg-brand-50 px-2 py-0.5 rounded-lg border border-brand-100 transition-all"
+                                        >
+                                            <Plus size={10} /> Adicionar Contato
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {contacts.map((contact, idx) => (
+                                            <div key={idx} className="flex gap-2 items-center group">
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="text"
+                                                        value={contact.name}
+                                                        onChange={(e) => {
+                                                            const newContacts = [...contacts];
+                                                            newContacts[idx].name = e.target.value;
+                                                            setContacts(newContacts);
+                                                        }}
+                                                        placeholder="Nome do Contato"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all shadow-inner"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <input
+                                                        type="text"
+                                                        value={contact.role}
+                                                        onChange={(e) => {
+                                                            const newContacts = [...contacts];
+                                                            newContacts[idx].role = e.target.value;
+                                                            setContacts(newContacts);
+                                                        }}
+                                                        placeholder="Cargo / Setor"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all shadow-inner"
+                                                    />
+                                                </div>
+                                                {contacts.length > 1 && (
+                                                    <button 
+                                                        onClick={() => setContacts(contacts.filter((_, i) => i !== idx))}
+                                                        className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                                                        title="Remover Contato"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1245,8 +1362,9 @@ const ReportEditor = ({
                                             ...task,
                                             solicitante: solicitanteVisita,
                                             origem: task?.category, // Usar categoria da tarefa como origem
-                                            contato: contatoCliente,
-                                            produto: produtoRelacionado
+                                            contato: contacts.map(c => c.name).filter(Boolean).join(', '),
+                                            produto: contacts.map(c => c.role).filter(Boolean).join(' / '),
+                                            location: reportLocation
                                         }}
                                         content={content}
                                         media={mediaList}
@@ -1254,6 +1372,7 @@ const ReportEditor = ({
                                         taskTypes={taskTypes}
                                         signatureDate={isFinalized ? report?.signature_date : null}
                                         status={reportType === 'FINAL' ? 'FINALIZADO' : 'EM_ABERTO'}
+                                        manualActions={manualActions}
                                     />
                                 </div>
                             </div>

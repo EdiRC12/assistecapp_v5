@@ -180,13 +180,15 @@ const TraceabilityView = ({
             const config = TRACE_TYPES.find(t => t.id === filterType);
             
             // 1. Encontrar o Registro Ancora
-            const { data: anchor, error: anchorError } = await supabase
+            // Usamos .limit(1) + maybeSingle() para evitar PGRST116 quando há registros duplicados
+            const { data: anchorRows, error: anchorError } = await supabase
                 .from(config.table)
                 .select('*')
                 .eq(config.field, val)
-                .maybeSingle();
+                .limit(1);
 
             if (anchorError) throw anchorError;
+            const anchor = anchorRows?.[0] ?? null;
             if (!anchor) {
                 notifyWarning?.('Não encontrado', `Nenhum registro de ${config.label} encontrado com este número.`);
                 setLoading(false);
@@ -234,12 +236,23 @@ const TraceabilityView = ({
             ]);
 
             // 4. Buscar tudo relacionado em paralelo (apenas se houver filtros)
+            // IMPORTANTE: Apenas incluir condições com valores não-nulos para evitar PGRST116
+            const riFilters = buildFilter([
+                { field: 'id', value: riId },
+                { field: 'converted_to_ot_id', value: sacId }
+            ]);
+
+            const returnsFilters = buildFilter([
+                { field: 'sac_id', value: sacId },
+                { field: 'rnc_id', value: rncId }
+            ]);
+
             const queries = [
                 sacFilters ? supabase.from('sac_tickets').select('id, appointment_number, subject, created_at, status').or(sacFilters) : Promise.resolve({ data: [] }),
                 rncFilters ? supabase.from('rnc_records').select('id, rnc_number, subject, created_at, status').or(rncFilters) : Promise.resolve({ data: [] }),
-                supabase.from('simple_tickets').select('id, appointment_number, subject, created_at, status').or(`id.eq.${riId},converted_to_ot_id.eq.${sacId}`),
+                riFilters ? supabase.from('simple_tickets').select('id, appointment_number, subject, created_at, status').or(riFilters) : Promise.resolve({ data: [] }),
                 taskFilters ? supabase.from('tasks').select('id, title, created_at, status, category, travels, parent_sac_id, parent_rnc_id, parent_test_id, parent_test_number').or(taskFilters) : Promise.resolve({ data: [] }),
-                supabase.from('returns').select('id, created_at, status').or(`sac_id.eq.${sacId},rnc_id.eq.${rncId}`),
+                returnsFilters ? supabase.from('returns').select('id, created_at, status').or(returnsFilters) : Promise.resolve({ data: [] }),
                 reportFilters ? supabase.from('task_reports').select('id, task_id, sac_id, rnc_id, created_at, status, report_type').or(reportFilters) : Promise.resolve({ data: [] }),
                 followupFilters ? supabase.from('tech_followups').select('id, created_at, status, client_name, subject, converted_task_id').or(followupFilters) : Promise.resolve({ data: [] })
             ];

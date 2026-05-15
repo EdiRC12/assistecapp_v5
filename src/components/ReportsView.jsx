@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    FileText, Search, Filter, Trash2, ArrowRight, Clock, User, Calendar,
+    FileText, Search, Filter, Trash2, ArrowRight, Clock, User, Calendar, MapPin,
     Eye, Edit, Printer, X, ChevronDown, Image as ImageIcon, Paperclip,
     ChevronLeft, ArrowUpRight, Coins, TrendingUp, BarChart3, PieChart, Target, History, Package,
     ClipboardList, Brain, Sparkles, Info, FileSpreadsheet, MessageSquare, AlertTriangle, CheckCircle2
@@ -879,6 +879,12 @@ const ReportsView = ({ onEditTask, setIsModalOpen, setEditingTask, fetchTaskDeta
                                         <History size={12} className="text-slate-400" />
                                         <span>{new Date(report.updated_at || report.created_at).toLocaleDateString()} às {new Date(report.updated_at || report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
+                                    {report.location && (
+                                        <div className="flex items-center gap-2 text-[10px] text-brand-600 font-bold border-t border-slate-100 pt-1.5 mt-1.5">
+                                            <MapPin size={12} className="text-brand-500" />
+                                            <span className="truncate">{report.location}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between pt-3 border-t border-slate-100">

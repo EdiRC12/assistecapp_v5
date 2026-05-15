@@ -1,13 +1,13 @@
 import React, { forwardRef } from 'react';
 import logo from '../assets/logo_plastimarau.png';
 
-const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, signatureDate, status, media = [] }, ref) => {
+const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, signatureDate, status, manualActions, media = [] }, ref) => {
     const isFinalized = status === 'FINALIZADO';
+    
     // Helper para formatar categoria
     const getCategoryName = (catId) => {
         if (!catId) return 'N/A';
         
-        // Mapeamento interno para garantir português se taskTypes falhar ou estiver incompleto
         const internalLabels = {
             'DEVELOPMENT': 'Testes / Desenvolvimentos',
             'RNC': 'Atendimento de RNC',
@@ -27,7 +27,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
             return 'Jornada de Atendimento';
         }
         
-        // Tenta encontrar nos tipos customizados primeiro
         const type = taskTypes?.find(t => t.id === catId || t.name === catId || t.label === catId);
         if (type) return type.label || type.name || catId;
         
@@ -74,67 +73,51 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                         </span>
                     </div>
 
-                    <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
-                        <span className="text-[10px] uppercase font-black text-brand-600">Tarefa:</span>
-                        <span className="text-base font-black text-slate-900 leading-snug">
-                            {getCategoryName(task.category)}
-                        </span>
-                    </div>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-12 mt-2">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Tarefa / Categoria:</span>
+                            <span className="text-sm font-black text-slate-900">{getCategoryName(task.category)}</span>
+                        </div>
 
-                    {/* Linha de OP - Linha exclusiva */}
-                    {task.op && (
-                        <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
-                            <span className="text-[9px] uppercase font-black text-brand-600">Ordem de Produção (OP):</span>
-                            <span className="text-sm font-bold text-slate-800 leading-snug">
-                                {task.op}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Localização (Cidade/UF):</span>
+                            <span className="text-sm font-bold text-slate-800">
+                                {task.location || 'N/A'}
                             </span>
                         </div>
-                    )}
 
-                    {/* Linha de Item - Linha exclusiva */}
-                    {task.item && (
-                        <div className="flex flex-col gap-1 pb-3 border-b border-slate-200">
-                            <span className="text-[9px] uppercase font-black text-brand-600">Item / Descrição:</span>
-                            <span className="text-sm font-bold text-slate-800 leading-snug">
-                                {task.item}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Ordem de Produção (OP) / RNC:</span>
+                            <span className="text-sm font-bold text-slate-800">{task.op || 'N/A'} {task.rnc ? ` / RNC: ${task.rnc}` : ''}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Pedido de Compra / Item:</span>
+                            <span className="text-sm font-bold text-slate-800">{task.pedido || task.purchase_order || 'N/A'} {task.item ? ` / Item: ${task.item}` : ''}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Solicitante da Visita:</span>
+                            <span className="text-sm font-bold text-slate-800">{task.solicitante || 'Não informado'}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Contato no Cliente / Cargo:</span>
+                            <span className="text-sm font-bold text-slate-800">{task.contato || 'Não informado'} {task.produto ? ` (${task.produto})` : ''}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Responsáveis Técnicos:</span>
+                            <span className="text-sm font-bold text-slate-800">{task.responsible_names || currentUser?.username || 'N/A'}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[9px] uppercase font-black text-brand-600">Status e Emissão:</span>
+                            <span className="text-[10px] font-black text-slate-900 uppercase">
+                                {isFinalized ? 'FINALIZADO' : 'PARCIAL'} | {new Date().toLocaleDateString()}
                             </span>
                         </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-
-                    <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                        <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Responsáveis:</span>
-                        <span className="text-sm font-bold text-slate-800">{task.responsible_names || currentUser?.username || 'N/A'}</span>
                     </div>
-
-
-                    {(task.pedido || task.purchase_order) && (
-                        <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                            <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Pedido:</span>
-                            <span className="text-sm font-bold text-slate-800">{task.pedido || task.purchase_order}</span>
-                        </div>
-                    )}
-
-                    {task.solicitante && (
-                        <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                            <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Solicitante:</span>
-                            <span className="text-sm font-bold text-slate-800">{task.solicitante}</span>
-                        </div>
-                    )}
-
-                    {task.contato && (
-                        <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                            <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Contato:</span>
-                            <span className="text-sm font-bold text-slate-800">{task.contato}</span>
-                        </div>
-                    )}
-
-                    <div className="flex items-baseline gap-2 pb-1 border-b border-slate-100">
-                        <span className="text-[9px] uppercase font-black text-brand-600 min-w-[80px]">Status Emissão:</span>
-                        <span className="text-[10px] font-black text-slate-900 uppercase">{isFinalized ? 'FINALIZADO' : 'PARCIAL'}</span>
-                    </div>
-                </div>
                 </div>
             </div>
 
@@ -185,7 +168,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
 
             {/* Content Body */}
             <div className="mb-6">
-                <h2 className="text-xs uppercase font-black text-black mb-2 border-b border-slate-200 pb-1">Descrição Técnica</h2>
+                <h2 className="text-sm uppercase font-black text-brand-700 mb-4 border-b border-slate-200 pb-2">Descrição Técnica</h2>
                 <div className="text-sm leading-relaxed text-slate-800">
                     {(() => {
                         const isHtml = (content || "").trim().startsWith('<');
@@ -199,7 +182,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                             );
                         }
 
-                        // Lógica Legada para Markdown/Texto Puro (Retrocompatibilidade)
                         const lines = (content || "").split('\n');
                         const sections = [];
                         let currentSection = { title: null, lines: [], isRnc3rd: false };
@@ -283,10 +265,10 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                 </div>
             </div>
 
-            {/* Timeline Histórica - NEW SECTION */}
+            {/* Timeline Histórica */}
             {task.timeline && task.timeline.length > 0 && (
                 <div className="mb-10 page-break-inside-avoid">
-                    <h2 className="text-xs uppercase font-black text-black mb-4 border-b border-slate-200 pb-1 flex justify-between items-center">
+                    <h2 className="text-sm uppercase font-black text-brand-700 mb-4 border-b border-slate-200 pb-2 flex justify-between items-center">
                         <span>Cronologia do Atendimento (Histórico)</span>
                         <span className="text-[8px] font-bold text-slate-400 italic">Rastreabilidade Completa</span>
                     </h2>
@@ -312,7 +294,57 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                 </div>
             )}
 
-            {/* Seção de Assinaturas Robusta (Table) */}
+            {/* Ações Pós-Visita */}
+            {((task.manualActions && task.manualActions.length > 0) || (manualActions && manualActions.length > 0)) && (
+                <div className="mb-10 page-break-inside-avoid">
+                    <h2 className="text-sm font-black text-brand-700 uppercase border-b border-slate-200 pb-2 mb-4">
+                        AÇÕES PÓS VISITA
+                    </h2>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-200">
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left">Atividade / Descrição da Ação</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left w-1/5">Responsável</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left w-1/5">Prazo</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-center w-1/6">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(manualActions || task.manualActions || []).map((action, idx) => (
+                                <tr key={idx} className="border-b border-slate-50">
+                                    <td className="py-3 pr-4">
+                                        <div className="flex items-start gap-2">
+                                            {action.completed ? (
+                                                <svg className="w-4 h-4 text-emerald-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4 text-amber-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                                                </svg>
+                                            )}
+                                            <span className={`text-[11px] font-black uppercase leading-tight ${action.completed ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                                                {action.what}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="py-3 text-[10px] font-black text-slate-500 uppercase">{action.who || 'N/A'}</td>
+                                    <td className="py-3 text-[10px] font-black text-slate-500 uppercase">{action.when || 'N/A'}</td>
+                                    <td className="py-3 text-center">
+                                        {action.completed ? (
+                                            <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-2 py-1 rounded border border-emerald-100 uppercase">Finalizado</span>
+                                        ) : (
+                                            <span className="text-[8px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded border border-amber-100 uppercase">Pendente</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Seção de Assinaturas */}
             <div className="mt-12 pt-8 border-t-2 border-slate-100 page-break-inside-avoid shadow-none" style={{ breakInside: 'avoid' }}>
                 <table className="w-full border-none border-collapse shadow-none">
                     <tbody className="border-none shadow-none">
@@ -334,7 +366,6 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                 </table>
             </div>
 
-            {/* Styles for Rich Text Content */}
             <style>{`
                 .rich-text-content h1, .rich-text-content h2, .rich-text-content h3 {
                     font-weight: 900;
@@ -367,6 +398,28 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                 .rich-text-content strong {
                     font-weight: 800;
                     color: #0f172a;
+                }
+                .rich-text-content table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                    margin: 15px 0 !important;
+                    table-layout: auto !important;
+                    display: table !important;
+                }
+                .rich-text-content th, .rich-text-content td {
+                    border: 1px solid #cbd5e1 !important;
+                    padding: 8px !important;
+                    text-align: left !important;
+                    font-size: 11px !important;
+                    display: table-cell !important;
+                }
+                .rich-text-content th {
+                    background-color: #f8fafc !important;
+                    font-weight: bold !important;
+                    text-transform: uppercase !important;
+                }
+                .rich-text-content tr {
+                    display: table-row !important;
                 }
             `}</style>
         </div>

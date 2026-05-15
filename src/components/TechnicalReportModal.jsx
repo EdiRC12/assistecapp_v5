@@ -89,7 +89,7 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                 client: report.client_name || report.tasks?.client || report.sac_tickets?.client_name,
                                 category: report.tasks?.category || report.report_type,
                                 rnc: report.tasks?.rnc,
-                                location: report.tasks?.location || report.tasks?.address,
+                                location: report.location || report.tasks?.location || report.tasks?.address,
                                 solicitante: report.solicitante,
                                 contato: report.contato,
                                 produto: report.produto,

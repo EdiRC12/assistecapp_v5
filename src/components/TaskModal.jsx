@@ -937,7 +937,19 @@ const TaskModal = ({
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#003399]">
                         <ReportEditor
-                            task={initialData}
+                            task={{
+                                ...initialData,
+                                client,
+                                op,
+                                pedido,
+                                item,
+                                rnc,
+                                description,
+                                category,
+                                travels,
+                                stages,
+                                location
+                            }}
                             report={currentReport}
                             currentUser={currentUser}
                             onSave={(savedReport) => {

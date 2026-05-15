@@ -74,6 +74,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             // If has specific travels
             if (task.travels && task.travels.length > 0) {
                 task.travels.forEach((t, travelIdx) => {
+                    const techParticipants = t.tech_participants || [];
+                    const techNames = techParticipants.map(uid => users.find(u => u.id === uid)?.username || users.find(u => u.id === uid)?.full_name).filter(Boolean);
+
                     list.push({
                         id: t.id || `${task.id}_${travelIdx}`,
                         taskId: task.id,
@@ -84,7 +87,11 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         location: task.location, // Global location
                         date: t.date,
                         isDateDefined: t.isDateDefined,
-                        team: Array.isArray(t.team) ? t.team : [t.team],
+                        team: [
+                            ...(Array.isArray(t.team) ? t.team : [t.team]),
+                            ...techNames,
+                            ...(t.additional_participants ? t.additional_participants.split(',').map(s => s.trim()) : [])
+                        ].filter((name, idx, self) => name && name !== 'N/A' && name !== '' && self.indexOf(name) === idx),
                         contacts: t.contacts,
                         role: t.role,
                         description: task.description,
@@ -372,7 +379,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             cost_car_rental: trip.cost_car_rental || 0,
             vehicle_status: trip.vehicle_status || 'CONFORME',
             vehicle_issue: trip.vehicle_issue || '',
-            additional_participants: trip.additional_participants ? trip.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : []
+            additional_participants: trip.additional_participants ? trip.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : [],
+            tech_participants: trip.tech_participants || []
         });
     };
 
@@ -452,10 +460,34 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         cost_car_rental: parseFloat(editData.cost_car_rental) || 0,
                         vehicle_status: editData.vehicle_status || 'CONFORME',
                         vehicle_issue: editData.vehicle_issue || '',
-                        additional_participants: Array.isArray(editData.additional_participants) ? editData.additional_participants.join(', ') : editData.additional_participants
+                        additional_participants: Array.isArray(editData.additional_participants) ? editData.additional_participants.join(', ') : editData.additional_participants,
+                        tech_participants: editData.tech_participants || []
                     };
                 }
-                updatePayload = { travels: updatedTravels };
+                
+                // --- SINCRONIZAÇÃO DE RESPONSÁVEIS (DASHBOARD) ---
+                // Pegar todos os técnicos de TODAS as viagens dessa tarefa + técnico principal da tarefa
+                const allTravels = updatedTravels;
+                const techSet = new Set();
+                
+                // Adicionar responsável original da tarefa se existir
+                if (originalTask.assigned_to) techSet.add(originalTask.assigned_to);
+                if (originalTask.assigned_users) {
+                    originalTask.assigned_users.forEach(uid => techSet.add(uid));
+                }
+                
+                // Adicionar técnicos de cada viagem
+                allTravels.forEach(tr => {
+                    if (tr.tech_participants) {
+                        tr.tech_participants.forEach(uid => techSet.add(uid));
+                    }
+                    // Se a viagem tiver um técnico específico (caso tenhamos essa lógica no futuro)
+                });
+                
+                updatePayload = { 
+                    travels: updatedTravels,
+                    assigned_users: Array.from(techSet)
+                };
             }
 
             // Gerenciar tipo de ocorrência no banco se for nova
@@ -547,7 +579,14 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             occurrence_cost: 0,
             occurrence_distribution: 'PRORATE',
             occurrence_target_id: '',
-            additional_participants: []
+            occurrence_obs: '',
+            additional_participants: [],
+            tech_participants: [],
+            vehicle_status: 'CONFORME',
+            vehicle_issue: '',
+            fine_driver: '',
+            fine_payment_type: 'DRIVER',
+            fine_payer: 'COMPANY'
         });
         setIsProrationModalOpen(true);
     };
@@ -577,15 +616,27 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             fine_amount: allSameFine ? (parseFloat(sample.fine_amount) || 0) * count : allMembers.reduce((acc, t) => acc + (parseFloat(t.fine_amount) || 0), 0),
             fine_distribution: allSameFine ? 'PRORATE' : 'SINGLE',
             fine_target_id: allSameFine ? '' : allMembers.find(t => t.fine_amount > 0)?.id || '',
+            fine_payer: sample.fine_payer || 'COMPANY',
+            fine_driver: sample.fine_driver || '',
+            fine_payment_type: sample.fine_payment_type || 'DRIVER',
             occurrence_name: sample.occurrence || '',
             occurrence_cost: allSameOcc ? (parseFloat(sample.occurrence_cost) || 0) * count : allMembers.reduce((acc, t) => acc + (parseFloat(t.occurrence_cost) || 0), 0),
+            occurrence_obs: sample.occurrence_obs || '',
             occurrence_distribution: allSameOcc ? 'PRORATE' : 'SINGLE',
             occurrence_target_id: allSameOcc ? '' : allMembers.find(t => t.occurrence_cost > 0)?.id || '',
-            additional_participants: sample.additional_participants ? sample.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : []
+            additional_participants: sample.additional_participants ? sample.additional_participants.split(',').map(s => s.trim()).filter(Boolean) : [],
+            tech_participants: sample.tech_participants || [],
+            vehicle_status: sample.vehicle_status || 'CONFORME',
+            vehicle_issue: sample.vehicle_issue || ''
         });
         
         setSelectedTrips(allMembers.map(t => t.id));
         setIsProrationModalOpen(true);
+    };
+
+    const handleOpenDetail = (trip) => {
+        setSelectedTripForDetail(trip);
+        setShowDetailModal(true);
     };
 
     const handleApplyProration = async () => {
@@ -813,7 +864,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 }
             }
 
-            // Processar a desvinculação (target)
             const targetCtx = getTaskInit(targetTrip.taskId);
             if (targetCtx) {
                 if (targetTrip.isSpecific) {
@@ -834,7 +884,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 }
             }
 
-            // 4. Executar atualizações em lote por tarefa
             for (const taskId in tasksToUpdate) {
                 const ctx = tasksToUpdate[taskId];
                 const finalPayload = { ...ctx.updates };
@@ -844,7 +893,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     const t = tasks.find(tk => tk.id === taskId);
                     await supabase.from('tasks').update(finalPayload).eq('id', taskId);
 
-                    // Sincronizar custos de engenharia se necessário
                     if (t?.parent_test_id) {
                         const { data: testData } = await supabase.from('tech_tests').select('op_cost').eq('id', t.parent_test_id).single();
                         if (testData) {
@@ -1053,8 +1101,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         return (
                                             <React.Fragment key={idx}>
                                                 <tr 
+                                                    onDoubleClick={() => !selectionMode && !isEditing && handleOpenDetail(trip)}
                                                     onClick={(e) => {
-                                                        // Ignorar clique se for em elementos interativos
                                                         if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea')) return;
                                                         
                                                         if (selectionMode) {
@@ -1063,10 +1111,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     ? prev.filter(id => id !== trip.id) 
                                                                     : [...prev, trip.id]
                                                             );
-                                                        } else {
-                                                            // Não abrir detalhes se estiver editando esta linha
-                                                            if (isEditing) return;
-                                                            handleOpenDetail(trip);
                                                         }
                                                     }}
                                                     className={`transition-all cursor-pointer ${
@@ -1152,7 +1196,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     />
                                                                 </div>
 
-                                                                {/* Acompanhantes - Sistema de Tags */}
                                                                 <div className="flex flex-col gap-1">
                                                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                                                                         <Users size={10} /> Acompanhantes
@@ -1196,7 +1239,40 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     </div>
                                                                 </div>
 
-                                                                {/* KM Final */}
+                                                                <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-100">
+                                                                    <label className="text-[8px] font-black text-brand-600 uppercase tracking-widest flex items-center gap-1">
+                                                                        <User size={10} /> Técnicos Adicionais (Dashboard)
+                                                                    </label>
+                                                                    <div className="flex gap-1">
+                                                                        <select 
+                                                                            className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded text-[9px] outline-none focus:border-brand-500"
+                                                                            onChange={e => {
+                                                                                const userId = e.target.value;
+                                                                                if (userId && !(editData.tech_participants || []).includes(userId)) {
+                                                                                    setEditData(p => ({ ...p, tech_participants: [...(p.tech_participants || []), userId] }));
+                                                                                }
+                                                                                e.target.value = "";
+                                                                            }}
+                                                                        >
+                                                                            <option value="">Selecionar Técnico...</option>
+                                                                            {users.filter(u => !(editData.tech_participants || []).includes(u.id)).map(u => (
+                                                                                <option key={u.id} value={u.id}>{u.username || u.full_name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                                        {(editData.tech_participants || []).map((uid) => {
+                                                                            const user = users.find(u => u.id === uid);
+                                                                            return (
+                                                                                <span key={uid} className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black shadow-sm uppercase">
+                                                                                    {user?.username || user?.full_name || 'Técnico'}
+                                                                                    <X size={8} className="cursor-pointer hover:text-rose-200" onClick={() => setEditData(p => ({ ...p, tech_participants: p.tech_participants.filter(id => id !== uid) }))} />
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+
                                                                 <div className="flex flex-col gap-1">
                                                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                                                                         <BarChart3 size={10} /> KM Final Chegada
@@ -1210,7 +1286,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     />
                                                                 </div>
 
-                                                                {/* Condição do Veículo */}
                                                                 <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
                                                                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Condição do Veículo</label>
                                                                     <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -1388,12 +1463,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {/* Edit Row - Extras (Multas e Ocorrências) */}
                                                 {isEditing && (
                                                     <tr className="bg-brand-50/50">
                                                         <td colSpan="7" className="p-4 pt-0 border-b border-brand-100">
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-white border border-brand-100 rounded-2xl shadow-sm">
-                                                                {/* Fines Section */}
                                                                 <div className="space-y-3">
                                                                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 italic">
@@ -1476,7 +1549,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                                     )}
                                                                 </div>
 
-                                                                {/* Occurrences Section */}
                                                                 <div className="space-y-4">
                                                                     <div className="border-b border-slate-100 pb-2">
                                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 italic">
@@ -1561,7 +1633,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     </div>
                 ) : (
                     <div className="p-6 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 bg-slate-50/10">
-                        {/* Summary Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
                                 <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><Plane size={24} /></div>
@@ -1600,7 +1671,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Summary Consolidated */}
                         <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-lg hover:shadow-xl transition-shadow flex items-center gap-4 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:scale-110 transition-transform"><DollarSign size={80} className="text-white" /></div>
                             <div className="p-4 bg-slate-800 text-brand-400 rounded-2xl z-10"><BarChart3 size={24} /></div>
@@ -1612,7 +1682,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Sub-Header: Viagens and Clientes info */}
                         <div className="flex flex-wrap gap-4 items-center justify-between bg-white/50 p-4 rounded-3xl border border-slate-200 border-dashed">
                              <div className="flex gap-6">
                                 <div className="flex items-center gap-2">
@@ -1629,9 +1698,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                              </div>
                         </div>
 
-                        {/* Breakdown Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Custo Detalhado por Categoria */}
                             <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-6">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -1667,7 +1734,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 </div>
                             </div>
 
-                            {/* Resumo de Incidentes e Perdas */}
                             <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-6">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -1711,7 +1777,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Fleet Usage Breakdown Table */}
                         <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
                                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -1760,7 +1825,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Ranking de Irregularidades de Frota */}
                         <div className="bg-white rounded-[40px] border border-rose-100 shadow-sm overflow-hidden border-l-4 border-l-rose-500 mb-8">
                             <div className="p-6 border-b border-rose-50 bg-rose-50/10 flex justify-between items-center">
                                 <h3 className="text-xs font-black text-rose-800 uppercase tracking-widest flex items-center gap-2">
@@ -1811,7 +1875,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Person Breakdown Table */}
                         <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-6 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
                                 <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
@@ -1879,17 +1942,27 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 <div className="absolute inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
                     <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[96%]">
                         {/* Header Modal */}
-                        <div className="p-6 md:p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                        <div className="p-6 md:p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50 relative overflow-hidden">
+                            {selectedTripForDetail.group_id && (
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-brand-500"></div>
+                            )}
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-brand-600 text-white rounded-2xl shadow-lg shadow-brand-100">
                                     <ClipboardList size={24} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none">
-                                        Ficha da Viagem
-                                    </h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none">
+                                            Ficha da Viagem
+                                        </h2>
+                                        {selectedTripForDetail.group_id && (
+                                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[8px] font-black uppercase tracking-widest border border-indigo-200">
+                                                RATEIO: {selectedTripForDetail.group_name}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                        {selectedTripForDetail.client}
+                                        {selectedTripForDetail.client} • ID: {selectedTripForDetail.id.substring(0, 8)}
                                     </p>
                                 </div>
                             </div>
@@ -1903,7 +1976,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
 
                         {/* Corpo do Modal */}
                         <div className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
-                            {/* Grid Principal: Info Operacional */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-6">
                                     <div className="flex items-center gap-3">
@@ -1939,20 +2011,44 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                     <div className="flex items-center gap-3">
                                         <Users className="text-slate-300" size={18} />
                                         <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipe Técnica</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipe de Atendimento</label>
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                                {selectedTripForDetail.team.length > 0 ? selectedTripForDetail.team.map((m, i) => (
-                                                    <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold border border-blue-100">{m}</span>
-                                                )) : <span className="text-xs text-slate-400">Nenhum membro registrado</span>}
-                                                {selectedTripForDetail.additional_participants && (
-                                                    <div className="w-full mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1">
-                                                        <span className="text-[8px] font-black text-slate-400 uppercase w-full mb-1">Acompanhantes</span>
-                                                        {selectedTripForDetail.additional_participants.split(',').map((p, i) => (
-                                                            <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-medium border border-slate-200 uppercase">{p.trim()}</span>
-                                                        ))}
-                                                    </div>
+                                                {/* Técnicos Oficiais (App) */}
+                                                {(selectedTripForDetail.tech_participants || []).length > 0 && selectedTripForDetail.tech_participants.map((uid) => {
+                                                    const user = users.find(u => u.id === uid);
+                                                    return (
+                                                        <span key={uid} className="px-2 py-1 bg-brand-600 text-white rounded-md text-[9px] font-black border border-brand-500 shadow-sm uppercase">
+                                                            {user?.username || user?.full_name || 'Técnico'}
+                                                        </span>
+                                                    );
+                                                })}
+                                                {/* Responsável Principal se não estiver nos participantes */}
+                                                {!selectedTripForDetail.tech_participants?.includes(selectedTripForDetail.assigned_to) && (
+                                                    <span className="px-2 py-0.5 bg-blue-500 text-white rounded-md text-[9px] font-black border border-blue-400 shadow-sm uppercase">
+                                                        {selectedTripForDetail.assigned_name}
+                                                    </span>
                                                 )}
+                                                {/* Acompanhantes Externos */}
+                                                {selectedTripForDetail.additional_participants && selectedTripForDetail.additional_participants.split(',').map((p, i) => (
+                                                    <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-medium border border-slate-200 uppercase">{p.trim()}</span>
+                                                ))}
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Status da Frota na Ficha */}
+                                    <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
+                                        <div className={`p-2 rounded-xl ${selectedTripForDetail.vehicle_status === 'IRREGULAR' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                            <Car size={20} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Condição do Veículo</label>
+                                            <span className={`text-xs font-black uppercase ${selectedTripForDetail.vehicle_status === 'IRREGULAR' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                {selectedTripForDetail.vehicle_status === 'IRREGULAR' ? 'Irregular / Pendente' : 'Conforme (OK)'}
+                                            </span>
+                                            {selectedTripForDetail.vehicle_issue && (
+                                                <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">{selectedTripForDetail.vehicle_issue}</p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -2007,25 +2103,46 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                             )}
                                         </div>
 
-                                        {selectedTripForDetail.has_fine && (
-                                            <div className="flex justify-between items-center text-xs pt-2">
-                                                <span className="text-rose-500 font-bold flex items-center gap-1">
-                                                    <AlertTriangle size={12} /> Custo Incidente (Multa)
-                                                </span>
-                                                <span className="font-bold text-rose-600">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedTripForDetail.fine_amount || 0)}
-                                                </span>
+                                        {selectedTripForDetail.fine_amount > 0 && (
+                                            <div className="pt-3 space-y-2 border-t border-rose-100 mt-2 bg-rose-50/30 p-3 rounded-xl">
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-rose-600 font-black flex items-center gap-1 uppercase">
+                                                        <AlertTriangle size={14} /> Multa de Trânsito
+                                                    </span>
+                                                    <span className="font-black text-rose-600">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedTripForDetail.fine_amount || 0)}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                    <div>
+                                                        <label className="text-[8px] font-black text-slate-400 uppercase block">Condutor</label>
+                                                        <span className="text-[10px] font-bold text-slate-600 uppercase">{selectedTripForDetail.fine_driver || 'N/A'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[8px] font-black text-slate-400 uppercase block">Pagamento</label>
+                                                        <span className="text-[10px] font-bold text-slate-600 uppercase">{selectedTripForDetail.fine_payment_type === 'DRIVER' ? 'Condutor' : 'Empresa (Dobro)'}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
 
                                         {selectedTripForDetail.occurrence_cost > 0 && (
-                                            <div className="flex justify-between items-center text-xs pt-1">
-                                                <span className="text-amber-600 font-bold flex items-center gap-1">
-                                                    <DollarSign size={12} /> Prejuízo (Ocorrência)
-                                                </span>
-                                                <span className="font-bold text-amber-700">
-                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedTripForDetail.occurrence_cost)}
-                                                </span>
+                                            <div className="pt-3 space-y-2 border-t border-amber-100 mt-2 bg-amber-50/30 p-3 rounded-xl">
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-amber-700 font-black flex items-center gap-1 uppercase">
+                                                        <AlertCircle size={14} /> Ocorrência / Reparo
+                                                    </span>
+                                                    <span className="font-black text-amber-700">
+                                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedTripForDetail.occurrence_cost)}
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-1 mt-2">
+                                                    <label className="text-[8px] font-black text-slate-400 uppercase block">Descrição</label>
+                                                    <span className="text-[10px] font-bold text-slate-700 uppercase block">{selectedTripForDetail.occurrence || 'Não especificado'}</span>
+                                                    {selectedTripForDetail.occurrence_obs && (
+                                                        <p className="text-[9px] text-slate-500 italic mt-1 leading-relaxed border-l-2 border-amber-200 pl-2">{selectedTripForDetail.occurrence_obs}</p>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
 
@@ -2043,7 +2160,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 </div>
                             </div>
 
-                            {/* Seção de Incidentes (Multas e Ocorrências) */}
                             {(selectedTripForDetail.has_fine || selectedTripForDetail.occurrence) && (
                                 <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                                     <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -2118,7 +2234,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                 </div>
                             )}
 
-                            {/* Seção de Resumo Case */}
                             <div className="bg-blue-50/30 p-6 rounded-3xl border border-blue-100/50 space-y-3">
                                 <label className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-2">
                                     <ClipboardList size={14} /> Relatório Consolidado da Viagem
@@ -2168,7 +2283,6 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         </div>
 
-                        {/* Footer Modal */}
                         <div className="p-6 md:p-8 border-t border-slate-50 bg-slate-50/30 flex justify-end gap-3">
                             <button 
                                 onClick={() => setShowDetailModal(false)}
@@ -2352,6 +2466,38 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                             <span className="text-[10px] text-slate-400 italic">Nenhum acompanhante adicionado ao grupo.</span>
                                         )}
                                     </div>
+
+                                    <div className="mt-4 pt-4 border-t border-slate-100">
+                                        <label className="text-[10px] font-black text-brand-600 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                            <User size={14} /> Técnicos Oficiais (Dashboard)
+                                        </label>
+                                        <select 
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+                                            onChange={e => {
+                                                const userId = e.target.value;
+                                                if (userId && !(prorationData.tech_participants || []).includes(userId)) {
+                                                    setProrationData(p => ({ ...p, tech_participants: [...(p.tech_participants || []), userId] }));
+                                                }
+                                                e.target.value = "";
+                                            }}
+                                        >
+                                            <option value="">Selecionar Técnico para o Grupo...</option>
+                                            {users.filter(u => !(prorationData.tech_participants || []).includes(u.id)).map(u => (
+                                                <option key={u.id} value={u.id}>{u.username || u.full_name}</option>
+                                            ))}
+                                        </select>
+                                        <div className="flex flex-wrap gap-2 mt-3">
+                                            {(prorationData.tech_participants || []).map((uid) => {
+                                                const user = users.find(u => u.id === uid);
+                                                return (
+                                                    <span key={uid} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-black shadow-md uppercase">
+                                                        {user?.username || user?.full_name || 'Técnico'}
+                                                        <X size={14} className="cursor-pointer hover:text-rose-200" onClick={() => setProrationData(p => ({ ...p, tech_participants: p.tech_participants.filter(id => id !== uid) }))} />
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="col-span-2 pt-4 border-t border-slate-100">
@@ -2359,20 +2505,20 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         <AlertTriangle size={14} /> Custos Extraordinários (Multas e Incidentes)
                                     </h4>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-3">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Valor da Multa (Total)</label>
+                                        {/* Multas Section */}
+                                        <div className="space-y-3 bg-rose-50/30 p-4 rounded-2xl border border-rose-100">
+                                            <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">Multas de Trânsito</label>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
                                                 <input 
                                                     type="number" 
                                                     value={prorationData.fine_amount}
                                                     onChange={e => setProrationData(p => ({ ...p, fine_amount: e.target.value }))}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                                                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-rose-500 transition-all"
                                                 />
                                             </div>
                                             {parseFloat(prorationData.fine_amount) > 0 && (
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Destino da Multa</p>
+                                                <div className="space-y-3 animate-in slide-in-from-top-2">
                                                     <div className="flex gap-2">
                                                         <button 
                                                             onClick={() => setProrationData(p => ({ ...p, fine_distribution: 'PRORATE' }))}
@@ -2399,32 +2545,68 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             ))}
                                                         </select>
                                                     )}
+                                                    
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">Quem foi o Condutor?</label>
+                                                        <select
+                                                            value={prorationData.fine_driver}
+                                                            onChange={e => setProrationData(p => ({ ...p, fine_driver: e.target.value }))}
+                                                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
+                                                        >
+                                                            <option value="">Selecione o Condutor</option>
+                                                            {users.map(u => (
+                                                                <option key={u.id} value={u.username || u.full_name}>{u.username || u.full_name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">Tipo de Pagamento</label>
+                                                        <select 
+                                                            value={prorationData.fine_payment_type}
+                                                            onChange={e => setProrationData(p => ({ ...p, fine_payment_type: e.target.value }))}
+                                                            className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] outline-none"
+                                                        >
+                                                            <option value="DRIVER">Assumida pelo Condutor</option>
+                                                            <option value="DOUBLE">Pagar em Dobro (Omitir)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">Quem Pagou?</label>
+                                                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                                            <button 
+                                                                onClick={() => setProrationData(p => ({ ...p, fine_payer: 'COMPANY' }))}
+                                                                className={`flex-1 py-1 rounded text-[9px] font-black transition-all ${prorationData.fine_payer === 'COMPANY' ? 'bg-brand-500 text-white shadow-sm' : 'text-slate-400'}`}
+                                                            >
+                                                                EMPRESA
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setProrationData(p => ({ ...p, fine_payer: 'EMPLOYEE' }))}
+                                                                className={`flex-1 py-1 rounded text-[9px] font-black transition-all ${prorationData.fine_payer === 'EMPLOYEE' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-400'}`}
+                                                            >
+                                                                FUNCIONÁRIO
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="space-y-3">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Custo de Ocorrência (Total)</label>
+                                        {/* Ocorrências Section */}
+                                        <div className="space-y-3 bg-amber-50/30 p-4 rounded-2xl border border-amber-100">
+                                            <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">Ocorrências / Reparos</label>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
                                                 <input 
                                                     type="number" 
                                                     value={prorationData.occurrence_cost}
                                                     onChange={e => setProrationData(p => ({ ...p, occurrence_cost: e.target.value }))}
-                                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                                                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500 transition-all"
                                                 />
                                             </div>
                                             {parseFloat(prorationData.occurrence_cost) > 0 && (
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                                                    <input 
-                                                        type="text"
-                                                        placeholder="Qual foi a ocorrência?"
-                                                        list="occurrence-list"
-                                                        value={prorationData.occurrence_name}
-                                                        onChange={e => setProrationData(p => ({ ...p, occurrence_name: e.target.value }))}
-                                                        className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
-                                                    />
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase mt-2">Destino do Incidente</p>
+                                                <div className="space-y-3 animate-in slide-in-from-top-2">
                                                     <div className="flex gap-2">
                                                         <button 
                                                             onClick={() => setProrationData(p => ({ ...p, occurrence_distribution: 'PRORATE' }))}
@@ -2451,9 +2633,63 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                             ))}
                                                         </select>
                                                     )}
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">O que aconteceu?</label>
+                                                        <input 
+                                                            type="text"
+                                                            placeholder="Ex: Pneu furado..."
+                                                            list="occurrence-list"
+                                                            value={prorationData.occurrence_name}
+                                                            onChange={e => setProrationData(p => ({ ...p, occurrence_name: e.target.value }))}
+                                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-500"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">Observações Detalhadas</label>
+                                                        <textarea 
+                                                            value={prorationData.occurrence_obs}
+                                                            onChange={e => setProrationData(p => ({ ...p, occurrence_obs: e.target.value }))}
+                                                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-amber-500 min-h-[60px] resize-none"
+                                                            placeholder="Detalhes..."
+                                                        />
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* Frota / Condição do Veículo */}
+                                    <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <Car size={14} /> Condição Geral do Veículo na Viagem
+                                        </label>
+                                        <div className="flex bg-white p-0.5 rounded-xl border border-slate-200 w-fit">
+                                            <button 
+                                                onClick={() => setProrationData(p => ({ ...p, vehicle_status: 'CONFORME', vehicle_issue: '' }))}
+                                                className={`px-6 py-1.5 rounded-lg text-[10px] font-black transition-all ${prorationData.vehicle_status === 'CONFORME' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                TUDO OK
+                                            </button>
+                                            <button 
+                                                onClick={() => setProrationData(p => ({ ...p, vehicle_status: 'IRREGULAR' }))}
+                                                className={`px-6 py-1.5 rounded-lg text-[10px] font-black transition-all ${prorationData.vehicle_status === 'IRREGULAR' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                IRREGULAR
+                                            </button>
+                                        </div>
+                                        {prorationData.vehicle_status === 'IRREGULAR' && (
+                                            <div className="animate-in slide-in-from-top-2">
+                                                <label className="text-[9px] font-bold text-rose-500 uppercase mb-1 block">Qual o problema detectado?</label>
+                                                <input 
+                                                    type="text" 
+                                                    list="vehicle-issue-list"
+                                                    placeholder="Ex: Barulho na suspensão, Luz do painel..."
+                                                    value={prorationData.vehicle_issue}
+                                                    onChange={e => setProrationData(p => ({ ...p, vehicle_issue: e.target.value }))}
+                                                    className="w-full px-4 py-2 bg-white border border-rose-100 rounded-xl text-xs font-bold outline-none focus:border-rose-500 shadow-sm"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -254,77 +254,61 @@ export const buildAIDataPackage = (notes, mediaItems, taskContext) => {
  * Esta função não depende de rede ou chaves de IA e serve como fallback definitivo.
  */
 export const generateNativeReportFallback = (data, status) => {
-    console.log("[AI] Gerando Fallback Nativo (Versão HTML v2)...");
+    console.log("[AI] Gerando Relatório Técnico Nativo Estruturado...");
     const isFinal = status === 'FINAL';
 
-    // Início direto no Objetivo para evitar redundância com o cabeçalho do PDF
-    let content = `<h3>OBJETIVO DA VISITA</h3>`;
-    content += `<p>${data.title || 'Manutenção Técnica'}</p>`;
+    // Estilos Inline para garantir consistência no editor e na impressão
+    const styles = {
+        headerBox: "background-color: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e2e8f0; font-family: sans-serif;",
+        sectionTitle: "color: #1e40af; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 25px; margin-bottom: 12px; text-transform: uppercase; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;",
+        label: "color: #1e40af; font-size: 11px; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 2px; text-decoration: underline;",
+        value: "color: #1e293b; font-size: 14px; font-weight: 600; margin-bottom: 12px; display: block;",
+        table: "width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; table-layout: fixed;",
+        th: "background-color: #f1f5f9; color: #475569; font-weight: bold; text-align: left; padding: 10px; border: 1px solid #cbd5e1; text-transform: uppercase; font-size: 10px;",
+        td: "padding: 10px; border: 1px solid #cbd5e1; color: #334155; word-wrap: break-word; vertical-align: top;"
+    };
 
+    // --- INÍCIO DA GERAÇÃO DO CONTEÚDO ---
+    let content = '';
+
+    // 1. Objetivo da Visita
+    content += `<h3 style="${styles.sectionTitle}">OBJETIVO DA VISITA</h3>`;
+    content += `<p style="font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 20px;">${data.objective || 'Atendimento técnico programado para análise e suporte conforme solicitação do cliente.'}</p>`;
+
+    // 2. Descrição do Chamado
     if (data.description && data.description !== 'Não informado') {
-        content += `<h3>DESCRIÇÃO DO CHAMADO</h3>`;
-        content += `<p>${data.description}</p>`;
+        content += `<h3 style="${styles.sectionTitle}">DESCRIÇÃO DO CHAMADO</h3>`;
+        content += `<p style="font-size: 14px; line-height: 1.6; color: #334155; font-style: italic; margin-bottom: 15px;">${data.description}</p>`;
     }
 
-    content += `<h3>RESUMO DE ATIVIDADES DA TAREFA</h3>`;
-    content += `<p><strong>Etapas e Checklist:</strong></p>`;
-    
-    const stagesHtml = data.stagesList ? 
-        `<ul>${data.stagesList.split('\n').map(s => `<li>${s}</li>`).join('')}</ul>` : 
-        `<p>Nenhuma etapa registrada.</p>`;
-    content += stagesHtml;
-
-    if (data.commentsList) {
-        content += `<h3>COMENTÁRIOS DA TAREFA</h3>`;
-        content += `<p>${data.commentsList.replace(/\n/g, '<br>')}</p>`;
-    }
-
-    content += `<h3>NOTAS GERAIS DO TÉCNICO</h3>`;
-    content += `<p>${(data.rawNotes || 'Sem observações registradas.').replace(/\n/g, '<br>')}</p>`;
-
-    content += `<h3>CONCLUSÃO</h3>`;
-    content += `<p>[DESCREVA AQUI SUA ANÁLISE TÉCNICA FINAL SOBRE A CAUSA E SOLUÇÃO]</p>`;
-
-    content += `<h3>AÇÕES PÓS VISITA</h3>`;
-    
-    // Tabela simples em HTML para Ações Pós-Visita
-    content += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-        <thead>
-            <tr style="background-color: #f8fafc; text-align: left;">
-                <th style="padding: 8px; border: 1px solid #e2e8f0;">Status</th>
-                <th style="padding: 8px; border: 1px solid #e2e8f0;">O Que</th>
-                <th style="padding: 8px; border: 1px solid #e2e8f0;">Quem</th>
-                <th style="padding: 8px; border: 1px solid #e2e8f0;">Quando</th>
-            </tr>
-        </thead>
-        <tbody>`;
-
-    if (data.manualActions && data.manualActions.length > 0) {
-        data.manualActions.forEach(action => {
-            const what = action.what || 'Não informado';
-            const who = action.who || '-';
-            const when = action.when || '-';
-            const statusStr = action.completed ? '✅' : '⏳';
-            content += `<tr>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${statusStr}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${what}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${who}</td>
-                <td style="padding: 8px; border: 1px solid #e2e8f0;">${when}</td>
-            </tr>`;
+    // 3. Resumo de Atividades da Tarefa
+    content += `<h3 style="${styles.sectionTitle}">RESUMO DE ATIVIDADES DA TAREFA</h3>`;
+    if (data.stagesList && data.stagesList !== 'Nenhuma etapa de checklist registrada.') {
+        const stages = data.stagesList.split('\n').map(s => s.replace('- [x] ', '').replace('- [ ] ', '').trim());
+        content += `<ul style="font-size: 14px; line-height: 1.8; color: #334155; padding-left: 20px; margin-bottom: 15px;">`;
+        stages.forEach(s => {
+            if (s) content += `<li style="margin-bottom: 5px;">${s}</li>`;
         });
+        content += `</ul>`;
     } else {
-        content += `<tr>
-            <td style="padding: 8px; border: 1px solid #e2e8f0;">⏳</td>
-            <td style="padding: 8px; border: 1px solid #e2e8f0;">Acompanhar Solução</td>
-            <td style="padding: 8px; border: 1px solid #e2e8f0;">Téc. Responsável</td>
-            <td style="padding: 8px; border: 1px solid #e2e8f0;">Próxima Visita</td>
-        </tr>`;
+        content += `<p style="font-size: 14px; color: #94a3b8; font-style: italic; margin-bottom: 15px;">Nenhuma etapa de checklist registrada.</p>`;
     }
-    content += `</tbody></table><br>`;
+
+    // 4. Notas do Técnico
+    content += `<p style="font-size: 14px; color: #1e293b; font-weight: 800; margin-top: 15px; margin-bottom: 8px;">Notas Gerais do Técnico:</p>`;
+    const formattedNotes = (data.rawNotes || 'Não informado')
+        .replace(/\n/g, '<br>');
+    content += `<div style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 25px;">
+        ${formattedNotes}
+    </div>`;
+
+    // 5. Conclusão
+    content += `<h3 style="${styles.sectionTitle}">CONCLUSÃO</h3>`;
+    content += `<p style="font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 15px;">O atendimento foi realizado conforme os padrões técnicos da Plastimarau. As pendências e resultados foram registrados nos itens acima.</p>`;
 
     return {
         reportText: content,
-        suggestedActions: [], // Removido sugestões de IA
+        suggestedActions: [],
         suggestedStatus: isFinal ? "FINAL" : "PARCIAL"
     };
 };
