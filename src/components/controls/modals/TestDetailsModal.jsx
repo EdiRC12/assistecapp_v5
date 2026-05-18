@@ -710,6 +710,36 @@ const TestDetailsModal = ({
                                     <option value="DISCARDED" className="bg-slate-900 text-rose-400">DESCARTE DIRETO</option>
                                 </select>
                             </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[8px] font-bold text-slate-500 uppercase tracking-widest ml-1">Qtd Descartada ({temporaryTest?.unit || 'KG'})</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={temporaryTest?.quantity_discarded ?? ''}
+                                        onChange={(e) => {
+                                            if (!temporaryTest) return;
+                                            const val = parseFloat(e.target.value) || 0;
+                                            const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                            const consumedByOthers = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                            
+                                            // Limite máximo baseado no produzido menos faturado e consumido
+                                            const maxAvailable = (temporaryTest.produced_quantity || 0) - (temporaryTest.quantity_billed || 0) - consumedByOthers + (invItem?.inventory_adjustment || 0);
+                                            
+                                            if (val > maxAvailable) {
+                                                setTemporaryTest({ ...temporaryTest, quantity_discarded: Math.max(0, maxAvailable) });
+                                            } else {
+                                                setTemporaryTest({ ...temporaryTest, quantity_discarded: val });
+                                            }
+                                        }}
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-black text-white outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                                        placeholder="0.0"
+                                    />
+                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
@@ -736,7 +766,7 @@ const TestDetailsModal = ({
                                             if (!temporaryTest) return '0.0';
                                             const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
                                             const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                            const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                            const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
                                             return currentBalance.toFixed(1);
                                         })()}
                                     </span>
@@ -854,6 +884,16 @@ const TestDetailsModal = ({
                                         })()}
                                     </div>
 
+                                    <div className="flex flex-col gap-1 px-2 py-1 hover:bg-white/5 rounded-lg transition-colors">
+                                        <div className="flex justify-between items-start">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">(-) Descartes de Saldo</span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-xs font-black text-rose-400">{(temporaryTest?.quantity_discarded || 0).toFixed(1)} {temporaryTest?.unit || 'KG'}</span>
+                                                <span className="text-[9px] font-black text-rose-400/60">R$ -{((temporaryTest?.quantity_discarded || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="flex flex-col gap-1 px-2 py-1 hover:bg-white/5 rounded-lg transition-colors border-t border-white/5 pt-3">
                                         <div className="flex justify-between items-start">
                                             <span className="text-xs font-bold text-slate-500 uppercase">
@@ -902,7 +942,7 @@ const TestDetailsModal = ({
                                                 {(() => {
                                                     const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
                                                     const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
                                                     return currentBalance.toFixed(1);
                                                 })()} {temporaryTest?.unit || 'KG'}
                                             </span>
@@ -910,7 +950,7 @@ const TestDetailsModal = ({
                                                 R$ {(() => {
                                                     const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
                                                     const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
                                                     return (Math.max(0, currentBalance) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
                                                 })()}
                                             </span>
@@ -957,9 +997,10 @@ const TestDetailsModal = ({
                                                 const billed = temporaryTest?.quantity_billed || 0;
                                                 const consumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
                                                 const adj = invItem?.inventory_adjustment || 0;
-                                                const currentBal = produced - billed - consumed + adj;
+                                                const discarded = temporaryTest?.quantity_discarded || 0;
+                                                const currentBal = produced - billed - consumed + adj - discarded;
 
-                                                const hasMovements = billed > 0 || consumed > 0 || adj !== 0;
+                                                const hasMovements = billed > 0 || consumed > 0 || adj !== 0 || discarded > 0;
 
                                                 if (hasMovements && uCost > 0) {
                                                     return (
@@ -972,6 +1013,12 @@ const TestDetailsModal = ({
                                                                 <span className="text-slate-400 uppercase">Reuso/Doação:</span>
                                                                 <span className="text-amber-600">R$ {(consumed * uCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                             </div>
+                                                            {discarded > 0 && (
+                                                                <div className="flex justify-between items-center text-[10px] font-bold">
+                                                                    <span className="text-slate-400 uppercase">Descartado:</span>
+                                                                    <span className="text-rose-600">R$ {(discarded * uCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                </div>
+                                                            )}
                                                             {adj !== 0 && (
                                                                 <div className="flex justify-between items-center text-[10px] font-bold">
                                                                     <span className="text-slate-400 uppercase">Ajustes Invent.:</span>

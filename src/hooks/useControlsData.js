@@ -38,7 +38,7 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
 
             if (['tests', 'inventory', 'costs', 'inventory_check', 'adjustment_logs'].includes(activeTab)) {
                 let testsQuery = supabase.from('tech_tests')
-                    .select('id, created_at, updated_at, user_id, client_name, title, description, status, status_color, extra_data, metadata, converted_task_id, produced_quantity, quantity_billed, op_cost, unit_cost, gross_total_cost, unit, consumed_stock_id, test_order, op_number, product_name, nf_number, delivery_date, situation, flow_stage, stock_destination, volumes, test_number')
+                    .select('id, created_at, updated_at, user_id, client_name, title, description, status, status_color, extra_data, metadata, converted_task_id, produced_quantity, quantity_billed, quantity_discarded, op_cost, unit_cost, gross_total_cost, unit, consumed_stock_id, test_order, op_number, product_name, nf_number, delivery_date, situation, flow_stage, stock_destination, volumes, test_number')
                     .order('created_at', { ascending: false })
                     .range(from, to);
 

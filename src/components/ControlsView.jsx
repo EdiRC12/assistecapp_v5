@@ -927,7 +927,7 @@ const ControlsView = ({
                 .filter(t => String(t.consumed_stock_id) === String(existingStock?.id))
                 .reduce((sum, t) => sum + (t.produced_quantity || 0), 0);
 
-            const calcBalance = (qtyProduced - qtyBilled) - totalConsumedByOthers;
+            const calcBalance = (qtyProduced - qtyBilled - (fullTest.quantity_discarded || 0)) - totalConsumedByOthers;
             const adjustment = existingStock?.inventory_adjustment || 0;
             const finalBalance = parseFloat((calcBalance + adjustment).toFixed(2));
 
@@ -952,6 +952,7 @@ const ControlsView = ({
                     pedido: fullTest.extra_data?.PEDIDO || '',
                     qty_produced: qtyProduced,
                     qty_billed: qtyBilled,
+                    quantity_discarded: fullTest.quantity_discarded || 0,
                     volumes: fullTest.volumes || 0,
                     production_cost: assetValue,
                     status: (fullTest.stock_destination === 'DISCARDED' || (existingStock?.status === 'DISCARDED' && finalBalance <= 0)) ? 'DISCARDED' : 'ACTIVE',
@@ -959,7 +960,7 @@ const ControlsView = ({
                 };
 
                 // Whitelist e Fallback Resiliente
-                const coreColumns = ['user_id', 'name', 'description', 'quantity', 'unit', 'location', 'stock_bin', 'test_id', 'client_name'];
+                const coreColumns = ['user_id', 'name', 'description', 'quantity', 'unit', 'location', 'stock_bin', 'test_id', 'client_name', 'quantity_discarded'];
                 const corePayload = {};
                 coreColumns.forEach(c => { if (stockPayload[c] !== undefined) corePayload[c] = stockPayload[c]; });
 
@@ -1003,7 +1004,7 @@ const ControlsView = ({
             const techTestsColumns = [
                 'user_id', 'client_name', 'title', 'description', 'status', 'status_color',
                 'extra_data', 'metadata', 'converted_task_id', 'produced_quantity',
-                'quantity_billed', 'op_cost', 'unit_cost', 'gross_total_cost', 'unit',
+                'quantity_billed', 'quantity_discarded', 'op_cost', 'unit_cost', 'gross_total_cost', 'unit',
                 'consumed_stock_id', 'test_order', 'op_number', 'product_name',
                 'nf_number', 'delivery_date', 'situation', 'flow_stage', 'stock_destination',
                 'volumes'
@@ -1012,7 +1013,7 @@ const ControlsView = ({
             const updatePayload = {};
             const numericFields = [
                 'produced_quantity', 'volumes', 'op_cost', 'unit_cost', 
-                'gross_total_cost', 'quantity_billed'
+                'gross_total_cost', 'quantity_billed', 'quantity_discarded'
             ];
 
             techTestsColumns.forEach(col => {

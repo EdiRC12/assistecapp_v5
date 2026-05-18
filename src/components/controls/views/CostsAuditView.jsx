@@ -113,24 +113,109 @@ const CostsAuditView = ({
                         >
                             <BarChart3 size={14} className="group-hover:bounce transition-transform" /> Gerar Relatório de Custos
                         </button>
-                        <span className="text-[9px] font-black text-slate-400 uppercase italic">Cálculo: Produzido - (Faturado + Reuso + Saldo)</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase italic">Cálculo: Produzido - (Faturado + Reuso + Perda + Descarte + Saldo)</span>
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar h-full min-h-0">
                     <table className="w-full border-collapse text-left">
                         <thead className="sticky top-0 bg-white z-10">
                             <tr className="border-b border-slate-100">
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item / Teste</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">OP</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Vol</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Produzido</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-emerald-600">Faturamento</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-amber-600">Reuso</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-rose-600">Perda</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-slate-800">Saldo Físico</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Custo Prod.</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Custo Log.</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status Auditoria</th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Item / Teste</span>
+                                        <div className="absolute top-full left-0 mt-2 hidden group-hover:block w-56 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-left leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-4 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Nome do teste técnico e identificação do cliente correspondente.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>OP</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-44 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Número da Ordem de Produção vinculada a este teste.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Vol</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-44 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Quantidade de volumes físicos (embalagens/fardos) do lote.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Produzido</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-48 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Quantidade física total produzida no teste técnico original.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-emerald-600">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Faturamento</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-48 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Quantidade faturada/vendida e enviada ao cliente final.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-amber-600">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Reuso</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Quantidade reutilizada/consumida como matéria-prima por outros testes.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-rose-600">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Perda</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Divergência física identificada em inventário e justificada como avaria/perda.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-rose-500">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Descarte</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-48 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Quantidade excedente descartada por inviabilidade de aproveitamento.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center text-slate-800">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Saldo Físico</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Saldo físico atual disponível em estoque (Patrimônio Líquido).
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Custo Prod.</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Custo total amortizado de produção (baseado no saldo e faturamento).
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Custo Log.</span>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-center leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Custos logísticos consolidados de viagens e vistorias vinculadas.
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                    <div className="relative inline-block group cursor-help">
+                                        <span>Status Auditoria</span>
+                                        <div className="absolute top-full right-0 mt-2 hidden group-hover:block w-52 p-2.5 bg-slate-900 text-white text-[9px] font-bold rounded-xl shadow-xl text-right leading-relaxed normal-case tracking-normal z-50 pointer-events-none border border-white/10 after:content-[''] after:absolute after:bottom-full after:right-4 after:border-4 after:border-transparent after:border-b-slate-900">
+                                            Resultado do cruzamento de dados físicos e financeiros da auditoria.
+                                        </div>
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -175,7 +260,8 @@ const CostsAuditView = ({
                                 }
 
                                 const loss = invItem?.justification_reason === 'AVARIA/PERDA' ? Math.abs(invItem.inventory_adjustment || 0) : 0;
-                                const theoreticalBalance = Math.max(0, produced - (billed + totalConsumedByOthers + loss));
+                                const discarded = t.quantity_discarded || invItem?.quantity_discarded || 0;
+                                const theoreticalBalance = Math.max(0, produced - (billed + totalConsumedByOthers + loss + discarded));
                                 const diff = currentStock - theoreticalBalance;
 
                                 const hasCostDiscrepancy = produced === 0 && (t.op_cost || t.gross_total_cost || 0) > 0;
@@ -209,6 +295,15 @@ const CostsAuditView = ({
                                         <td className="p-4 text-center text-xs font-black text-emerald-600">{billed.toFixed(1)} <span className="text-[8px] text-emerald-400 uppercase">{t.unit}</span></td>
                                         <td className="p-4 text-center text-xs font-black text-amber-600">{(totalConsumedByOthers || 0).toFixed(1)} <span className="text-[8px] text-amber-400 uppercase">{t.unit}</span></td>
                                         <td className="p-4 text-center text-xs font-black text-rose-600">{loss.toFixed(1)} <span className="text-[8px] text-rose-400 uppercase">{t.unit}</span></td>
+                                        <td className="p-4 text-center text-xs font-black text-rose-500">
+                                            {discarded > 0 ? (
+                                                <>
+                                                    {discarded.toFixed(1)} <span className="text-[8px] text-rose-400 uppercase">{t.unit}</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
                                         <td className="p-4 text-center text-xs font-black text-slate-800">{currentStock.toFixed(1)} <span className="text-[8px] text-slate-500 uppercase">{t.unit}</span></td>
                                         <td className="p-4">
                                             <div className="flex flex-col items-center">
