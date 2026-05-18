@@ -220,6 +220,7 @@ const ViewManager = ({
                         users={users}
                         hasMore={hasMoreTasks}
                         onLoadMore={() => fetchTasks(true)}
+                        categories={customCategories}
                     />
                 </ErrorBoundary>
             );

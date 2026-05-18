@@ -9,36 +9,65 @@ export const useMeetings = (supabase, currentUser, { notifySuccess, notifyError 
     const [activeSession, setActiveSession] = useState(null);
     const [actionItems, setActionItems] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [sessionsLimit, setSessionsLimit] = useState(15);
+    const [hasMoreSessions, setHasMoreSessions] = useState(true);
 
     // 1. Buscar Sessões (Histórico e Status Ativo)
-    const fetchSessions = useCallback(async () => {
+    const fetchSessions = useCallback(async (isLoadMore = false) => {
         if (!supabase) return;
         try {
-            const { data, error } = await supabase
+            const currentLimit = isLoadMore ? sessionsLimit + 15 : 15;
+            if (isLoadMore) setSessionsLimit(currentLimit);
+
+            // 1.1. Buscar a sessão ativa de reunião se houver
+            const { data: activeData, error: activeError } = await supabase
                 .from('meeting_sessions')
                 .select(`
                     *,
-                    created_by_user:users!meeting_sessions_created_by_fkey(username)
+                    created_by_user:users!meeting_sessions_created_by_fkey(username),
+                    meeting_action_items(id, is_deleted)
                 `)
-                .order('start_time', { ascending: false });
-            
-            if (error) throw error;
-            
-            setMeetings(data || []);
-            const active = data.find(s => s.status === 'ACTIVE');
-            if (active) setActiveSession(active);
-            else setActiveSession(null);
+                .eq('status', 'ACTIVE')
+                .maybeSingle();
+
+            if (activeError) throw activeError;
+            setActiveSession(activeData || null);
+
+            // 1.2. Buscar as reuniões finalizadas com paginação para saúde do banco
+            const { data: finishedData, error: finishedError } = await supabase
+                .from('meeting_sessions')
+                .select(`
+                    *,
+                    created_by_user:users!meeting_sessions_created_by_fkey(username),
+                    meeting_action_items(id, is_deleted)
+                `)
+                .eq('status', 'FINISHED')
+                .order('start_time', { ascending: false })
+                .limit(currentLimit);
+
+            if (finishedError) throw finishedError;
+
+            const allSessions = [];
+            if (activeData) {
+                allSessions.push(activeData);
+            }
+            if (finishedData) {
+                allSessions.push(...finishedData);
+            }
+
+            setMeetings(allSessions);
+            setHasMoreSessions((finishedData || []).length === currentLimit);
         } catch (error) {
             console.error('[useMeetings] fetchSessions error:', error);
         }
-    }, [supabase]);
+    }, [supabase, sessionsLimit]);
 
     // 2. Buscar Apontamentos (Pendentes + Sessão Ativa)
     const fetchActionItems = useCallback(async () => {
         if (!supabase) return;
         try {
             // Buscamos itens que NÃO estão excluídos OU que pertencem à sessão ativa atual
-            let query = supabase.from('meeting_action_items').select('*');
+            let query = supabase.from('meeting_action_items').select('*, session:meeting_sessions(title, start_time)');
             
             if (activeSession) {
                 // Durante a reunião, vemos tudo o que não foi concluído + o que foi criado hoje (mesmo se já concluído)
@@ -109,19 +138,28 @@ export const useMeetings = (supabase, currentUser, { notifySuccess, notifyError 
         }
     };
 
-    // 4. Finalizar Reunião
-    const closeMeeting = async () => {
+    // 4. Finalizar Reunião (suporta duração customizada caso excedido o tempo)
+    const closeMeeting = async (customDurationSeconds = null) => {
         if (!supabase || !activeSession) return;
         setLoading(true);
         try {
             const endTime = new Date();
             const startTime = new Date(activeSession.start_time);
-            const durationSeconds = Math.floor((endTime - startTime) / 1000);
+            
+            let durationSeconds = customDurationSeconds;
+            let finalEndTime = endTime.toISOString();
+            
+            if (durationSeconds === null) {
+                durationSeconds = Math.floor((endTime - startTime) / 1000);
+            } else {
+                const finalEnd = new Date(startTime.getTime() + durationSeconds * 1000);
+                finalEndTime = finalEnd.toISOString();
+            }
 
             const { error } = await supabase
                 .from('meeting_sessions')
                 .update({
-                    end_time: endTime.toISOString(),
+                    end_time: finalEndTime,
                     duration_seconds: durationSeconds,
                     status: 'FINISHED'
                 })
@@ -133,6 +171,82 @@ export const useMeetings = (supabase, currentUser, { notifySuccess, notifyError 
             fetchSessions();
         } catch (error) {
             if (notifyError) notifyError('Erro ao finalizar reunião', error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 4.1. Excluir Sessão de Reunião e seus apontamentos
+    const deleteMeetingSession = async (sessionId) => {
+        if (!supabase || !sessionId) return;
+        setLoading(true);
+        try {
+            // Desvincular tarefas ligadas aos pautas desta reunião
+            const { data: itemsToDelete, error: itemsSelectError } = await supabase
+                .from('meeting_action_items')
+                .select('id')
+                .eq('session_id', sessionId);
+
+            if (!itemsSelectError && itemsToDelete?.length) {
+                const itemIds = itemsToDelete.map(i => i.id);
+                await supabase
+                    .from('tasks')
+                    .update({ meeting_action_id: null })
+                    .in('meeting_action_id', itemIds);
+            }
+
+            // Deletar pautas da reunião
+            const { error: itemsError } = await supabase
+                .from('meeting_action_items')
+                .delete()
+                .eq('session_id', sessionId);
+
+            if (itemsError) throw itemsError;
+
+            // Deletar a sessão de reunião de fato
+            const { error: sessionError } = await supabase
+                .from('meeting_sessions')
+                .delete()
+                .eq('id', sessionId);
+
+            if (sessionError) throw sessionError;
+
+            // Atualiza o estado
+            setMeetings(prev => prev.filter(m => m.id !== sessionId));
+            if (notifySuccess) notifySuccess('Reunião Excluída', 'A reunião e suas pautas foram apagadas com sucesso.');
+        } catch (error) {
+            console.error('[useMeetings] deleteMeetingSession error:', error);
+            if (notifyError) notifyError('Erro ao excluir reunião', error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 4.2. Editar Sessão de Reunião (Título, data de início e duração)
+    const updateMeetingSession = async (sessionId, updates) => {
+        if (!supabase || !sessionId) return;
+        setLoading(true);
+        try {
+            let payload = { ...updates };
+            if (updates.start_time && updates.duration_seconds !== undefined) {
+                const start = new Date(updates.start_time);
+                const end = new Date(start.getTime() + updates.duration_seconds * 1000);
+                payload.end_time = end.toISOString();
+            }
+
+            const { error } = await supabase
+                .from('meeting_sessions')
+                .update(payload)
+                .eq('id', sessionId);
+
+            if (error) throw error;
+
+            // Atualiza o estado local
+            setMeetings(prev => prev.map(m => m.id === sessionId ? { ...m, ...payload } : m));
+            if (notifySuccess) notifySuccess('Reunião Atualizada', 'Informações da reunião atualizadas.');
+        } catch (error) {
+            console.error('[useMeetings] updateMeetingSession error:', error);
+            if (notifyError) notifyError('Erro ao atualizar reunião', error.message);
         } finally {
             setLoading(false);
         }
@@ -154,7 +268,11 @@ export const useMeetings = (supabase, currentUser, { notifySuccess, notifyError 
                 .single();
 
             if (error) throw error;
-            setActionItems(prev => [...prev, data]);
+            const itemWithSession = {
+                ...data,
+                session: activeSession ? { title: activeSession.title, start_time: activeSession.start_time } : null
+            };
+            setActionItems(prev => [...prev, itemWithSession]);
         } catch (error) {
             if (notifyError) notifyError('Erro ao salvar nota', error.message);
         }
@@ -299,8 +417,12 @@ export const useMeetings = (supabase, currentUser, { notifySuccess, notifyError 
         activeSession,
         actionItems,
         loading,
+        hasMoreSessions,
+        fetchSessions,
         startMeeting,
         closeMeeting,
+        deleteMeetingSession,
+        updateMeetingSession,
         addActionItem,
         updateActionItem,
         deleteActionItem,

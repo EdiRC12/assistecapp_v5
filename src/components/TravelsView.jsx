@@ -9,7 +9,7 @@ import { supabase } from '../supabaseClient';
 
 import useIsMobile from '../hooks/useIsMobile';
 
-const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView, fetchTasks }) => {
+const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView, fetchTasks, categories = [] }) => {
     const isMobile = useIsMobile();
     const [filters, setFilters] = useState({ client: initialClientFilter, status: '', team: '', date: '', dateMode: 'ALL', category: '', incident: '' });
 
@@ -124,7 +124,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         status: t.status || 'PROGRAMADA',
                         group_id: t.group_id,
                         group_name: t.group_name,
-                        isSpecific: true
+                        isSpecific: true,
+                        tech_participants: t.tech_participants || [],
+                        assigned_to: task.assigned_to,
+                        assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || ''
                     });
                 });
             } else {
@@ -139,7 +142,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     location: task.location,
                     date: task.due_date, // Fallback
                     isDateDefined: !!task.due_date,
-                    team: [],
+                    team: [
+                        users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name,
+                        ...(task.tech_participants || task.assigned_users || []).map(uid => users.find(u => u.id === uid)?.username || users.find(u => u.id === uid)?.full_name)
+                    ].filter((name, idx, self) => name && name !== 'N/A' && name !== '' && self.indexOf(name) === idx),
                     contacts: task.contacts?.client || '',
                     role: '',
                     description: task.description,
@@ -161,12 +167,15 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     vehicle_issue: task.vehicle_issue || '',
                     group_id: task.group_id,
                     group_name: task.group_name,
-                    isSpecific: false
+                    isSpecific: false,
+                    tech_participants: task.tech_participants || task.assigned_users || [],
+                    assigned_to: task.assigned_to,
+                    assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || ''
                 });
             }
         });
         return list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    }, [tasks]);
+    }, [tasks, users]);
 
     const filteredTrips = useMemo(() => {
         return trips.filter(trip => {
@@ -1028,7 +1037,11 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     <div className="col-span-1 md:col-span-2">
                         <select value={filters.category} onChange={e => setFilters(p => ({ ...p, category: e.target.value }))} className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] md:text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500 text-slate-600 appearance-none cursor-pointer overflow-hidden text-ellipsis transition-all">
                             <option value="">Tipos</option>
-                            {Object.keys(CategoryLabels).map(k => <option key={k} value={k}>{CategoryLabels[k]}</option>)}
+                            {categories && categories.length > 0 ? (
+                                categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)
+                            ) : (
+                                Object.keys(CategoryLabels).map(k => <option key={k} value={k}>{CategoryLabels[k]}</option>)
+                            )}
                         </select>
                     </div>
 
@@ -1147,7 +1160,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     </td>
                                                     <td className="p-4 align-top">
                                                         <div className="flex flex-col gap-1">
-                                                            <div className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded inline-block w-fit">{CategoryLabels[trip.category]}</div>
+                                                            <div className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded inline-block w-fit">
+                                                                {CategoryLabels[trip.category] || (categories && categories.find(c => c.id === trip.category || c.label === trip.category)?.label) || trip.category || '-'}
+                                                            </div>
                                                             {trip.parent_test_id && (
                                                                 <div className="text-[8px] font-black text-white bg-indigo-600 px-2 py-0.5 rounded-md w-fit shadow-sm uppercase tracking-wider">
                                                                     {trip.parent_test_number || 'ENGENHARIA'}
@@ -2013,25 +2028,30 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         <div>
                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipe de Atendimento</label>
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                                {/* Técnicos Oficiais (App) */}
-                                                {(selectedTripForDetail.tech_participants || []).length > 0 && selectedTripForDetail.tech_participants.map((uid) => {
-                                                    const user = users.find(u => u.id === uid);
-                                                    return (
-                                                        <span key={uid} className="px-2 py-1 bg-brand-600 text-white rounded-md text-[9px] font-black border border-brand-500 shadow-sm uppercase">
-                                                            {user?.username || user?.full_name || 'Técnico'}
-                                                        </span>
-                                                    );
-                                                })}
-                                                {/* Responsável Principal se não estiver nos participantes */}
-                                                {!selectedTripForDetail.tech_participants?.includes(selectedTripForDetail.assigned_to) && (
-                                                    <span className="px-2 py-0.5 bg-blue-500 text-white rounded-md text-[9px] font-black border border-blue-400 shadow-sm uppercase">
-                                                        {selectedTripForDetail.assigned_name}
-                                                    </span>
+                                                {selectedTripForDetail.team && selectedTripForDetail.team.length > 0 ? (
+                                                    selectedTripForDetail.team.map((name) => {
+                                                        const isOfficialUser = users.some(u => 
+                                                            u.username?.toLowerCase() === name.toLowerCase() || 
+                                                            u.full_name?.toLowerCase() === name.toLowerCase()
+                                                        );
+                                                        
+                                                        if (isOfficialUser) {
+                                                            return (
+                                                                <span key={name} className="px-2 py-1 bg-brand-600 text-white rounded-md text-[9px] font-black border border-brand-500 shadow-sm uppercase">
+                                                                    {name}
+                                                                </span>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <span key={name} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-medium border border-slate-200 uppercase">
+                                                                    {name}
+                                                                </span>
+                                                            );
+                                                        }
+                                                    })
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic">Nenhum integrante</span>
                                                 )}
-                                                {/* Acompanhantes Externos */}
-                                                {selectedTripForDetail.additional_participants && selectedTripForDetail.additional_participants.split(',').map((p, i) => (
-                                                    <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[9px] font-medium border border-slate-200 uppercase">{p.trim()}</span>
-                                                ))}
                                             </div>
                                         </div>
                                     </div>
@@ -2254,7 +2274,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         
                                         const objectiveStr = selectedTripForDetail.parent_test_id 
                                             ? `realização do teste técnico ${selectedTripForDetail.parent_test_number || '#' + selectedTripForDetail.parent_test_id.substring(0,8)}`
-                                            : `realização de ${CategoryLabels[selectedTripForDetail.category] || 'uma atividade programada'}`;
+                                            : `realização de ${CategoryLabels[selectedTripForDetail.category] || (categories && categories.find(c => c.id === selectedTripForDetail.category || c.label === selectedTripForDetail.category)?.label) || 'uma atividade programada'}`;
                                         
                                         const fineStr = selectedTripForDetail.has_fine 
                                             ? ` Durante o trajeto, registrou-se uma multa de trânsito no valor de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedTripForDetail.fine_amount || 0)}.`

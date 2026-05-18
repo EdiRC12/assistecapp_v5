@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
-    Search, ChevronDown, ChevronLeft, Filter, LayoutList, LayoutGrid, RefreshCw, X, Calendar as CalendarIcon, StickyNote, AlertTriangle, Plus, BarChart3, Pin, PinOff
+    Search, ChevronDown, ChevronLeft, Filter, LayoutList, LayoutGrid, RefreshCw, X, Calendar as CalendarIcon, StickyNote, AlertTriangle, Plus, BarChart3, Pin, PinOff, Maximize2, Minus
 } from 'lucide-react';
 import TaskCard from './TaskCard';
 import KanbanDashboard from './KanbanDashboard';
@@ -30,18 +30,41 @@ const KanbanBoard = ({
     const [isKanbanFilterOpen, setIsKanbanFilterOpen] = useState(false);
     const [isCustomTypesDropdownOpen, setIsCustomTypesDropdownOpen] = useState(false);
     const customTypesDropdownRef = useRef(null);
+    const hasLoadedCollapsedRef = useRef(false);
     const [kanbanDate, setKanbanDate] = useState(new Date());
     const [kanbanFilterMode, setKanbanFilterMode] = useState('YEAR'); // 'YEAR' or 'MONTH'
     const [kanbanUserFilter, setKanbanUserFilter] = useState('ALL'); // ALL or MY
     const [kanbanViewMode, setKanbanViewMode] = useState('list');
     const [focusedColumn, setFocusedColumn] = useState(null);
     const [pinnedColumns, setPinnedColumns] = useState([]);
+    const [collapsedColumns, setCollapsedColumns] = useState(() => {
+        if (!currentUser) return [];
+        try {
+            const saved = localStorage.getItem(`assistec_collapsed_${currentUser.id}`);
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            console.error("Erro ao carregar colunas ocultadas na inicialização:", e);
+            return [];
+        }
+    });
     const [columnWidths, setColumnWidths] = useState({});
     const [columnHeights, setColumnHeights] = useState({});
     const [columnFilters, setColumnFilters] = useState({});
     const [resizingColumn, setResizingColumn] = useState(null);
     const [viewMode, setViewMode] = useState('kanban'); // 'kanban' or 'dashboard'
     const isMobile = useIsMobile();
+
+    const allColumnsCollapsed = false;
+
+    const orderedStatuses = useMemo(() => [
+        TaskStatus.TO_START,
+        TaskStatus.IN_PROGRESS,
+        TaskStatus.WAITING_CLIENT,
+        TaskStatus.DONE,
+        TaskStatus.CANCELED
+    ], []);
+
+
 
     // Initial Load Preferences
     useEffect(() => {
@@ -51,6 +74,12 @@ const KanbanBoard = ({
             const savedPinned = localStorage.getItem(`assistec_pinned_${currentUser.id}`);
             if (savedPinned) setPinnedColumns(JSON.parse(savedPinned));
         } catch (e) { console.error("Erro ao carregar colunas fixadas:", e); }
+
+        try {
+            const savedCollapsed = localStorage.getItem(`assistec_collapsed_${currentUser.id}`);
+            if (savedCollapsed) setCollapsedColumns(JSON.parse(savedCollapsed));
+        } catch (e) { console.error("Erro ao carregar colunas ocultadas:", e); }
+        hasLoadedCollapsedRef.current = true;
 
         try {
             const savedWidths = localStorage.getItem(`assistec_widths_${currentUser.id}`);
@@ -72,6 +101,12 @@ const KanbanBoard = ({
             localStorage.setItem(`assistec_pinned_${currentUser.id}`, JSON.stringify(pinnedColumns));
         }
     }, [pinnedColumns, currentUser]);
+
+    useEffect(() => {
+        if (currentUser && hasLoadedCollapsedRef.current) {
+            localStorage.setItem(`assistec_collapsed_${currentUser.id}`, JSON.stringify(collapsedColumns));
+        }
+    }, [collapsedColumns, currentUser]);
 
     useEffect(() => {
         if (currentUser) {
@@ -387,12 +422,185 @@ const KanbanBoard = ({
                         setSuggestions={setSuggestions}
                         suggestions={suggestions}
                     />
+                ) : allColumnsCollapsed ? (
+                    <div className="w-full h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 p-2 overflow-y-auto custom-scrollbar">
+                        {orderedStatuses.map(statusKey => {
+                            const label = StatusLabels[statusKey];
+                            const isDone = statusKey === TaskStatus.DONE;
+                            const isCanceled = statusKey === TaskStatus.CANCELED;
+                            const isPending = statusKey === TaskStatus.PENDING;
+                            const isInProgress = statusKey === TaskStatus.IN_PROGRESS;
+                            const isWaiting = statusKey === TaskStatus.WAITING_CLIENT;
+
+                            let bgClass = 'bg-white border-slate-200 hover:shadow-slate-100/50';
+                            let borderHover = 'hover:border-slate-300';
+                            let textClass = 'text-slate-700';
+                            let countBg = 'bg-slate-100 text-slate-800';
+                            let progressBg = 'bg-slate-200';
+                            let progressFill = 'bg-slate-500';
+
+                            if (isDone) {
+                                bgClass = 'bg-emerald-50/40 border-emerald-200/60 hover:shadow-emerald-50/50';
+                                borderHover = 'hover:border-emerald-300';
+                                textClass = 'text-emerald-800';
+                                countBg = 'bg-emerald-100 text-emerald-800 border border-emerald-200/50';
+                                progressBg = 'bg-emerald-100/50';
+                                progressFill = 'bg-emerald-500';
+                            } else if (isCanceled) {
+                                bgClass = 'bg-red-50/40 border-red-200/60 hover:shadow-red-50/50';
+                                borderHover = 'hover:border-red-300';
+                                textClass = 'text-red-800';
+                                countBg = 'bg-red-100 text-red-800 border border-red-200/50';
+                                progressBg = 'bg-red-100/50';
+                                progressFill = 'bg-red-500';
+                            } else if (isPending) {
+                                bgClass = 'bg-slate-50/60 border-slate-200/60 hover:shadow-slate-100/50';
+                                borderHover = 'hover:border-slate-300';
+                                textClass = 'text-slate-800';
+                                countBg = 'bg-slate-100 text-slate-800 border border-slate-200/50';
+                                progressBg = 'bg-slate-200/50';
+                                progressFill = 'bg-slate-500';
+                            } else if (isInProgress) {
+                                bgClass = 'bg-blue-50/40 border-blue-200/60 hover:shadow-blue-50/50';
+                                borderHover = 'hover:border-blue-300';
+                                textClass = 'text-blue-800';
+                                countBg = 'bg-blue-100 text-blue-800 border border-blue-200/50';
+                                progressBg = 'bg-blue-100/50';
+                                progressFill = 'bg-blue-500';
+                            } else if (isWaiting) {
+                                bgClass = 'bg-amber-50/40 border-amber-200/60 hover:shadow-amber-50/50';
+                                borderHover = 'hover:border-amber-300';
+                                textClass = 'text-amber-800';
+                                countBg = 'bg-amber-100 text-amber-800 border border-amber-200/50';
+                                progressBg = 'bg-amber-100/50';
+                                progressFill = 'bg-amber-500';
+                            }
+
+                            // Get tasks for this specific column
+                            let columnTasks = kanbanBoards[selectedBoard]?.tasks.filter(t => t.status === statusKey) || [];
+                            if (kanbanUserFilter === 'MY') {
+                                columnTasks = columnTasks.filter(t =>
+                                    t.user_id === currentUser.id ||
+                                    (t.assigned_users && t.assigned_users.includes(currentUser.id))
+                                );
+                            }
+
+                            // Sort tasks by priority
+                            columnTasks.sort((a, b) => {
+                                const pA = priorities[a.priority] || 0;
+                                const pB = priorities[b.priority] || 0;
+                                if (pB !== pA) return pB - pA;
+                                return new Date(a.due_date || a.created_at || a.createdAt) - new Date(b.due_date || b.created_at || b.createdAt);
+                            });
+
+                            // Calculate percentage
+                            const totalTasks = kanbanBoards[selectedBoard]?.tasks.length || 0;
+                            const pct = totalTasks > 0 ? Math.round((columnTasks.length / totalTasks) * 100) : 0;
+
+                            // Top 3 tasks preview
+                            const previewTasks = columnTasks.slice(0, 3);
+
+                            return (
+                                <div
+                                    key={statusKey}
+                                    className={`flex flex-col h-full min-h-[380px] bg-white ${bgClass} border-2 rounded-3xl p-5 hover:shadow-xl transition-all duration-300 relative group/card select-none flex-1 drop-target`}
+                                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-4', 'ring-brand-500/20'); }}
+                                    onDragLeave={(e) => { e.currentTarget.classList.remove('ring-4', 'ring-brand-500/20'); }}
+                                    onDrop={(e) => {
+                                        if (isMobile) return;
+                                        e.preventDefault();
+                                        e.currentTarget.classList.remove('ring-4', 'ring-brand-500/20');
+                                        const taskId = e.dataTransfer.getData('taskId');
+                                        handleTaskDrop(taskId, statusKey);
+                                    }}
+                                >
+                                    {/* Header */}
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex flex-col">
+                                            <span className={`text-[11px] font-black uppercase tracking-widest ${textClass}`}>
+                                                {label}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                                {columnTasks.length} {columnTasks.length === 1 ? 'Tarefa' : 'Tarefas'}
+                                            </span>
+                                        </div>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm ${countBg}`}>
+                                            {columnTasks.length}
+                                        </div>
+                                    </div>
+
+                                    {/* Progress indicator */}
+                                    <div className="space-y-1 mb-5">
+                                        <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                            <span>Progresso</span>
+                                            <span>{pct}%</span>
+                                        </div>
+                                        <div className={`w-full h-2 ${progressBg} rounded-full overflow-hidden`}>
+                                            <div className={`h-full ${progressFill} transition-all duration-500 rounded-full`} style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Tasks Preview List */}
+                                    <div className="flex-1 space-y-2.5 overflow-hidden">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Destaques urgentes</span>
+                                        {previewTasks.length > 0 ? (
+                                            previewTasks.map(t => {
+                                                const isHigh = t.priority === Priority.HIGH;
+                                                const isMedium = t.priority === Priority.MEDIUM;
+                                                const prioLabel = isHigh ? 'Alta' : isMedium ? 'Média' : 'Baixa';
+                                                const prioBadge = isHigh ? 'bg-rose-50 text-rose-600 border border-rose-100' : isMedium ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-blue-50 text-blue-600 border border-blue-100';
+
+                                                return (
+                                                    <div
+                                                        key={t.id}
+                                                        onClick={async () => { setIsModalOpen(true); setEditingTask(t); await fetchTaskDetail(t.id); }}
+                                                        className="p-3 bg-white hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.02] duration-200"
+                                                    >
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <span className="text-[10px] font-black text-slate-700 leading-snug line-clamp-2 uppercase">
+                                                                {t.title}
+                                                            </span>
+                                                            <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0 ${prioBadge}`}>
+                                                                {prioLabel}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50 text-[9px] text-slate-400 font-bold">
+                                                            <span className="truncate max-w-[120px] uppercase">{t.client || 'Sem cliente'}</span>
+                                                            <span>{t.due_date ? new Date(t.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : ''}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="h-28 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/20 text-slate-400 text-xs italic">
+                                                Nenhuma tarefa
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Action button */}
+                                    <button
+                                        onClick={() => setPinnedColumns(p => [...p, statusKey])}
+                                        className="w-full mt-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white hover:text-brand-300 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg active:scale-95 duration-200"
+                                    >
+                                        <Plus size={12} />
+                                        Abrir Coluna
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
                 ) : (
-                    Object.keys(TaskStatus).map(statusKey => {
+                    orderedStatuses.map(statusKey => {
                         if (focusedColumn && focusedColumn !== statusKey) return null;
                         const isFocused = focusedColumn === statusKey;
                         const isPinned = pinnedColumns.includes(statusKey);
-                        const isCollapsed = !isFocused && !isPinned; // Default is collapsed
+                        const isCollapsed = !isFocused && collapsedColumns.includes(statusKey);
+                        const openColumnsCount = orderedStatuses.length - collapsedColumns.length;
+                        let maxClass = 'max-w-[500px]';
+                        if (openColumnsCount === 1) maxClass = 'max-w-5xl';
+                        else if (openColumnsCount === 2) maxClass = 'max-w-[720px]';
+                        else if (openColumnsCount === 3) maxClass = 'max-w-[580px]';
                         const customWidth = columnWidths[statusKey];
                         const customHeight = columnHeights[statusKey];
 
@@ -425,21 +633,21 @@ const KanbanBoard = ({
                             const isInProgress = statusKey === TaskStatus.IN_PROGRESS;
                             const isWaiting = statusKey === TaskStatus.WAITING_CLIENT;
 
-                            let bgClass = 'bg-white border-slate-200 shadow-slate-100';
+                            let bgClass = 'bg-white border-slate-200 shadow-slate-100/50 hover:shadow-slate-100/80';
                             let textClass = 'text-slate-700';
 
-                            if (isDone) { bgClass = 'bg-emerald-50 border-emerald-200 shadow-emerald-100'; textClass = 'text-emerald-700'; }
-                            else if (isCanceled) { bgClass = 'bg-red-50 border-red-200 shadow-red-100'; textClass = 'text-red-700'; }
-                            else if (isPending) { bgClass = 'bg-slate-50 border-slate-200 shadow-slate-100'; textClass = 'text-slate-700'; }
-                            else if (isInProgress) { bgClass = 'bg-blue-50 border-blue-200 shadow-blue-100'; textClass = 'text-blue-700'; }
-                            else if (isWaiting) { bgClass = 'bg-amber-50 border-amber-200 shadow-amber-100'; textClass = 'text-amber-700'; }
+                            if (isDone) { bgClass = 'bg-emerald-50 border-emerald-200 shadow-emerald-100/50 hover:shadow-emerald-100/80'; textClass = 'text-emerald-700'; }
+                            else if (isCanceled) { bgClass = 'bg-red-50 border-red-200 shadow-red-100/50 hover:shadow-red-100/80'; textClass = 'text-red-700'; }
+                            else if (isPending) { bgClass = 'bg-slate-50 border-slate-200 shadow-slate-100/50 hover:shadow-slate-100/80'; textClass = 'text-slate-700'; }
+                            else if (isInProgress) { bgClass = 'bg-blue-50 border-blue-200 shadow-blue-100/50 hover:shadow-blue-100/80'; textClass = 'text-blue-700'; }
+                            else if (isWaiting) { bgClass = 'bg-amber-50 border-amber-200 shadow-amber-100/50 hover:shadow-amber-100/80'; textClass = 'text-amber-700'; }
 
                             return (
                                 <div
                                     key={statusKey}
                                     id={`kanban-column-${statusKey}`}
-                                    className={`w-28 h-28 ${bgClass} border-2 rounded-2xl flex flex-col items-center justify-center p-2 cursor-pointer hover:shadow-lg transition-all shrink-0 select-none relative group shadow-sm drop-target`}
-                                    onClick={() => setFocusedColumn(statusKey)}
+                                    className={`w-14 h-full min-h-[350px] ${bgClass} border-2 rounded-2xl flex flex-col items-center justify-start py-6 cursor-pointer hover:shadow-md transition-all shrink-0 select-none relative group shadow-sm drop-target`}
+                                    onClick={() => setCollapsedColumns(c => c.filter(x => x !== statusKey))}
                                     onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('ring-4', 'ring-brand-500/20'); }}
                                     onDragLeave={(e) => { e.currentTarget.classList.remove('ring-4', 'ring-brand-500/20'); }}
                                     onDrop={(e) => {
@@ -449,16 +657,18 @@ const KanbanBoard = ({
                                         const taskId = e.dataTransfer.getData('taskId');
                                         handleTaskDrop(taskId, statusKey);
                                     }}
+                                    title={`Clique para expandir a coluna ${label}`}
                                 >
-                                    <div
-                                        className="absolute right-0 bottom-0 w-4 h-4 cursor-nwse-resize hover:bg-brand-500/20 rounded-br-2xl"
-                                        onMouseDown={(e) => { e.stopPropagation(); setResizingColumn(statusKey); }}
-                                    />
-                                    <span className={`text-[10px] font-black uppercase text-center leading-tight mb-2 ${textClass}`}>
-                                        {label}
-                                    </span>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-inner ${isDone ? 'bg-emerald-100 text-emerald-800' : isCanceled ? 'bg-red-100 text-red-800' : isPending ? 'bg-slate-100 text-slate-800' : isInProgress ? 'bg-blue-100 text-blue-800' : isWaiting ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
+                                    {/* Task Count Bubble at the Top */}
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-inner mb-6 ${isDone ? 'bg-emerald-100 text-emerald-800' : isCanceled ? 'bg-red-100 text-red-800' : isPending ? 'bg-slate-100 text-slate-800' : isInProgress ? 'bg-blue-100 text-blue-800' : isWaiting ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
                                         {columnTasks.length}
+                                    </div>
+                                    
+                                    {/* Rotated Vertical Title */}
+                                    <div className="flex-1 flex items-center justify-center">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest text-center whitespace-nowrap [writing-mode:vertical-lr] rotate-180 ${textClass}`}>
+                                            {label}
+                                        </span>
                                     </div>
                                 </div>
                             );
@@ -469,11 +679,11 @@ const KanbanBoard = ({
                                 key={statusKey}
                                 id={`kanban-column-${statusKey}`}
                                 style={{
-                                    width: isFocused ? '100%' : (customWidth || 320),
+                                    width: isFocused ? '100%' : (customWidth ? `${customWidth}px` : undefined),
                                     height: '100%',
                                     minHeight: '300px'
                                 }}
-                                className={`${StatusBgColors[statusKey]} rounded-2xl p-4 border-2 border-transparent shadow-sm flex flex-col transition-all duration-300 relative ${isFocused ? 'max-w-5xl mx-auto' : 'shrink-0'}`}
+                                className={`${StatusBgColors[statusKey]} rounded-2xl p-4 border-2 border-transparent shadow-sm flex flex-col transition-all duration-300 relative ${isFocused ? 'max-w-5xl mx-auto' : customWidth ? 'shrink-0' : `flex-1 min-w-[320px] ${maxClass}`}`}
                                 onDoubleClick={() => setFocusedColumn(isFocused ? null : statusKey)}
                                 onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-brand-500/30', 'bg-brand-50/10'); }}
                                 onDragLeave={(e) => { e.currentTarget.classList.remove('border-brand-500/30', 'bg-brand-50/10'); }}
@@ -503,11 +713,26 @@ const KanbanBoard = ({
                                         </h3>
 
                                         <div className="flex items-center gap-1">
-                                            {isFocused && (
+                                            {isFocused ? (
                                                 <button onClick={() => setFocusedColumn(null)} className="flex items-center gap-1.5 bg-white/80 hover:bg-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase text-slate-700 transition-all border border-slate-200 shadow-sm"><X size={14} /> Voltar</button>
-                                            )}
-                                            {!isFocused && isPinned && (
-                                                <button onClick={() => setPinnedColumns(p => p.filter(k => k !== statusKey))} className="text-slate-400 hover:text-red-500 p-1.5 hover:bg-white/50 rounded-full transition-colors" title="Fechar (Desalfinetar)"><X size={16} /></button>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => setFocusedColumn(statusKey)}
+                                                        className="p-1.5 rounded-full transition-colors text-slate-400 hover:text-brand-600 hover:bg-white/50"
+                                                        title="Focar em tela cheia"
+                                                    >
+                                                        <Maximize2 size={16} />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => setCollapsedColumns(c => [...c, statusKey])}
+                                                        className="p-1.5 rounded-full transition-colors text-slate-400 hover:text-red-500 hover:bg-white/50"
+                                                        title="Minimizar coluna"
+                                                    >
+                                                        <Minus size={16} />
+                                                    </button>
+                                                </>
                                             )}
 
                                             <button
@@ -518,8 +743,8 @@ const KanbanBoard = ({
                                                         setPinnedColumns(p => [...p, statusKey]);
                                                     }
                                                 }}
-                                                className={`p-1.5 rounded-full transition-colors ${isPinned ? 'bg-brand-100 text-brand-600 hover:bg-brand-200' : 'text-slate-400 hover:text-brand-600 hover:bg-white/50'}`}
-                                                title={isPinned ? "Desalfinetar" : "Alfinetar para manter aberto"}
+                                                className="hidden"
+                                                title=""
                                             >
                                                 {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
                                             </button>

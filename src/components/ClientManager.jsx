@@ -17,7 +17,8 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
         number: '',
         neighborhood: '',
         city: '',
-        state: ''
+        state: '',
+        classification: 'BRONZE'
     });
 
     useEffect(() => {
@@ -62,6 +63,10 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
             if (formData.neighborhood) addressStr += ` - ${formData.neighborhood}`;
             if (formData.city || formData.state) addressStr += ` - ${formData.city || ''}/${formData.state || ''}`;
 
+            const originalClient = clients.find(c => c.id === formData.id);
+            const hasClassificationChanged = !formData.id || originalClient?.classification !== formData.classification;
+            const classificationDate = hasClassificationChanged ? new Date().toISOString() : (originalClient?.classification_date || new Date().toISOString());
+
             const payload = {
                 name: formData.name.trim(),
                 main_phone: formData.main_phone,
@@ -72,7 +77,9 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                 city: formData.city,
                 state: formData.state,
                 user_id: currentUser.id,
-                address: addressStr
+                address: addressStr,
+                classification: formData.classification || 'BRONZE',
+                classification_date: classificationDate
             };
 
             let error;
@@ -140,13 +147,14 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
             number: client.number || '',
             neighborhood: client.neighborhood || '',
             city: client.city || '',
-            state: client.state || ''
+            state: client.state || '',
+            classification: client.classification || 'BRONZE'
         });
         setIsEditing(true);
     };
 
     const resetForm = () => {
-        setFormData({ id: null, name: '', main_phone: '', street: '', number: '', neighborhood: '', city: '', state: '' });
+        setFormData({ id: null, name: '', main_phone: '', street: '', number: '', neighborhood: '', city: '', state: '', classification: 'BRONZE' });
         setIsEditing(false);
     };
 
@@ -245,6 +253,44 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                                     <div>
                                         <label className="block text-xs font-black text-slate-400 uppercase mb-1.5">Telefone Geral (Recepção)</label>
                                         <input type="text" value={formData.main_phone} onChange={(e) => setFormData({ ...formData, main_phone: e.target.value })} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 transition-all" placeholder="(00) 0000-0000" />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-400 uppercase mb-1.5">Classificação / Tier</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['OURO', 'PRATA', 'BRONZE'].map((tier) => {
+                                                const isActive = formData.classification === tier;
+                                                const styles = {
+                                                    'OURO': {
+                                                        active: 'bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20',
+                                                        inactive: 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 hover:border-amber-300'
+                                                    },
+                                                    'PRATA': {
+                                                        active: 'bg-slate-500 border-slate-500 text-white shadow-md shadow-slate-500/20',
+                                                        inactive: 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                                                    },
+                                                    'BRONZE': {
+                                                        active: 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20',
+                                                        inactive: 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-300'
+                                                    }
+                                                };
+                                                return (
+                                                    <button
+                                                        key={tier}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, classification: tier })}
+                                                        className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl border text-[11px] font-black transition-all ${
+                                                            isActive ? styles[tier].active : styles[tier].inactive
+                                                        }`}
+                                                    >
+                                                        {tier === 'OURO' && '🟡'}
+                                                        {tier === 'PRATA' && '⚪'}
+                                                        {tier === 'BRONZE' && '🟤'}
+                                                        {tier}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-3 gap-3">

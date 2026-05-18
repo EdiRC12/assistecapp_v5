@@ -3,7 +3,7 @@ import {
     Users, Play, Square, Clock, ListChecks, CheckCircle2, 
     AlertCircle, Plus, LayoutDashboard, Plane, ShieldAlert, 
     Settings2, ChevronRight, ChevronLeft, MessageSquare, ExternalLink, 
-    TrendingUp, Timer, Calendar, History, Trash2, CheckSquare
+    TrendingUp, Timer, Calendar, History, Trash2, CheckSquare, ListTodo
 } from 'lucide-react';
 import { useMeetings } from '../hooks/useMeetings';
 
@@ -48,9 +48,13 @@ const MeetingHub = ({
         activeSession, 
         actionItems, 
         loading, 
-        startMeeting, 
-        closeMeeting, 
-        addActionItem, 
+        hasMoreSessions,
+        fetchSessions,
+        startMeeting,
+        closeMeeting,
+        deleteMeetingSession,
+        updateMeetingSession,
+        addActionItem,
         updateActionItem,
         deleteActionItem,
         restoreActionItem,
@@ -74,6 +78,16 @@ const MeetingHub = ({
     // Estados para Sub-abas de RNC & DEV
     const [rncSubTab, setRncSubTab] = useState('RECORDS'); // 'RECORDS' ou 'RETURNS'
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    // Filtros de Período do Histórico
+    const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
+    const [selectedYearFilter, setSelectedYearFilter] = useState('ALL');
+
+    // Estados para Edição de Sessão de Reunião
+    const [isEditingSession, setIsEditingSession] = useState(false);
+    const [editTitle, setEditTitle] = useState('');
+    const [editStartTime, setEditStartTime] = useState('');
+    const [editDurationMinutes, setEditDurationMinutes] = useState('');
 
     // 1. Manutenção do Cronômetro
     useEffect(() => {
@@ -106,8 +120,6 @@ const MeetingHub = ({
 
     // 2. Estatísticas para o Dashboard
     const stats = useMemo(() => {
-        if (!meetings.length) return { avgDuration: 0, totalSessions: 0, completionRate: 0 };
-        
         const finished = meetings.filter(m => m.status === 'FINISHED' && m.duration_seconds);
         const totalDuration = finished.reduce((acc, m) => acc + m.duration_seconds, 0);
         const avg = finished.length ? Math.floor(totalDuration / finished.length / 60) : 0;
@@ -115,11 +127,49 @@ const MeetingHub = ({
         return {
             avgDuration: avg,
             totalSessions: meetings.length,
-            completionRate: overallStats.completionRate
+            completionRate: overallStats.completionRate || 0,
+            totalActions: overallStats.totalActions || 0,
+            doneActions: overallStats.doneActions || 0
         };
     }, [meetings, overallStats]);
 
-    // 2.1. Função de Visualização de Histórico
+    // 2.1. Filtros Dinâmicos de Período do Histórico
+    const yearOptions = useMemo(() => {
+        const years = new Set();
+        meetings.forEach(m => {
+            if (m.start_time && m.status === 'FINISHED') {
+                years.add(new Date(m.start_time).getFullYear().toString());
+            }
+        });
+        return Array.from(years).sort((a, b) => b - a);
+    }, [meetings]);
+
+    const filteredMeetings = useMemo(() => {
+        return meetings.filter(session => {
+            if (session.status !== 'FINISHED') return false;
+            if (!session.start_time) return true;
+
+            const sessionDate = new Date(session.start_time);
+
+            // Filtro de Ano
+            if (selectedYearFilter !== 'ALL') {
+                if (sessionDate.getFullYear().toString() !== selectedYearFilter) {
+                    return false;
+                }
+            }
+
+            // Filtro de Mês
+            if (selectedMonthFilter !== 'ALL') {
+                if (sessionDate.getMonth().toString() !== selectedMonthFilter) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [meetings, selectedMonthFilter, selectedYearFilter]);
+
+    // 2.2. Função de Visualização de Histórico
     const handleViewHistory = async (session) => {
         setLoadingHistory(true);
         setSelectedHistorySession(session);
@@ -157,6 +207,12 @@ const MeetingHub = ({
                         <div className={`text-sm font-bold ${item.status === 'CONCLUIDO' ? 'line-through opacity-70' : ''}`}>
                             {item.text}
                         </div>
+                        {item.session?.title && (
+                            <div className="mt-1 text-[9px] text-slate-400 font-bold flex items-center gap-1.5">
+                                <History size={10} className="opacity-70" />
+                                <span>Criado na reunião: <strong className="text-slate-500">{item.session.title}</strong> ({new Date(item.session.start_time).toLocaleDateString()})</span>
+                            </div>
+                        )}
                         {item.status === 'EM_ANDAMENTO' && (
                             <div className="mt-2 flex flex-col gap-1">
                                 <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase w-fit">
@@ -274,7 +330,7 @@ const MeetingHub = ({
             </div>
 
             {/* Cards de Métricas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5 group hover:border-brand-200 transition-all">
                     <div className="p-4 bg-brand-50 text-brand-600 rounded-2xl group-hover:scale-110 transition-transform">
                         <History size={28} />
@@ -300,6 +356,26 @@ const MeetingHub = ({
                     <div>
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conclusão de Ações</span>
                         <div className="text-2xl font-black text-slate-800">{stats.completionRate}%</div>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5 group hover:border-fuchsia-200 transition-all">
+                    <div className="p-4 bg-fuchsia-50 text-fuchsia-600 rounded-2xl group-hover:scale-110 transition-transform">
+                        <ListTodo size={28} />
+                    </div>
+                    <div className="flex-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo de Pautas</span>
+                        <div className="flex items-baseline gap-2">
+                            <div className="text-2xl font-black text-slate-800">{stats.totalActions}</div>
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">total</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 text-[8px] font-black uppercase tracking-wider">
+                            <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                {stats.doneActions} OK
+                            </span>
+                            <span className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                                {stats.totalActions - stats.doneActions} Pendentes
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -332,32 +408,93 @@ const MeetingHub = ({
 
                 {/* Histórico de Sessões */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                    <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase tracking-tighter">
                             <History size={20} className="text-indigo-500" /> Histórico de Sessões
                         </h3>
-                    </div>
-                    <div className="flex-1 p-4 space-y-3">
-                        {meetings.filter(m => m.status === 'FINISHED').slice(0, 5).map(session => (
-                            <div 
-                                key={session.id} 
-                                onClick={() => handleViewHistory(session)}
-                                className="p-4 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-100 transition-all flex items-center justify-between group cursor-pointer"
+                        <div className="flex items-center gap-2">
+                            {/* Filtro de Mês */}
+                            <select
+                                value={selectedMonthFilter}
+                                onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
-                                        <Calendar size={18} />
-                                    </div>
-                                    <div>
-                                        <div className="font-black text-slate-800 text-sm uppercase">{session.title}</div>
-                                        <div className="text-[10px] text-slate-400 font-bold">{new Date(session.start_time).toLocaleDateString()} • {Math.floor(session.duration_seconds/60)} min</div>
-                                    </div>
-                                </div>
-                                <div className="text-slate-300 group-hover:text-brand-500 transition-colors">
-                                    <ChevronRight size={20} />
-                                </div>
+                                <option value="ALL">Mês: Geral</option>
+                                <option value="0">Janeiro</option>
+                                <option value="1">Fevereiro</option>
+                                <option value="2">Março</option>
+                                <option value="3">Abril</option>
+                                <option value="4">Maio</option>
+                                <option value="5">Junho</option>
+                                <option value="6">Julho</option>
+                                <option value="7">Agosto</option>
+                                <option value="8">Setembro</option>
+                                <option value="9">Outubro</option>
+                                <option value="10">Novembro</option>
+                                <option value="11">Dezembro</option>
+                            </select>
+
+                            {/* Filtro de Ano */}
+                            <select
+                                value={selectedYearFilter}
+                                onChange={(e) => setSelectedYearFilter(e.target.value)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+                            >
+                                <option value="ALL">Ano: Geral</option>
+                                {yearOptions.map(year => (
+                                    <option key={year} value={year}>{year}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex-1 p-4 space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar">
+                        {filteredMeetings.length === 0 ? (
+                            <div className="h-[200px] flex flex-col items-center justify-center text-slate-400 gap-2 italic">
+                                <Calendar size={32} className="opacity-20 text-indigo-500" />
+                                <span className="text-[10px] font-black uppercase tracking-wider">Nenhuma reunião encontrada</span>
                             </div>
-                        ))}
+                        ) : (
+                            filteredMeetings.map(session => (
+                                <div 
+                                    key={session.id} 
+                                    onClick={() => handleViewHistory(session)}
+                                    className="p-4 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-100 transition-all flex items-center justify-between group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
+                                            <Calendar size={18} />
+                                        </div>
+                                        <div>
+                                            <div className="font-black text-slate-800 text-sm uppercase">{session.title}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold flex items-center gap-2 mt-0.5">
+                                                <span>{new Date(session.start_time).toLocaleDateString()}</span>
+                                                <span>•</span>
+                                                <span>{Math.floor(session.duration_seconds/60)} min</span>
+                                                <span>•</span>
+                                                <span className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-black text-[9px] uppercase tracking-wider">
+                                                    {session.meeting_action_items ? session.meeting_action_items.filter(a => !a.is_deleted).length : 0} pautas
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-slate-300 group-hover:text-brand-500 transition-colors">
+                                        <ChevronRight size={20} />
+                                    </div>
+                                </div>
+                            ))
+                        )}
+
+                        {hasMoreSessions && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    fetchSessions(true);
+                                }}
+                                className="w-full py-3 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all border border-slate-100 hover:border-indigo-200 mt-2 shadow-sm"
+                            >
+                                Carregar Mais Reuniões
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -410,7 +547,31 @@ const MeetingHub = ({
                     </div>
 
                     <button 
-                        onClick={() => closeMeeting()}
+                        onClick={() => {
+                            if (!activeSession) return;
+                            const start = new Date(activeSession.start_time);
+                            const now = new Date();
+                            const diffSeconds = Math.floor((now - start) / 1000);
+                            const diffHours = diffSeconds / 3600;
+
+                            // Se a reunião durou mais de 8 horas, oferece truncamento inteligente
+                            if (diffHours >= 8) {
+                                const acceptStandard = window.confirm(
+                                    `Atenção: Esta reunião está aberta há ${Math.floor(diffHours)} horas!\n` +
+                                    `Parece que você esqueceu de encerrá-la.\n\n` +
+                                    `Deseja ajustar a duração automaticamente para o padrão de 1 hora (60 minutos)?\n` +
+                                    `Clique em [OK] para ajustar para 1 hora, ou [CANCELAR] para salvar a duração real.`
+                                );
+                                if (acceptStandard) {
+                                    closeMeeting(3600); // 1 hora em segundos
+                                    return;
+                                }
+                            }
+
+                            if (window.confirm('Deseja realmente encerrar a reunião de hoje?')) {
+                                closeMeeting();
+                            }
+                        }}
                         className="flex items-center gap-2 bg-rose-500 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-rose-100 hover:bg-rose-600 active:scale-95 transition-all text-xs uppercase tracking-widest"
                     >
                         <Square size={16} fill="white" /> Encerrar Reunião
@@ -435,6 +596,7 @@ const MeetingHub = ({
                                 onUpdateTasks={setTasks}
                                 onUpdateTests={fetchTechTests}
                                 isMeetingView={true}
+                                categories={customCategories}
                             />
                         )}
                         {activeTab === 'RNC' && (
@@ -584,15 +746,125 @@ const MeetingHub = ({
             {/* Modal de Detalhes do Histórico */}
             {isHistoryModalOpen && selectedHistorySession && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsHistoryModalOpen(false)}></div>
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => { setIsHistoryModalOpen(false); setIsEditingSession(false); }}></div>
                     <div className="relative bg-white w-full max-w-2xl max-h-[80vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                         <div className="p-8 border-b border-slate-100 flex justify-between items-start">
-                            <div>
-                                <span className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Detalhes da Sessão</span>
-                                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedHistorySession.title}</h3>
-                                <p className="text-xs text-slate-400 font-bold mt-1">
-                                    {new Date(selectedHistorySession.start_time).toLocaleString()} • {Math.floor(selectedHistorySession.duration_seconds/60)} min
-                                </p>
+                            {!isEditingSession ? (
+                                <div>
+                                    <span className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Detalhes da Sessão</span>
+                                    <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedHistorySession.title}</h3>
+                                    <div className="text-xs text-slate-400 font-bold mt-1 flex items-center gap-2">
+                                        <span>{new Date(selectedHistorySession.start_time).toLocaleString()}</span>
+                                        <span>•</span>
+                                        <span>{Math.floor(selectedHistorySession.duration_seconds/60)} min</span>
+                                        <span>•</span>
+                                        <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-black text-[9px] uppercase">
+                                            {selectedHistorySession.meeting_action_items ? selectedHistorySession.meeting_action_items.filter(a => !a.is_deleted).length : 0} pautas registradas
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4 w-full pr-8">
+                                    <span className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Editar Detalhes da Reunião</span>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div className="md:col-span-3">
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Título</label>
+                                            <input
+                                                type="text"
+                                                value={editTitle}
+                                                onChange={e => setEditTitle(e.target.value)}
+                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 font-bold"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Data/Hora de Início</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={editStartTime}
+                                                onChange={e => setEditStartTime(e.target.value)}
+                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 font-bold"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Duração (Minutos)</label>
+                                            <input
+                                                type="number"
+                                                value={editDurationMinutes}
+                                                onChange={e => setEditDurationMinutes(e.target.value)}
+                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Botoes de acoes no header */}
+                            <div className="flex gap-2 shrink-0">
+                                {!isEditingSession ? (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setEditTitle(selectedHistorySession.title);
+                                                const d = new Date(selectedHistorySession.start_time);
+                                                const offset = d.getTimezoneOffset() * 60000;
+                                                const localIso = new Date(d.getTime() - offset).toISOString().slice(0, 16);
+                                                setEditStartTime(localIso);
+                                                setEditDurationMinutes(Math.floor(selectedHistorySession.duration_seconds / 60));
+                                                setIsEditingSession(true);
+                                            }}
+                                            className="p-2 bg-slate-100 hover:bg-brand-50 text-slate-500 hover:text-brand-600 rounded-xl transition-all"
+                                            title="Editar Reunião"
+                                        >
+                                            <Settings2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (window.confirm('Atenção: Isso excluirá permanentemente esta reunião e TODOS os apontamentos associados a ela. Esta ação não pode ser desfeita.\n\nDeseja continuar?')) {
+                                                    await deleteMeetingSession(selectedHistorySession.id);
+                                                    setIsHistoryModalOpen(false);
+                                                }
+                                            }}
+                                            className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-xl transition-all"
+                                            title="Excluir Reunião"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={async () => {
+                                                if (!editTitle.trim()) return;
+                                                const durationSecs = Math.max(0, parseInt(editDurationMinutes) || 0) * 60;
+                                                const newStartTime = new Date(editStartTime).toISOString();
+                                                
+                                                await updateMeetingSession(selectedHistorySession.id, {
+                                                    title: editTitle.trim(),
+                                                    start_time: newStartTime,
+                                                    duration_seconds: durationSecs
+                                                });
+                                                
+                                                setSelectedHistorySession(prev => ({
+                                                    ...prev,
+                                                    title: editTitle.trim(),
+                                                    start_time: newStartTime,
+                                                    duration_seconds: durationSecs
+                                                }));
+                                                
+                                                setIsEditingSession(false);
+                                            }}
+                                            className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-black rounded-xl transition-all uppercase tracking-widest"
+                                        >
+                                            Salvar
+                                        </button>
+                                        <button
+                                            onClick={() => setIsEditingSession(false)}
+                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-black rounded-xl transition-all uppercase tracking-widest"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         
@@ -616,7 +888,7 @@ const MeetingHub = ({
 
                         <div className="p-6 bg-white border-t border-slate-100 flex justify-end">
                             <button 
-                                onClick={() => setIsHistoryModalOpen(false)}
+                                onClick={() => { setIsHistoryModalOpen(false); setIsEditingSession(false); }}
                                 className="px-8 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
                             >
                                 Fechar

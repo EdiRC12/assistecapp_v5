@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Printer, Plus } from 'lucide-react';
+import { Search, Printer, Plus, Upload } from 'lucide-react';
 
 import { TierIcon } from './ClientTierBadge';
 
@@ -10,7 +10,8 @@ const ClientMarketIntelligence = ({
     onOpenConsolidatedBI,
     setAnalysisTier,
     setIsExplorerActive,
-    setIsClientManagerOpen
+    setIsClientManagerOpen,
+    onExcelImport
 }) => {
     return (
         <div className="flex-1 flex flex-col animate-in fade-in zoom-in-95 duration-500 overflow-y-auto custom-scrollbar p-6 md:p-12">
@@ -48,6 +49,27 @@ const ClientMarketIntelligence = ({
                         <Printer size={16} />
                         Relatório Geral
                     </button>
+
+                    {/* Import Excel Button */}
+                    {onExcelImport && (
+                        <>
+                            <button
+                                onClick={() => document.getElementById('dashboard-excel-import').click()}
+                                className="flex items-center gap-2 px-6 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-200 shadow-sm"
+                                title="Importar Classificações do Excel"
+                            >
+                                <Upload size={16} />
+                                Importar Excel
+                            </button>
+                            <input
+                                id="dashboard-excel-import"
+                                type="file"
+                                accept=".xlsx, .xls"
+                                className="hidden"
+                                onChange={onExcelImport}
+                            />
+                        </>
+                    )}
                 </div>
             </div>
 

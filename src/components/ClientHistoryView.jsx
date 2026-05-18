@@ -597,6 +597,32 @@ const handleExcelImport = async (e) => {
     reader.readAsBinaryString(file);
 };
 
+const handleUpdateClientTier = async (newTier) => {
+    if (!activeClientObj) return;
+    setLoading(true);
+    try {
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from('clients')
+            .update({
+                classification: newTier,
+                classification_date: now
+            })
+            .eq('id', activeClientObj.id);
+
+        if (error) throw error;
+
+        // Atualiza o estado local clientsData para sincronização em tempo real na tela
+        setClientsData(prev => prev.map(c => c.id === activeClientObj.id ? { ...c, classification: newTier, classification_date: now } : c));
+        if (notifySuccess) notifySuccess('Sucesso!', `Classificação atualizada para ${newTier}.`);
+    } catch (err) {
+        console.error('Erro ao atualizar classificação:', err);
+        if (notifyError) notifyError('Erro ao atualizar', err.message);
+    } finally {
+        setLoading(false);
+    }
+};
+
 return (
     <div className="flex h-full bg-slate-50 overflow-hidden font-sans">
         {(isExplorerActive || selectedClient) && (
@@ -639,6 +665,7 @@ return (
                         setAnalysisTier={setAnalysisTier}
                         setIsExplorerActive={setIsExplorerActive}
                         setIsClientManagerOpen={setIsClientManagerOpen}
+                        onExcelImport={handleExcelImport}
                     />
                 )
             ) : (
@@ -653,7 +680,7 @@ return (
                                 <div className="flex flex-col gap-0.5">
                                     <h1 className={`${isMobile ? 'text-base' : 'text-3xl'} font-black text-slate-800 uppercase tracking-tight leading-tight break-words`}>{selectedClient}</h1>
                                     <div className={`-mt-1 ${isMobile ? 'scale-[0.75]' : 'scale-[0.85]'} origin-left`}>
-                                        <ClientTierBadge client={activeClientObj} />
+                                        <ClientTierBadge client={activeClientObj} onChangeTier={handleUpdateClientTier} />
                                     </div>
                                 </div>
                                 <div className={`flex items-center gap-4 ${isMobile ? 'mt-0.5' : 'mt-1'} text-slate-500 ${isMobile ? 'text-[9px]' : 'text-xs'} font-medium`}>
