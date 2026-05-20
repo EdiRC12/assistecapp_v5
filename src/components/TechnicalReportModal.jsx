@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Edit, Paperclip, Sparkles } from 'lucide-react';
+import { X, Printer, Edit, Paperclip, Sparkles, Loader2 } from 'lucide-react';
 import PrintableReport from './PrintableReport';
 import { useReactToPrint } from 'react-to-print';
 import { supabase } from '../supabaseClient';
+
+const RichTextEditor = React.lazy(() => import('./RichTextEditor'));
 
 const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], currentUser, getCategoryLabel }) => {
     const pdfRef = useRef(null);
@@ -157,11 +159,11 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                     </div>
                 )}
 
-                {/* Content Area - Split screen if editing */}
-                <div className="flex-1 overflow-hidden bg-slate-100/50 flex flex-col md:flex-row">
-                    {isEditing && (
-                        <div className="w-full md:w-1/2 p-4 md:p-6 border-r border-slate-200 bg-white flex flex-col h-full overflow-y-auto">
-                            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-800">
+                {/* Content Area */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100/50 flex justify-center no-scrollbar">
+                    {isEditing ? (
+                        <div className="w-full max-w-4xl p-6 bg-white rounded-3xl border border-slate-200 flex flex-col gap-6 shadow-xl my-4">
+                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-800">
                                 <Sparkles className="shrink-0 text-amber-600 mt-0.5" size={18} />
                                 <div>
                                     <h4 className="text-xs font-black uppercase tracking-wider">Histórico de Alterações Ativo</h4>
@@ -170,18 +172,29 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                     </p>
                                 </div>
                             </div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Conteúdo do Relatório</label>
-                            <textarea
-                                value={editableContent}
-                                onChange={(e) => setEditableContent(e.target.value)}
-                                className="flex-1 min-h-[250px] p-4 border border-slate-200 rounded-2xl focus:outline-none focus:border-brand-500 font-sans text-sm text-slate-700 resize-none shadow-inner"
-                                placeholder="Insira o conteúdo do relatório aqui..."
-                            />
-                            <div className="flex gap-3 mt-4 shrink-0">
+                            
+                            <div className="space-y-2 flex flex-col flex-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Conteúdo do Relatório</label>
+                                <React.Suspense fallback={
+                                    <div className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-sm min-h-[400px] flex flex-col items-center justify-center gap-4 text-slate-400">
+                                        <Loader2 className="animate-spin text-brand-600" size={32} />
+                                        <p className="font-bold animate-pulse">Carregando ferramentas de edição...</p>
+                                    </div>
+                                }>
+                                    <RichTextEditor
+                                        value={editableContent}
+                                        onChange={setEditableContent}
+                                        placeholder="Insira o conteúdo do relatório aqui..."
+                                        minHeight="350px"
+                                    />
+                                </React.Suspense>
+                            </div>
+
+                            <div className="flex gap-3 mt-4 shrink-0 border-t border-slate-100 pt-4">
                                 <button
                                     onClick={handleSaveEdit}
                                     disabled={saving}
-                                    className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl shadow-lg shadow-brand-100 transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white font-bold text-xs rounded-xl shadow-lg shadow-brand-100 transition-all flex items-center justify-center gap-2 uppercase tracking-wider"
                                 >
                                     {saving ? 'Salvando...' : 'Salvar Alterações'}
                                 </button>
@@ -191,14 +204,13 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                         setIsEditing(false);
                                     }}
                                     disabled={saving}
-                                    className="py-2.5 px-6 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all"
+                                    className="py-3 px-8 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all uppercase tracking-wider"
                                 >
                                     Cancelar
                                 </button>
                             </div>
                         </div>
-                    )}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center no-scrollbar">
+                    ) : (
                         <div className="shadow-2xl">
                             <PrintableReport
                                 ref={pdfRef}
@@ -218,7 +230,7 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                     op: currentReport.tasks?.op || currentReport.op,
                                     item: currentReport.tasks?.item || currentReport.item
                                 }}
-                                content={isEditing ? editableContent : (currentReport.content || currentReport.ai_analysis || currentReport.raw_notes)}
+                                content={currentReport.content || currentReport.ai_analysis || currentReport.raw_notes}
                                 media={currentReport.media_urls || []}
                                 currentUser={currentUser || currentReport.users}
                                 taskTypes={taskTypes}
@@ -229,7 +241,7 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                                 printAuditHistory={printAuditHistory}
                             />
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>
