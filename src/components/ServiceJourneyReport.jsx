@@ -153,6 +153,13 @@ const ServiceJourneyReport = ({
                 status: isFinal ? 'FINALIZADO' : 'DRAFT',
                 report_type: journey.sac?.is_return ? 'SERVICE_RETURN' : 'SERVICE_JOURNEY',
                 media_urls: mediaList,
+                manual_actions: pendingActions.map(a => ({
+                    id: a.id,
+                    what: a.description,
+                    who: '',
+                    when: '',
+                    completed: a.status === 'CONCLUÍDO'
+                })),
                 updated_at: new Date().toISOString()
             };
 
@@ -628,6 +635,13 @@ const ServiceJourneyReport = ({
                                     taskTypes={[]}
                                     status="FINALIZADO"
                                     media={[]} // O relatório impresso não deve carregar os anexos, conforme solicitado
+                                    manualActions={pendingActions.map(a => ({
+                                        id: a.id,
+                                        what: a.description,
+                                        who: '',
+                                        when: '',
+                                        completed: a.status === 'CONCLUÍDO'
+                                    }))}
                                 />
                             </div>
                         </div>

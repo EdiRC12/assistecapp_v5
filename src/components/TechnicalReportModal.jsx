@@ -103,6 +103,7 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
                             taskTypes={taskTypes}
                             status={report.status}
                             signatureDate={report.signature_date}
+                            manualActions={report.manual_actions || []}
                         />
                     </div>
                 </div>
