@@ -191,7 +191,7 @@ const AppLayout = ({
                         {!isSidebarCollapsed && (
                             <div className="flex items-center gap-2 overflow-hidden animate-fade text-brand-600">
                                 <CheckSquareIcon size={32} className="shrink-0" />
-                                <h1 className="text-2xl font-bold truncate tracking-tight">Acistec</h1>
+                                <h1 className="text-2xl font-bold truncate tracking-tight">Assistec</h1>
                             </div>
                         )}
                         {isSidebarCollapsed && <CheckSquareIcon size={24} className="text-brand-600" />}
