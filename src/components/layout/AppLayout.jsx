@@ -204,7 +204,7 @@ const AppLayout = ({
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="px-1 animate-in fade-in slide-in-from-left-2 duration-500">
-                            <p className={`text-[10px] ${theme.subtext} font-medium opacity-70`}>Bem-vindo,</p>
+                            <p className={`text-[10px] ${theme.subtext} font-medium opacity-70`}>Chuchu Mole,</p>
                             <p className={`text-sm font-black ${theme.text} leading-tight truncate`}>{currentUser.username}</p>
                         </div>
                     )}
@@ -369,7 +369,7 @@ const AppLayout = ({
                             <Menu size={20} />
                         </button>
                         <div className="flex flex-col items-center">
-                            <span className="text-[8px] font-black text-brand-600 uppercase tracking-widest">Assistec</span>
+                            <span className="text-[8px] font-black text-brand-600 uppercase tracking-widest">Nunca confie no Antigravity</span>
                             <span className="text-[11px] font-bold text-slate-800">{formattedHeaderDate}</span>
                         </div>
                         <button
