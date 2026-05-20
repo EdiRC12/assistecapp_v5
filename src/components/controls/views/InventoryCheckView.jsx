@@ -212,7 +212,7 @@ const InventoryCheckView = ({
                                                                 className="w-20 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[12px] font-black text-amber-700 outline-none focus:ring-2 focus:ring-amber-500 text-right animate-in zoom-in-95"
                                                             />
                                                         ) : (
-                                                            <span className="text-[14px] font-black text-slate-900">{(item.quantity || 0).toFixed(1)} <span className="text-[10px] text-slate-400">{item.unit}</span></span>
+                                                            <span className="text-[14px] font-black text-slate-900">{(item.quantity || 0).toFixed(2)} <span className="text-[10px] text-slate-400">{item.unit}</span></span>
                                                         )}
                                                     </div>
                                                 </td>

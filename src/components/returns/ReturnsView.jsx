@@ -8,6 +8,7 @@ import {
 import { useReturnsData } from '../../hooks/useReturnsData';
 import ReturnsModal from './ReturnsModal';
 import { supabase } from '../../supabaseClient';
+import { saveClientProduct } from '../controls/ProductAutocomplete';
 
 const ReturnsView = ({ currentUser, allClients, onOpenJourneyReport, notifySuccess, notifyError, notifyWarning, isMeetingView }) => {
     // State for dates (local or could be passed from parent)
@@ -121,6 +122,9 @@ const ReturnsView = ({ currentUser, allClients, onOpenJourneyReport, notifySucce
                 const { error } = await supabase.from('product_returns').insert([payload]);
                 if (error) throw error;
                 notifySuccess?.('Sucesso', 'Devolução registrada com sucesso.');
+            }
+            if (newItem.client_name && newItem.item_name) {
+                saveClientProduct(newItem.client_name, newItem.item_name);
             }
             setShowAddForm(false);
             fetchData();

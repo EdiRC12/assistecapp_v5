@@ -9,9 +9,9 @@ const ControlsTabs = ({ activeTab, setActiveTab }) => {
     let tabs = [
         { id: 'tests', label: 'Testes', icon: FlaskConical, color: 'text-indigo-600' },
         { id: 'inventory', label: 'Estoque', icon: Box, color: 'text-emerald-600' },
-        { id: 'adjustment_logs', label: 'Histórico de Furos', icon: History, color: 'text-rose-600' },
         { id: 'costs', label: 'Gestão de Custos', icon: TrendingUp, color: 'text-amber-600' },
-        { id: 'inventory_check', label: 'Inventário', icon: CheckSquare, color: 'text-blue-600' }
+        { id: 'inventory_check', label: 'Inventário', icon: CheckSquare, color: 'text-blue-600' },
+        { id: 'adjustment_logs', label: 'Histórico de Furos', icon: History, color: 'text-rose-600' }
     ];
 
     if (!activeTab) return null;

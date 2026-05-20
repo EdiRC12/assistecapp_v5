@@ -3,6 +3,7 @@ import {
     X, Briefcase, FlaskConical, Tag, RefreshCw, Plus, Repeat as Replay
 } from 'lucide-react';
 import AutocompleteInput from '../AutocompleteInput';
+import ProductAutocomplete from '../ProductAutocomplete';
 
 const NewRecordModal = ({
     isOpen,
@@ -78,7 +79,16 @@ const NewRecordModal = ({
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Produto / Material</label>
-                                    <input type="text" className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-200 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase" placeholder="Nome do Produto..." value={newItem.product_name || ''} onChange={e => setNewItem({ ...newItem, product_name: e.target.value })} />
+                                    <ProductAutocomplete 
+                                        clientName={newItem.client_name} 
+                                        value={newItem.product_name || ''} 
+                                        onChange={val => setNewItem({ ...newItem, product_name: val })} 
+                                        label={null}
+                                        icon={null}
+                                        placeholder="Nome do Produto..."
+                                        className="w-full p-3 bg-slate-50 rounded-2xl border border-slate-200 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase"
+                                        containerClassName="relative"
+                                    />
                                 </div>
                             </div>
 

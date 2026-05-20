@@ -23,6 +23,7 @@ import ClientMachinesTab from './client/tabs/ClientMachinesTab';
 import ClientReportsTab from './client/tabs/ClientReportsTab';
 import ClientTripsTab from './client/tabs/ClientTripsTab';
 import ClientActivitiesTab from './client/tabs/ClientActivitiesTab';
+import ClientProductsTab from './client/tabs/ClientProductsTab';
 
 // Helper para normalização robusta de nomes de clientes
 const normalizeText = (text) => {
@@ -59,6 +60,11 @@ const ClientHistoryView = ({
     const [clientTests, setClientTests] = useState([]); // Novos testes técnicos
     const [clientFollowups, setClientFollowups] = useState([]); // Acompanhamentos
     const [loadingMachines, setLoadingMachines] = useState(false);
+
+    const [clientProducts, setClientProducts] = useState([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
+    const [isAddingProduct, setIsAddingProduct] = useState(false);
+    const [newProductName, setNewProductName] = useState('');
 
     const [isAddingContact, setIsAddingContact] = useState(false);
     const [isAddingMachine, setIsAddingMachine] = useState(false);
@@ -120,6 +126,7 @@ const ClientHistoryView = ({
         } else {
             setClientContacts([]);
             setClientMachines([]);
+            setClientProducts([]);
             setActiveTopic(null);
             setIsExplorerActive(false); // Sempre volta ao dashboard se selection for limpa
         }
@@ -131,6 +138,13 @@ const ClientHistoryView = ({
             fetchClientMachines(activeClientObj.id);
         }
     }, [activeTopic, selectedClient, activeClientObj]);
+
+    // Lazy Loading para Produtos: Só carrega quando o tópico PRODUTOS é ativado
+    useEffect(() => {
+        if (activeTopic === 'PRODUTOS' && selectedClient) {
+            fetchClientProducts(selectedClient);
+        }
+    }, [activeTopic, selectedClient]);
 
     const fetchClientDetails = async (clientId, clientName = selectedClient) => {
         if (!clientName) return;
@@ -188,6 +202,63 @@ const ClientHistoryView = ({
             if (notifyError) notifyError('Erro ao carregar máquinas', err.message);
         } finally {
             setLoadingMachines(false);
+        }
+    };
+
+    const fetchClientProducts = async (clientName) => {
+        if (!clientName) return;
+        setLoadingProducts(true);
+        try {
+            const { data, error } = await supabase
+                .from('client_products')
+                .select('*')
+                .eq('client_name', clientName)
+                .order('product_name');
+
+            if (error) throw error;
+            setClientProducts(data || []);
+        } catch (err) {
+            console.error('Error fetching client products:', err);
+            if (notifyError) notifyError('Erro ao carregar itens', err.message);
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
+    const handleAddProduct = async (e) => {
+        if (e) e.preventDefault();
+        if (!newProductName.trim() || !selectedClient) return;
+
+        try {
+            const { error } = await supabase
+                .from('client_products')
+                .upsert([{ client_name: selectedClient, product_name: newProductName.trim().toUpperCase() }], { onConflict: 'client_name,product_name' });
+
+            if (error) throw error;
+            if (notifySuccess) notifySuccess('Sucesso', 'Item cadastrado com sucesso.');
+            setNewProductName('');
+            setIsAddingProduct(false);
+            fetchClientProducts(selectedClient);
+        } catch (err) {
+            console.error('Error adding client product:', err);
+            if (notifyError) notifyError('Erro ao cadastrar item', err.message);
+        }
+    };
+
+    const handleDeleteProduct = async (id) => {
+        if (!window.confirm('Excluir este item do catálogo deste cliente?')) return;
+        try {
+            const { error } = await supabase
+                .from('client_products')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            if (notifySuccess) notifySuccess('Excluído!', 'Item removido do cliente com sucesso.');
+            fetchClientProducts(selectedClient);
+        } catch (err) {
+            console.error('Error deleting client product:', err);
+            if (notifyError) notifyError('Erro ao excluir item', err.message);
         }
     };
 
@@ -719,6 +790,7 @@ return (
                                 <DashboardCard title="Histórico de Atividades" icon={Plus} isCompact onClick={() => { setActiveTopic('ATIVIDADES'); setFilterCategory(''); setFilterType('ALL'); }} />
                                 <DashboardCard title="Viagens / Deslocamentos" icon={Plus} isCompact onClick={() => setActiveTopic('VIAGENS')} />
                                 <DashboardCard title="Relatórios" icon={Plus} isCompact onClick={() => setActiveTopic('RELATORIOS')} />
+                                <DashboardCard title="Itens do Cliente" icon={Plus} isCompact onClick={() => setActiveTopic('PRODUTOS')} />
                             </div>
                         ) : (
                             <div className="animate-in slide-in-from-right-4 duration-300">
@@ -753,6 +825,18 @@ return (
                                         handleMachinePhotoChange={handleMachinePhotoChange}
                                         handleDeleteMachine={handleDeleteMachine}
                                         setSelectedMachineForView={setSelectedMachineForView}
+                                    />
+                                )}
+                                {activeTopic === 'PRODUTOS' && (
+                                    <ClientProductsTab
+                                        clientProducts={clientProducts}
+                                        loadingProducts={loadingProducts}
+                                        isAddingProduct={isAddingProduct}
+                                        setIsAddingProduct={setIsAddingProduct}
+                                        newProductName={newProductName}
+                                        setNewProductName={setNewProductName}
+                                        handleAddProduct={handleAddProduct}
+                                        handleDeleteProduct={handleDeleteProduct}
                                     />
                                 )}
                                 {activeTopic === 'RELATORIOS' && <ClientReportsTab clientReports={clientReports} tasks={tasks} onViewTechnicalReport={onViewTechnicalReport} />}

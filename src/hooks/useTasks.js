@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { TaskStatus } from '../constants/taskConstants';
+import { saveClientProduct } from '../components/controls/ProductAutocomplete';
 
 export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, notifyWarning } = {}) => {
     const [tasks, setTasks] = useState([]);
@@ -168,6 +169,10 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
                 const { data, error } = await supabase.from('tasks').update(updatePayload).eq('id', taskId).select().single();
                 if (error) throw error;
 
+                if (data && data.client && data.item) {
+                    saveClientProduct(data.client, data.item);
+                }
+
                 // Sincronismo com Meeting Hub (Se a tarefa for finalizada)
                 const mActionId = taskToSave.meeting_action_id || (oldTask && oldTask.meeting_action_id);
                 if (mActionId && taskToSave.status === TaskStatus.DONE) {
@@ -205,6 +210,10 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
 
                 const { data, error } = await supabase.from('tasks').insert(taskToSave).select().single();
                 if (error) throw error;
+
+                if (data && data.client && data.item) {
+                    saveClientProduct(data.client, data.item);
+                }
 
                 finalTaskId = data.id;
 

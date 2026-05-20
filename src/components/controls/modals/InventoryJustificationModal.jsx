@@ -122,18 +122,18 @@ const InventoryJustificationModal = ({
                                             <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
-                                                    TEÓRICO: <span className="text-slate-600">{(item.theoretical || 0).toFixed(1)} {item.unit}</span>
+                                                    TEÓRICO: <span className="text-slate-600">{(item.theoretical || 0).toFixed(2)} {item.unit}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-brand-400"></span>
-                                                    FÍSICO: <span className="text-brand-700">{(item.physical || 0).toFixed(1)} {item.unit}</span>
+                                                    FÍSICO: <span className="text-brand-700">{(item.physical || 0).toFixed(2)} {item.unit}</span>
                                                 </div>
                                             </div>
                                             
                                             {/* Difference Badge */}
                                             <div className="mt-3 flex items-center gap-2">
                                                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${item.difference < 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                    {item.difference > 0 ? '+' : ''}{item.difference.toFixed(1)} {item.unit}
+                                                    {item.difference > 0 ? '+' : ''}{item.difference.toFixed(2)} {item.unit}
                                                 </span>
                                                 <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
                                                     {item.difference < 0 ? 'Divergência Negativa' : 'Sobra de Estoque'}

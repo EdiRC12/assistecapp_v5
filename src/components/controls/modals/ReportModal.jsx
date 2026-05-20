@@ -276,11 +276,11 @@ const ReportModal = ({
                             <>
                                 <div className="p-6 bg-rose-50 rounded-[32px] border border-rose-100 print-card">
                                     <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest block mb-1">Perdas (Furos Negativos)</span>
-                                    <span className="text-2xl font-black text-rose-600">-{reportTotals.losses?.toFixed(1)} <span className="text-xs font-bold text-rose-300">KG</span></span>
+                                    <span className="text-2xl font-black text-rose-600">-{reportTotals.losses?.toFixed(2)} <span className="text-xs font-bold text-rose-300">KG</span></span>
                                 </div>
                                 <div className="p-6 bg-emerald-50 rounded-[32px] border border-emerald-100 print-card">
                                     <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest block mb-1">Ganhos (Ajustes Positivos)</span>
-                                    <span className="text-2xl font-black text-emerald-600">+{reportTotals.gains?.toFixed(1)} <span className="text-xs font-bold text-emerald-300">KG</span></span>
+                                    <span className="text-2xl font-black text-emerald-600">+{reportTotals.gains?.toFixed(2)} <span className="text-xs font-bold text-emerald-300">KG</span></span>
                                 </div>
                                 <div className="p-6 bg-indigo-50 rounded-[32px] border border-indigo-100 print-card">
                                     <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest block mb-1">Motivo Principal</span>
@@ -312,7 +312,7 @@ const ReportModal = ({
                                     <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest block mb-1">Matéria Prima Produzida</span>
                                     <div className="flex flex-col">
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-2xl font-black text-amber-600">{(reportTotals.weightKg || 0).toFixed(1)}</span>
+                                            <span className="text-2xl font-black text-amber-600">{(reportTotals.weightKg || 0).toFixed(2)}</span>
                                             <span className="text-[10px] font-bold text-amber-400 uppercase">KG</span>
                                         </div>
                                         <div className="flex items-baseline gap-1 -mt-1">
@@ -627,21 +627,42 @@ const ReportModal = ({
                             </thead>
                             <tbody className="divide-y divide-slate-50 text-slate-900">
                                 {reportContext === 'INVENTORY' ? (
-                                    pageData.map(item => (
-                                        <tr key={item.id} className="text-[10px]">
-                                            <td className="p-4 font-bold text-slate-400 whitespace-nowrap">{new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
-                                            <td className="p-4 font-black text-slate-700 uppercase leading-tight">{item.name} <br /><span className="text-[8px] text-slate-400">{item.client_name}</span></td>
-                                            <td className="p-4 font-black text-slate-500 uppercase text-center">{item.stock_bin}</td>
-                                            <td className="p-4 text-right font-black text-slate-900">{(item.quantity || 0).toFixed(1)} KG</td>
-                                            <td className="p-4">
-                                                <div className="flex justify-center">
-                                                    <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${item.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                        {item.status}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    pageData.map(item => {
+                                        const relatedTest = tests?.find(t => t.id === item.test_id);
+                                        const productName = relatedTest?.product_name || '';
+                                        const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
+                                        return (
+                                            <tr key={item.id} className="text-[10px]">
+                                                <td className="p-4 font-bold text-slate-400 whitespace-nowrap">{new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
+                                                <td className="p-4 font-black text-slate-700 uppercase leading-tight">
+                                                    {item.name} <br />
+                                                    <span className="text-[8px] text-slate-400">{item.client_name}</span>
+                                                    {productName && (
+                                                        <>
+                                                            <br />
+                                                            <span className="text-[8px] text-indigo-600 font-bold">PROD: {productName}</span>
+                                                        </>
+                                                    )}
+                                                    {opNumber && (
+                                                        <>
+                                                            <br />
+                                                            <span className="text-[8px] text-emerald-600 font-black">OP: {opNumber}</span>
+                                                        </>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 font-black text-slate-500 uppercase text-center">{item.stock_bin}</td>
+                                                <td className="p-4 text-right font-black text-slate-900">{(item.quantity || 0).toFixed(2)} {item.unit || 'KG'}</td>
+                                                <td className="p-4">
+                                                    <div className="flex justify-center">
+                                                        <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${item.status === 'AVAILABLE' || item.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 ) : reportContext === 'ADJUSTMENTS' ? (
                                     pageData.map(log => {
                                         const item = inventory.find(i => i.id === log.inventory_item_id);
@@ -729,7 +750,7 @@ const ReportModal = ({
                                                         {isDiscarded && <span className="text-[7px] text-rose-600 font-extrabold italic block mt-0.5 no-print">Perda Registrada (Descarte)</span>}
                                                     </td>
                                                     <td className="p-4 font-black text-slate-500 uppercase text-center">{t.op_number || t.extra_data?.OP || '-'}</td>
-                                                    <td className="p-4 text-right font-black text-slate-900">{produced.toFixed(1)} <span className="text-[8px] text-slate-400">{unit}</span></td>
+                                                    <td className="p-4 text-right font-black text-slate-900">{produced.toFixed(2)} <span className="text-[8px] text-slate-400">{unit}</span></td>
                                                     <td className="p-4 text-right">
                                                         <div className="flex flex-col items-end">
                                                             <span className="font-bold text-slate-600">R$ {costToDisplay.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>

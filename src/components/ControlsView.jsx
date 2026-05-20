@@ -26,6 +26,7 @@ import InventoryDetailModal from './controls/modals/InventoryDetailModal';
 import ReportModal from './controls/modals/ReportModal';
 import TestDetailsModal from './controls/modals/TestDetailsModal';
 import AutocompleteInput from './controls/AutocompleteInput';
+import { saveClientProduct } from './controls/ProductAutocomplete';
 
 // Dashboards
 import EngineeringDashboard from './controls/dashboards/EngineeringDashboard';
@@ -196,7 +197,8 @@ const ControlsView = ({
     const onPrintInventoryList = () => handlePrintInventoryList({
         filteredInventory: filteredReportData,
         reportTotals,
-        activeInventoryBin
+        activeInventoryBin,
+        tests
     });
 
     const onGenerateAI = async () => {
@@ -226,9 +228,17 @@ const ControlsView = ({
                 const itemBinValue = item.stock_bin?.trim().toUpperCase();
 
                 const matchBin = activeInventoryBin === 'ALL' || itemBinValue === binTarget;
-                const matchSearch = !searchTerm || item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                
+                const relatedTest = tests?.find(t => t.id === item.test_id);
+                const productName = relatedTest?.product_name || '';
+                const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
+                const matchSearch = !searchTerm || 
+                    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     item.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.op?.toLowerCase().includes(searchTerm.toLowerCase());
+                    opNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.client_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
                 const matchStatus = stockStatusFilter === 'ALL' || item.status === stockStatusFilter;
 
@@ -835,6 +845,10 @@ const ControlsView = ({
                 }
             }
 
+            if (table === 'tech_tests' && payload.client_name && payload.product_name) {
+                saveClientProduct(payload.client_name, payload.product_name);
+            }
+
             if (notifySuccess) notifySuccess('Sucesso!', 'Registro salvo com sucesso!');
             else alert('Sucesso! Registro salvo.');
         } catch (error) {
@@ -934,49 +948,60 @@ const ControlsView = ({
             // Determinação do Depósito
             const targetBin = fullTest.stock_destination || 'ESTOQUE 0';
 
-            if (finalBalance > 0 || (existingStock && existingStock.status === 'DISCARDED')) {
-                const unitCost = qtyProduced > 0 ? (fullTest.op_cost || 0) / qtyProduced : 0;
-                const assetValue = parseFloat((unitCost * finalBalance).toFixed(2));
+            // Cálculo de volumes faturados e saldo de volumes em estoque
+            const shipments = fullTest.extra_data?.shipments || [];
+            const volsBilled = shipments.length > 0 
+                ? shipments.reduce((sum, s) => sum + (parseInt(s.volumes) || 0), 0)
+                : (parseInt(fullTest.extra_data?.volumes_faturados) || 0);
+            const remainingVolumes = Math.max(0, (parseInt(fullTest.volumes) || 0) - volsBilled);
 
-                const stockPayload = {
-                    user_id: currentUser.id,
-                    name: `ITEM: ${fullTest.title} `,
-                    description: `Saldo gerado via teste de engenharia.`,
-                    quantity: fullTest.stock_destination === 'DISCARDED' ? 0 : finalBalance,
-                    unit: fullTest.unit || 'KG',
-                    location: 'Depósito Engenharia',
-                    test_id: fullTest.id,
-                    stock_bin: targetBin,
-                    client_name: fullTest.client_name,
-                    op: fullTest.extra_data?.OP || '',
-                    pedido: fullTest.extra_data?.PEDIDO || '',
-                    qty_produced: qtyProduced,
-                    qty_billed: qtyBilled,
-                    quantity_discarded: fullTest.quantity_discarded || 0,
-                    volumes: fullTest.volumes || 0,
-                    production_cost: assetValue,
-                    status: (fullTest.stock_destination === 'DISCARDED' || (existingStock?.status === 'DISCARDED' && finalBalance <= 0)) ? 'DISCARDED' : 'ACTIVE',
-                    updated_at: new Date().toISOString()
-                };
+            // Determinação do Status de Estoque
+            let stockStatus = 'ACTIVE';
+            if (fullTest.stock_destination === 'DISCARDED' || fullTest.status === 'DESCARTADO') {
+                stockStatus = 'DISCARDED';
+            } else if (finalBalance <= 0) {
+                stockStatus = 'BILLED';
+            }
 
-                // Whitelist e Fallback Resiliente
-                const coreColumns = ['user_id', 'name', 'description', 'quantity', 'unit', 'location', 'stock_bin', 'test_id', 'client_name', 'quantity_discarded'];
-                const corePayload = {};
-                coreColumns.forEach(c => { if (stockPayload[c] !== undefined) corePayload[c] = stockPayload[c]; });
+            const unitCost = qtyProduced > 0 ? (fullTest.op_cost || fullTest.gross_total_cost || 0) / qtyProduced : 0;
+            const assetValue = parseFloat((unitCost * Math.max(0, finalBalance)).toFixed(2));
 
-                if (existingStock) {
-                    let { error: upsertError } = await supabase.from('ee_inventory').update(stockPayload).eq('id', existingStock.id);
-                    if (upsertError && (upsertError.code === '42703' || upsertError.status === 400)) {
-                        await supabase.from('ee_inventory').update(corePayload).eq('id', existingStock.id);
-                    }
-                } else {
-                    let { error: upsertError } = await supabase.from('ee_inventory').insert(stockPayload);
-                    if (upsertError && (upsertError.code === '42703' || upsertError.status === 400)) {
-                        await supabase.from('ee_inventory').insert(corePayload);
-                    }
+            const stockPayload = {
+                user_id: currentUser.id,
+                name: `ITEM: ${fullTest.title} `,
+                description: `Saldo gerado via teste de engenharia.`,
+                quantity: (stockStatus === 'DISCARDED' || stockStatus === 'BILLED') ? 0 : Math.max(0, finalBalance),
+                unit: fullTest.unit || 'KG',
+                location: 'Depósito Engenharia',
+                test_id: fullTest.id,
+                stock_bin: targetBin,
+                client_name: fullTest.client_name,
+                op: fullTest.extra_data?.OP || fullTest.op_number || '',
+                pedido: fullTest.extra_data?.PEDIDO || fullTest.test_order || '',
+                qty_produced: qtyProduced,
+                qty_billed: qtyBilled,
+                quantity_discarded: fullTest.quantity_discarded || 0,
+                volumes: (stockStatus === 'DISCARDED' || stockStatus === 'BILLED') ? 0 : remainingVolumes,
+                production_cost: assetValue,
+                status: stockStatus,
+                updated_at: new Date().toISOString()
+            };
+
+            // Whitelist e Fallback Resiliente
+            const coreColumns = ['user_id', 'name', 'description', 'quantity', 'unit', 'location', 'stock_bin', 'test_id', 'client_name', 'quantity_discarded'];
+            const corePayload = {};
+            coreColumns.forEach(c => { if (stockPayload[c] !== undefined) corePayload[c] = stockPayload[c]; });
+
+            if (existingStock) {
+                let { error: upsertError } = await supabase.from('ee_inventory').update(stockPayload).eq('id', existingStock.id);
+                if (upsertError && (upsertError.code === '42703' || upsertError.status === 400)) {
+                    await supabase.from('ee_inventory').update(corePayload).eq('id', existingStock.id);
                 }
             } else {
-                await supabase.from('ee_inventory').delete().eq('test_id', fullTest.id);
+                let { error: upsertError } = await supabase.from('ee_inventory').insert(stockPayload);
+                if (upsertError && (upsertError.code === '42703' || upsertError.status === 400)) {
+                    await supabase.from('ee_inventory').insert(corePayload);
+                }
             }
 
             // Recarrega dados após sincronismo silencioso
@@ -1047,6 +1072,10 @@ const ControlsView = ({
             }
 
             if (updateError) throw updateError;
+
+            if (updatePayload.client_name && updatePayload.product_name) {
+                saveClientProduct(updatePayload.client_name, updatePayload.product_name);
+            }
 
             // --- Lógica de Reaproveitamento de Estoque (Transição entre Doadores) ---
             const oldDonorId = selectedTest.consumed_stock_id;
@@ -1273,6 +1302,7 @@ const ControlsView = ({
                                 localViewMode === 'LIST' ? (
                                     <InventoryView
                                         inventory={inventory}
+                                        tests={tests}
                                         searchTerm={searchTerm}
                                         activeInventoryBin={activeInventoryBin}
                                         setActiveInventoryBin={setActiveInventoryBin}

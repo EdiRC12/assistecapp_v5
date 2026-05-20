@@ -1,5 +1,6 @@
 import React from 'react';
 import { Package, Plus, Trash2, HelpCircle } from 'lucide-react';
+import ProductAutocomplete from '../controls/ProductAutocomplete';
 
 const RncItemsRepeater = ({
     newRnc, setNewRnc,
@@ -28,8 +29,7 @@ const RncItemsRepeater = ({
 
             {/* Cabeçalho da Lista - Mobile Hidden */}
             <div className="hidden md:grid grid-cols-12 gap-4 px-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                <div className="col-span-2">Cód. Item</div>
-                <div className="col-span-4">Descrição</div>
+                <div className="col-span-6">Item / Produto</div>
                 <div className="col-span-2">Qtd</div>
                 <div className="col-span-3">Preço Unit. (R$)</div>
                 <div className="col-span-1 border-l pl-2">Ações</div>
@@ -39,24 +39,17 @@ const RncItemsRepeater = ({
             <div className="space-y-4">
                 {(!newRnc.return_items || newRnc.return_items.length === 0) ? (
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-white p-4 rounded-2xl border border-slate-100 group hover:border-brand-200 transition-all">
-                        <div className="md:col-span-2 space-y-1">
-                            <label className="md:hidden text-[9px] font-black text-slate-400">Cód. Item</label>
-                            <input
-                                type="text"
-                                placeholder="Cód."
-                                value={newRnc.item_code || ''}
-                                onChange={(e) => setNewRnc({ ...newRnc, item_code: e.target.value })}
-                                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs"
-                            />
-                        </div>
-                        <div className="md:col-span-4 space-y-1">
-                            <label className="md:hidden text-[9px] font-black text-slate-400">Descrição</label>
-                            <input
-                                type="text"
-                                placeholder="Descrição do item"
+                        <div className="md:col-span-6 space-y-1">
+                            <label className="md:hidden text-[9px] font-black text-slate-400">Item / Produto</label>
+                            <ProductAutocomplete
+                                clientName={newRnc.client_name}
                                 value={newRnc.item_name || ''}
-                                onChange={(e) => setNewRnc({ ...newRnc, item_name: e.target.value })}
-                                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs"
+                                onChange={(val) => setNewRnc({ ...newRnc, item_name: val, item_code: '' })}
+                                label={null}
+                                icon={null}
+                                placeholder="Descrição do item"
+                                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs uppercase"
+                                containerClassName="relative"
                             />
                         </div>
                         <div className="md:col-span-2 space-y-1">
@@ -88,22 +81,19 @@ const RncItemsRepeater = ({
                     newRnc.return_items.map((item, index) => (
                         <div key={item.id} className="space-y-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm animate-in slide-in-from-top-2">
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                <div className="md:col-span-2 space-y-1">
-                                    <input
-                                        type="text"
-                                        placeholder="Cód."
-                                        value={item.item_code}
-                                        onChange={(e) => updateReturnItem(item.id, 'item_code', e.target.value)}
-                                        className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs"
-                                    />
-                                </div>
-                                <div className="md:col-span-4 space-y-1">
-                                    <input
-                                        type="text"
+                                <div className="md:col-span-6 space-y-1">
+                                    <ProductAutocomplete
+                                        clientName={newRnc.client_name}
+                                        value={item.item_name || ''}
+                                        onChange={(val) => {
+                                            updateReturnItem(item.id, 'item_name', val);
+                                            updateReturnItem(item.id, 'item_code', '');
+                                        }}
+                                        label={null}
+                                        icon={null}
                                         placeholder="Descrição do item"
-                                        value={item.item_name}
-                                        onChange={(e) => updateReturnItem(item.id, 'item_name', e.target.value)}
-                                        className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs"
+                                        className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 text-xs uppercase"
+                                        containerClassName="relative"
                                     />
                                 </div>
                                 <div className="md:col-span-2 space-y-1">

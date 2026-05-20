@@ -24,6 +24,10 @@ const InventoryDetailModal = ({
 
     if (!selectedInventoryItem) return null;
 
+    const relatedTest = tests?.find(t => t.id === selectedInventoryItem.test_id);
+    const productName = relatedTest?.product_name || '';
+    const opNumber = selectedInventoryItem.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
     const handleStartEdit = () => {
         setEditForm({ ...selectedInventoryItem });
         setIsEditing(true);
@@ -130,10 +134,22 @@ const InventoryDetailModal = ({
                                         <h2 className="text-lg font-black text-slate-800 uppercase tracking-tighter leading-tight">
                                             {selectedInventoryItem.name.replace('RESÍDUO:', 'ITEM:')}
                                         </h2>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <Briefcase size={10} className="text-brand-500" />
-                                            <span className="text-[9px] font-black text-brand-600 uppercase tracking-widest">{selectedInventoryItem.client_name || 'Estoque Geral'}</span>
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            <div className="flex items-center gap-1">
+                                                <Briefcase size={10} className="text-brand-500" />
+                                                <span className="text-[9px] font-black text-brand-600 uppercase tracking-widest">{selectedInventoryItem.client_name || 'Estoque Geral'}</span>
+                                            </div>
+                                            {opNumber && (
+                                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                    OP: {opNumber}
+                                                </span>
+                                            )}
                                         </div>
+                                        {productName && (
+                                            <div className="text-[9px] font-medium text-indigo-600 uppercase tracking-tight mt-1">
+                                                PROD: {productName}
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -188,7 +204,7 @@ const InventoryDetailModal = ({
                                         <div className="space-y-4">
                                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                                 <span className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Saldo</span>
-                                                <span className="text-lg font-black text-slate-700">{Number(prevItem.quantity || 0).toFixed(1)} {prevItem.unit}</span>
+                                                <span className="text-lg font-black text-slate-700">{Number(prevItem.quantity || 0).toFixed(2)} {prevItem.unit}</span>
                                             </div>
                                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                                 <span className="text-[8px] font-bold text-slate-400 uppercase block mb-1">Produto</span>
@@ -219,7 +235,7 @@ const InventoryDetailModal = ({
                                             />
                                         </div>
                                     ) : (
-                                        <span className="text-sm font-black text-slate-700">{Number(selectedInventoryItem.qty_produced || 0).toFixed(1)} {selectedInventoryItem.unit}</span>
+                                        <span className="text-sm font-black text-slate-700">{Number(selectedInventoryItem.qty_produced || 0).toFixed(2)} {selectedInventoryItem.unit}</span>
                                     )}
                                 </div>
                                 <div className="bg-white p-4 rounded-2xl border border-slate-100">
@@ -234,7 +250,7 @@ const InventoryDetailModal = ({
                                             />
                                         </div>
                                     ) : (
-                                        <span className="text-sm font-black text-brand-600">{Number(selectedInventoryItem.qty_billed || 0).toFixed(1)} {selectedInventoryItem.unit}</span>
+                                        <span className="text-sm font-black text-brand-600">{Number(selectedInventoryItem.qty_billed || 0).toFixed(2)} {selectedInventoryItem.unit}</span>
                                     )}
                                 </div>
                                 
@@ -300,7 +316,7 @@ const InventoryDetailModal = ({
                                     return (
                                         <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 col-span-2 flex justify-between items-center">
                                             <span className="text-[8px] font-bold text-amber-600 uppercase">Reutilizado em outros testes</span>
-                                            <span className="text-sm font-black text-amber-600">-{Number(totalConsumed || 0).toFixed(1)} {selectedInventoryItem.unit}</span>
+                                            <span className="text-sm font-black text-amber-600">-{Number(totalConsumed || 0).toFixed(2)} {selectedInventoryItem.unit}</span>
                                         </div>
                                     );
                                 })()}
@@ -309,7 +325,7 @@ const InventoryDetailModal = ({
                                 <div>
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1 italic">Saldo Real Disponível</span>
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-4xl font-black text-slate-900">{Number(selectedInventoryItem.quantity || 0).toFixed(1)}</span>
+                                        <span className="text-4xl font-black text-slate-900">{Number(selectedInventoryItem.quantity || 0).toFixed(2)}</span>
                                         <span className="text-xs font-black text-slate-400 uppercase">{selectedInventoryItem.unit}</span>
                                     </div>
                                 </div>

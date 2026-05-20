@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useIsMobile from '../hooks/useIsMobile';
 import { generateUUID } from '../utils/helpers';
 import { supabase } from '../supabaseClient';
+import ProductAutocomplete, { saveClientProduct } from './controls/ProductAutocomplete';
 import {
     MessageSquare, Plus, Search, Clock, CheckCircle2,
     AlertCircle, X, User, Phone, Mail,
@@ -364,6 +365,9 @@ const SacView = ({
                 }
                 savedSacId = insertedTicket?.id;
                 if (notifySuccess) notifySuccess('Sucesso', 'Atendimento registrado com sucesso.');
+                if (payload.client_name && payload.item_name) {
+                    saveClientProduct(payload.client_name, payload.item_name);
+                }
             } else {
                 // UPDATE logic
                 console.log('[SacView] Atualizando sac_tickets (Payload Final):', payload);
@@ -377,6 +381,9 @@ const SacView = ({
                     throw updateError;
                 }
                 if (notifySuccess) notifySuccess('Sucesso', 'Atendimento atualizado com sucesso.');
+                if (payload.client_name && payload.item_name) {
+                    saveClientProduct(payload.client_name, payload.item_name);
+                }
             }
 
             // --- SINCRONIZAÇÃO DE DEVOLUÇÕES ---
@@ -1239,28 +1246,19 @@ const SacView = ({
 
                                     {/* ITEM E VALORES */}
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                                        <div className="md:col-span-2 space-y-2">
+                                        <div className="md:col-span-6 space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                <Tag size={12} className="text-brand-600" /> Cód. Item
+                                                <Package size={12} className="text-brand-600" /> Item / Produto
                                             </label>
-                                            <input
-                                                type="text"
-                                                placeholder="Cód."
-                                                value={newTicket.item_number || ''}
-                                                onChange={(e) => setNewTicket({ ...newTicket, item_number: e.target.value })}
-                                                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-4 space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                <Package size={12} className="text-brand-600" /> Descrição do Item
-                                            </label>
-                                            <input
-                                                type="text"
-                                                placeholder="Nome completo do item"
+                                            <ProductAutocomplete
+                                                clientName={newTicket.client_name}
                                                 value={newTicket.item_name || ''}
-                                                onChange={(e) => setNewTicket({ ...newTicket, item_name: e.target.value })}
-                                                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700"
+                                                onChange={(val) => setNewTicket({ ...newTicket, item_name: val, item_number: '' })}
+                                                label={null}
+                                                icon={null}
+                                                placeholder="Descrição do item"
+                                                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500 font-bold text-slate-700 uppercase"
+                                                containerClassName="relative"
                                             />
                                         </div>
                                         <div className="md:col-span-2 space-y-2">

@@ -10,6 +10,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../supabaseClient';
 import ReportEditor from './ReportEditor';
+import ProductAutocomplete from './controls/ProductAutocomplete';
 import { convertFileToBase64, generateId } from '../utils/helpers';
 import {
     TaskStatus, Priority, Category, StatusLabels, StageStatusLabels
@@ -1103,7 +1104,21 @@ const TaskModal = ({
                                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                                     {currentConfig.fields.op && <div><label className="text-xs font-bold text-slate-200 mb-1 block">OP</label><input type="text" value={op} onChange={(e) => setOp(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
                                     {currentConfig.fields.pedido && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Pedido</label><input type="text" value={pedido} onChange={(e) => setPedido(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
-                                    {currentConfig.fields.item && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Item</label><input type="text" value={item} onChange={(e) => setItem(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.item && (
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-200 mb-1 block">Item</label>
+                                            <ProductAutocomplete
+                                                clientName={client}
+                                                value={item || ''}
+                                                onChange={setItem}
+                                                label={null}
+                                                icon={null}
+                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed uppercase"
+                                                containerClassName="relative"
+                                            />
+                                        </div>
+                                    )}
                                     {currentConfig.fields.rnc && <div><label className="text-xs font-bold text-slate-200 mb-1 block">RNC</label><input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
                                 </div>
 

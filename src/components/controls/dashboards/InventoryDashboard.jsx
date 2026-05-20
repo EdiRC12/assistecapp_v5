@@ -162,7 +162,7 @@ const InventoryDashboard = ({ inventory, setSuggestions, setViewMode, setActiveS
         { label: 'Investimento Total', description: 'Custo de produção somado de todos os ativos em estoque.', value: formatCurrency(stats.totalValue), sub: 'CUSTO ACUMULADO DE PRODUÇÃO', icon: DollarSign, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Prejuízo Real', description: 'Custo real do material perdido (Produzido vs Faturado).', value: formatCurrency(stats.discardedLoss), sub: 'PERDA PROPORCIONAL POR DESCARTE', icon: Trash2, color: 'text-rose-600', bg: 'bg-rose-50' },
         { label: 'Eficiência de Produção', description: 'Percentual de aproveitamento (Faturado vs Descartado).', value: `${stats.efficiencyRate.toFixed(1)}%`, sub: 'TAXA DE ACERTO INDUSTRIAL', icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-        { label: 'Volume Total', description: 'Peso e unidades totais disponíveis no estoque físico.', value: stats.totalQuantityKg.toFixed(1), sub: `${stats.totalQuantityUn} UN`, icon: Box, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { label: 'Volume Total', description: 'Peso e unidades totais disponíveis no estoque físico.', value: stats.totalQuantityKg.toFixed(2), sub: `${stats.totalQuantityUn} UN`, icon: Box, color: 'text-amber-600', bg: 'bg-amber-50' },
         { label: 'Ativos do Sistema', description: 'Itens em estado ATIVO e disponíveis para uso imediato.', value: stats.activeItems, sub: 'ITENS DISPONÍVEIS', icon: Zap, color: 'text-cyan-600', bg: 'bg-cyan-50' }
     ];
 
@@ -232,7 +232,7 @@ const InventoryDashboard = ({ inventory, setSuggestions, setViewMode, setActiveS
                                         <div className="space-y-1">
                                             <div className="flex justify-between text-[9px] font-black text-slate-400">
                                                 <span>VOLUME KG</span>
-                                                <span className="text-brand-600">{binData.kg.toFixed(1)} KG</span>
+                                                <span className="text-brand-600">{binData.kg.toFixed(2)} KG</span>
                                             </div>
                                             <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                                                 <div className="h-full bg-brand-500" style={{ width: `${Math.min(100, (binData.kg / (stats.totalQuantityKg || 1)) * 100)}%` }} />
@@ -277,7 +277,7 @@ const InventoryDashboard = ({ inventory, setSuggestions, setViewMode, setActiveS
                                         <div className="flex justify-between text-[11px] font-bold">
                                             <span className="text-slate-600 uppercase flex items-center gap-2">
                                                 {bin} 
-                                                <span className="text-[8px] text-rose-300 font-medium">({stats.discardedQuantityKg.toFixed(1)} kg / {stats.discardedQuantityUn} un totais)</span>
+                                                <span className="text-[8px] text-rose-300 font-medium">({stats.discardedQuantityKg.toFixed(2)} kg / {stats.discardedQuantityUn} un totais)</span>
                                             </span>
                                             <span className="text-rose-500">{count} {count === 1 ? 'item' : 'itens'} ({pct}%)</span>
                                         </div>
@@ -318,7 +318,7 @@ const InventoryDashboard = ({ inventory, setSuggestions, setViewMode, setActiveS
                             </div>
                             <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
                                 <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Volume Armazenado</p>
-                                <p className="text-lg font-black text-rose-400">{stats.totalQuantityKg.toFixed(1)} <span className="text-[10px]">KG</span></p>
+                                <p className="text-lg font-black text-rose-400">{stats.totalQuantityKg.toFixed(2)} <span className="text-[10px]">KG</span></p>
                             </div>
                         </div>
                     </div>

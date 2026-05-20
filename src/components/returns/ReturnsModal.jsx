@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, RotateCcw, Users, RefreshCw, Clock } from 'lucide-react';
 import AutocompleteInput from '../controls/AutocompleteInput';
+import ProductAutocomplete from '../controls/ProductAutocomplete';
 
 const ReturnsModal = ({
     showAddForm,
@@ -57,12 +58,15 @@ const ReturnsModal = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Item Devolvido</label>
-                            <input
-                                type="text"
-                                className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all uppercase"
+                            <ProductAutocomplete
+                                clientName={newItem?.client_name}
                                 value={newItem?.item_name || ''}
-                                onChange={(e) => setNewItem({ ...newItem, item_name: e.target.value.toUpperCase() })}
+                                onChange={(val) => setNewItem({ ...newItem, item_name: val })}
+                                label={null}
+                                icon={null}
                                 placeholder="NOME DO MATERIAL..."
+                                className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all uppercase"
+                                containerClassName="relative"
                             />
                         </div>
                         <div className="space-y-2">

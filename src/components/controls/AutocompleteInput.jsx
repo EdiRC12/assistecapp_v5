@@ -1,9 +1,20 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ArrowRight } from 'lucide-react';
 
-const AutocompleteInput = ({ label, icon: Icon, placeholder, options, value, onChange }) => {
+const AutocompleteInput = ({ 
+    label, 
+    icon: Icon, 
+    placeholder, 
+    options = [], 
+    value = '', 
+    onChange, 
+    className, 
+    containerClassName,
+    disabled = false 
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState(value || '');
+    const containerRef = useRef(null);
 
     // Sincroniza o estado interno com a prop value (essencial para edição)
     useEffect(() => {
@@ -12,31 +23,52 @@ const AutocompleteInput = ({ label, icon: Icon, placeholder, options, value, onC
 
     const filtered = useMemo(() => {
         const term = search.toLowerCase();
-        return options.filter(opt => opt.label.toLowerCase().includes(term));
+        return options.filter(opt => opt.label && opt.label.toLowerCase().includes(term));
     }, [options, search]);
 
+    // Fecha ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const defaultInputClass = Icon 
+        ? "w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300"
+        : "w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300";
+
     return (
-        <div className="relative space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
+        <div ref={containerRef} className={containerClassName || "relative space-y-2"}>
+            {label && (
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{label}</label>
+            )}
             <div className="relative group">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                    <Icon size={16} />
-                </div>
+                {Icon && (
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                        <Icon size={16} />
+                    </div>
+                )}
                 <input
                     type="text"
                     placeholder={placeholder}
                     value={search}
+                    disabled={disabled}
                     onChange={(e) => {
                         const val = e.target.value.toUpperCase();
                         setSearch(val);
                         setIsOpen(true);
                         onChange(val); // Notifica o pai em tempo real
                     }}
-                    onFocus={() => setIsOpen(true)}
-                    onBlur={() => setTimeout(() => setIsOpen(false), 200)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-black text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300"
+                    onFocus={() => {
+                        if (!disabled) setIsOpen(true);
+                    }}
+                    className={className || defaultInputClass}
                 />
-                {isOpen && search.length > 0 && (
+                {isOpen && !disabled && search.length > 0 && (
                     <div className="absolute z-[100] top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-100 shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                         {filtered.length > 0 ? (
                             filtered.map(opt => (
@@ -70,3 +102,4 @@ const AutocompleteInput = ({ label, icon: Icon, placeholder, options, value, onC
 };
 
 export default AutocompleteInput;
+

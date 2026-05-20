@@ -54,6 +54,8 @@ DECLARE
     v_asset_value DECIMAL;
     v_target_bin TEXT;
     v_total_consumed DECIMAL;
+    v_vols_billed INT;
+    v_remaining_vols INT;
 BEGIN
     -- A. Calcular consumo por outros testes (Reuso)
     SELECT COALESCE(SUM(quantity_produced), 0)
@@ -71,7 +73,25 @@ BEGIN
         v_target_bin := 'ESTOQUE 65';
     END IF;
 
-    -- D. Sincronizar
+    -- D. Calcular Saldo de Volumes
+    IF jsonb_typeof(NEW.extra_data->'shipments') = 'array' THEN
+        SELECT COALESCE(SUM(COALESCE((val->>'volumes')::numeric, 0)), 0)
+        INTO v_vols_billed
+        FROM jsonb_array_elements(NEW.extra_data->'shipments') val;
+    ELSE
+        v_vols_billed := 0;
+    END IF;
+
+    IF v_vols_billed = 0 AND NEW.extra_data->>'volumes_faturados' IS NOT NULL THEN
+        v_vols_billed := COALESCE((NEW.extra_data->>'volumes_faturados')::numeric, 0);
+    END IF;
+
+    v_remaining_vols := COALESCE(NEW.volumes, 0) - v_vols_billed;
+    IF v_remaining_vols < 0 THEN
+        v_remaining_vols := 0;
+    END IF;
+
+    -- E. Sincronizar
     IF v_balance > 0 THEN
         IF NEW.quantity_produced > 0 THEN
             v_unit_cost := NEW.production_cost / NEW.quantity_produced;
@@ -83,12 +103,13 @@ BEGIN
         INSERT INTO ee_inventory (
             test_id, name, description, quantity, unit, 
             location, stock_bin, user_id, client_name,
-            qty_produced, qty_billed, production_cost, updated_at
+            qty_produced, qty_billed, production_cost, volumes, updated_at
         )
         VALUES (
             NEW.id, 'ITEM: ' || NEW.title, 'Saldo automático via engenharia.', v_balance, NEW.unit,
             'Depósito Engenharia', v_target_bin, NEW.user_id, NEW.client_name,
-            NEW.quantity_produced, NEW.quantity_billed, v_asset_value, NOW()
+            NEW.quantity_produced, NEW.quantity_billed, v_asset_value, 
+            CASE WHEN NEW.stock_destination = 'DISCARDED' THEN 0 ELSE v_remaining_vols END, NOW()
         )
         ON CONFLICT (test_id) DO UPDATE SET
             name = EXCLUDED.name,
@@ -99,6 +120,7 @@ BEGIN
             qty_produced = EXCLUDED.qty_produced,
             qty_billed = EXCLUDED.qty_billed,
             production_cost = EXCLUDED.production_cost,
+            volumes = EXCLUDED.volumes,
             updated_at = NOW();
     ELSE
         DELETE FROM ee_inventory WHERE test_id = NEW.id;

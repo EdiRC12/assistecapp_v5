@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useIsMobile from '../hooks/useIsMobile';
 import { generateUUID } from '../utils/helpers';
 import { supabase } from '../supabaseClient';
+import { saveClientProduct } from './controls/ProductAutocomplete';
 import {
     ShieldAlert, Plus, Clock, CheckCircle2,
     AlertCircle, X, History, Save, Target,
@@ -504,6 +505,7 @@ const RncView = ({ currentUser, allClients = [], onNewTask, onTasksUpdate, onOpe
             if (itemsToSync.length > 0 && savedRncId) {
                 for (const item of itemsToSync) {
                     const returnPayload = {
+                        rnc_id: savedRncId,
                         client_name: newRnc.client_name,
                         item_name: item.item_name,
                         quantity: (parseFloat(item.returned_quantity) || parseFloat(item.quantity) || 0),
@@ -547,6 +549,19 @@ const RncView = ({ currentUser, allClients = [], onNewTask, onTasksUpdate, onOpe
                     .from('product_returns')
                     .update({ status: returnStatus })
                     .eq('rnc_id', savedRncId);
+            }
+
+            if (newRnc.client_name) {
+                if (payload.item_name) {
+                    saveClientProduct(newRnc.client_name, payload.item_name);
+                }
+                if (newRnc.return_items && newRnc.return_items.length > 0) {
+                    newRnc.return_items.forEach(it => {
+                        if (it.item_name) {
+                            saveClientProduct(newRnc.client_name, it.item_name);
+                        }
+                    });
+                }
             }
 
             setShowModal(false);
