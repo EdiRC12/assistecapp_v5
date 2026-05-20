@@ -19,6 +19,8 @@ const TechnicalReportModal = ({ report, onClose, onEditTask, taskTypes = [], cur
             setCurrentReport(report);
             setEditableContent(report.content || report.ai_analysis || report.raw_notes || '');
             setIsEditing(false);
+        } else {
+            setCurrentReport(null);
         }
     }, [report]);
 

@@ -970,16 +970,18 @@ const ReportsView = ({ onEditTask, setIsModalOpen, setEditingTask, fetchTaskDeta
             </div>
 
             {/* Viewer Modal (Shared for TASKS) */}
-            <TechnicalReportModal
-                report={selectedReport}
-                onClose={() => setSelectedReport(null)}
-                currentUser={currentUser}
-                taskTypes={categories}
-                onEditTask={async (taskId) => {
-                    const { data: task } = await supabase.from('tasks').select('*').eq('id', taskId).single();
-                    if (task) { onEditTask(task); setSelectedReport(null); }
-                }}
-            />
+            {selectedReport && (
+                <TechnicalReportModal
+                    report={selectedReport}
+                    onClose={() => setSelectedReport(null)}
+                    currentUser={currentUser}
+                    taskTypes={categories}
+                    onEditTask={async (taskId) => {
+                        const { data: task } = await supabase.from('tasks').select('*').eq('id', taskId).single();
+                        if (task) { onEditTask(task); setSelectedReport(null); }
+                    }}
+                />
+            )}
 
             {/* Snapshot Viewer Modal (Unificado com Controles) */}
             {selectedSnapshot && (
