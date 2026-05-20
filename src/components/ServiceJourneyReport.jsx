@@ -40,6 +40,7 @@ const ServiceJourneyReport = ({
     const [isLocked, setIsLocked] = useState(false);
     const [pendingActions, setPendingActions] = useState([]);
     const [newAction, setNewAction] = useState('');
+    const [editHistory, setEditHistory] = useState([]);
     const printRef = useRef();
 
     // Carregar relatório existente ao abrir
@@ -74,6 +75,7 @@ const ServiceJourneyReport = ({
                     setMediaList(data.media_urls || []);
                     setReportType(data.status === 'FINALIZADO' ? 'FINAL' : 'PARCIAL');
                     setIsLocked(data.status === 'FINALIZADO');
+                    setEditHistory(data.edit_history || []);
                 }
             } catch (err) {
                 console.error("Erro ao carregar relatório existente:", err);
@@ -160,6 +162,7 @@ const ServiceJourneyReport = ({
                     when: '',
                     completed: a.status === 'CONCLUÍDO'
                 })),
+                edit_history: editHistory,
                 updated_at: new Date().toISOString()
             };
 
@@ -642,6 +645,7 @@ const ServiceJourneyReport = ({
                                         when: '',
                                         completed: a.status === 'CONCLUÍDO'
                                     }))}
+                                    editHistory={editHistory}
                                 />
                             </div>
                         </div>

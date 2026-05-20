@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import logo from '../assets/logo_plastimarau.png';
 
-const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, signatureDate, status, manualActions, media = [] }, ref) => {
+const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, signatureDate, status, manualActions, media = [], editHistory = [], printAuditHistory = false }, ref) => {
     const isFinalized = status === 'FINALIZADO';
     
     // Helper para formatar categoria
@@ -43,6 +43,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                         <h1 className="text-2xl font-black text-brand-600 tracking-tighter leading-none mb-1">AssisTec</h1>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
                             {isFinalized ? 'Relatório Técnico Final' : 'Relatório Técnico Parcial'} | {getCategoryName(task.category).split(' ')[0]}
+                            {editHistory && editHistory.length > 0 && ` | Rev. ${editHistory.length}`}
                         </p>
                         {String(task.appointment_number || '').includes('/') && (
                             <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest mt-1">
@@ -365,6 +366,39 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                     </tbody>
                 </table>
             </div>
+ 
+            {/* Histórico de Revisões (Opcional para Impressão de Auditoria) */}
+            {printAuditHistory && editHistory && editHistory.length > 0 && (
+                <div className="mt-12 pt-8 border-t-2 border-slate-100 page-break-inside-avoid text-left shadow-none" style={{ breakInside: 'avoid' }}>
+                    <h2 className="text-sm font-black text-brand-700 uppercase border-b border-slate-200 pb-2 mb-4">
+                        Histórico de Revisões / Auditoria
+                    </h2>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-200">
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left w-1/4">Data / Hora</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left w-1/4">Usuário</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase py-2 text-left">Ação / Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {editHistory.map((log, idx) => (
+                                <tr key={idx} className="border-b border-slate-50">
+                                    <td className="py-2.5 text-[10px] text-slate-600 font-mono">
+                                        {new Date(log.edited_at).toLocaleString('pt-BR')}
+                                    </td>
+                                    <td className="py-2.5 text-[10px] font-bold text-slate-700 uppercase">
+                                        {log.username || 'Sistema'}
+                                    </td>
+                                    <td className="py-2.5 text-[10px] text-slate-600 font-medium uppercase">
+                                        {log.action || 'Reeditado'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             <style>{`
                 .rich-text-content h1, .rich-text-content h2, .rich-text-content h3 {
