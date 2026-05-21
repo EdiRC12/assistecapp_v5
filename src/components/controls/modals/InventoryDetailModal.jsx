@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
     X, ChevronLeft, FlaskConical, Box, Briefcase,
     RefreshCw, ChevronRight, FileText, Edit2, Save, RotateCcw, Trash2, DollarSign
@@ -82,8 +83,8 @@ const InventoryDetailModal = ({
         setEditForm(prev => ({ ...prev, [field]: value }));
     };
 
-    return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    return createPortal(
+        <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className={`bg-white rounded-[40px] shadow-2xl w-full ${inventoryHistory.length > 0 ? 'max-w-5xl' : 'max-w-lg'} overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 transition-all`}>
                 {/* Header */}
                 <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
@@ -504,7 +505,8 @@ const InventoryDetailModal = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

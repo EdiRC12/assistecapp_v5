@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, AlertTriangle, CheckCircle2, ChevronRight, Info, FlaskConical, AlertCircle } from 'lucide-react';
 import AutocompleteInput from '../AutocompleteInput';
 
@@ -57,8 +58,8 @@ const InventoryJustificationModal = ({
         handleJustifyInventory(finalJustifications);
     };
 
-    return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+    return createPortal(
+        <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
             <div className="bg-white rounded-[44px] shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200">
                 
                 {/* Header */}
@@ -226,7 +227,8 @@ const InventoryJustificationModal = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

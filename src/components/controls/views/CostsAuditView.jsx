@@ -591,16 +591,42 @@ const CostsAuditView = ({
                                         return (
                                             <tr key={t.id} className="hover:bg-slate-50/50 transition-colors break-inside-avoid" onClick={() => onTestOpenClick(t)}>
                                                 <td className="p-4">
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center gap-1.5 mb-1">
-                                                            <span className="bg-slate-800 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-sm">#{t.test_number}</span>
-                                                            <div className="text-[14px] font-black text-slate-800 uppercase tracking-tighter break-words">{t.title}</div>
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <div className="flex items-center gap-1.5">
+                                                            {t.test_number && (
+                                                                <span className="bg-slate-800 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                                                    #{t.test_number}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
+                                                                ITEM: {t.title}
+                                                            </span>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="text-[12px] font-black text-slate-600 uppercase tracking-tight">{t.client_name}</div>
-                                                            {t.extra_data?.['LOTE'] && (<span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">LOTE: {t.extra_data['LOTE']}</span>)}
+                                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                {t.client_name || 'Sem Cliente'}
+                                                            </span>
+                                                            {(t.op_number || t.extra_data?.OP || t.extra_data?.['OP']) && (
+                                                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                                    OP: {t.op_number || t.extra_data?.OP || t.extra_data?.['OP']}
+                                                                </span>
+                                                            )}
+                                                            {t.extra_data?.['LOTE'] && (
+                                                                <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                                    LOTE: {t.extra_data['LOTE']}
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        {hasCostDiscrepancy && (<span className="text-[7px] text-rose-500 font-black uppercase tracking-tighter mt-0.5">⚠️ Custo sem Produção</span>)}
+                                                        {t.product_name && (
+                                                            <span className="text-[9px] font-medium text-indigo-600 uppercase tracking-tight">
+                                                                PROD: {t.product_name}
+                                                            </span>
+                                                        )}
+                                                        {hasCostDiscrepancy && (
+                                                            <span className="text-[7px] text-rose-500 font-black uppercase tracking-tighter mt-0.5">
+                                                                ⚠️ Custo sem Produção
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="p-4 text-center"><span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{t.op_number || t.extra_data?.OP || t.extra_data?.['OP'] || '-'}</span></td>

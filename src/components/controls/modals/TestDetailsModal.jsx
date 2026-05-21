@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     X, FileSpreadsheet, RefreshCw, CheckCircle, Info, Database,
     Plus, Coins, AlertTriangle, Search, FileText, Printer
@@ -909,8 +910,8 @@ const TestDetailsModal = ({
 
     if (!isOpen) return null;
 
-    return (
-        <div className={`absolute inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm ${isMeetingView ? 'p-1' : 'p-4'} animate-in fade-in duration-200`}>
+    return createPortal(
+        <div className={`fixed inset-0 z-[100005] flex items-center justify-center bg-black/60 backdrop-blur-sm ${isMeetingView ? 'p-1' : 'p-4'} animate-in fade-in duration-200`}>
             <div className={`bg-white rounded-[40px] shadow-2xl w-full ${isMeetingView ? 'max-w-5xl' : 'max-w-2xl'} overflow-hidden flex flex-col ${isMeetingView ? 'max-h-[98%]' : 'max-h-[90vh]'} animate-in zoom-in-95 duration-200`}>
                 <div className="flex justify-between items-center px-8 py-8 border-b border-slate-100 bg-slate-50/30">
                     <div className="flex items-center gap-4">
@@ -1857,7 +1858,8 @@ const TestDetailsModal = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

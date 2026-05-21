@@ -1,6 +1,8 @@
+import React from 'react';
+import { createPortal } from 'react-dom';
 import {
     Database, Package, FlaskConical, AlertTriangle,
-    BarChart3, ChevronRight, RefreshCw, Printer, Trash2
+    BarChart3, ChevronRight, RefreshCw, Printer, Trash2, X
 } from 'lucide-react';
 
 const getStatusBadge = (status) => {
@@ -93,7 +95,9 @@ const InventoryView = ({
     setStockStatusFilter,
     hasMore,
     onLoadMore,
-    loading
+    loading,
+    isMaximized,
+    setIsMaximized
 }) => {
     const filteredInventory = inventory.filter(item => {
         const binTarget = activeInventoryBin?.trim().toUpperCase();
@@ -124,6 +128,201 @@ const InventoryView = ({
         { id: 'ESTOQUE 65', label: 'ESTOQUE 65 (ENGENHARIA)', icon: FlaskConical, color: 'text-blue-500' },
         { id: 'ESTOQUE 14', label: 'ESTOQUE 14 (RESTRITO)', icon: AlertTriangle, color: 'text-rose-500' }
     ];
+
+    const tableContent = (
+        <div 
+            style={isMaximized ? {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                zIndex: 99999,
+                backgroundColor: '#ffffff',
+                padding: '24px',
+                boxSizing: 'border-box'
+            } : {}}
+            className={`flex-1 flex flex-col bg-white overflow-hidden ${
+                isMaximized 
+                    ? 'max-h-none h-full' 
+                    : 'rounded-[32px] border border-slate-100 shadow-sm min-h-0 h-0 max-h-[calc(100vh-320px)]'
+            }`}
+        >
+            {isMaximized && (
+                <button
+                    onClick={() => setIsMaximized(false)}
+                    style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 100000 }}
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center border border-slate-200"
+                    title="Sair da Tela Cheia"
+                >
+                    <X size={18} />
+                </button>
+            )}
+            <div className="flex-1 overflow-y-auto custom-scrollbar h-full min-h-0">
+                <table className="w-full border-collapse text-left">
+                    <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                        <tr className="border-b border-slate-100">
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item / Cliente</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Depósito</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Volumes</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo (KG)</th>
+                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                         {filteredInventory.map(item => {
+                            const relatedTest = tests?.find(t => t.id === item.test_id);
+                            const productName = relatedTest?.product_name || '';
+                            const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
+                            return (
+                                <tr
+                                    key={item.id}
+                                    onClick={() => {
+                                        setSelectedInventoryItem(item);
+                                        setTempInventoryItem(item);
+                                    }}
+                                    className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                                >
+                                    <td className="p-4">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
+                                                {item.name?.replace('RESÍDUO:', 'ITEM:').includes('ITEM:') ? item.name.replace('RESÍDUO:', 'ITEM:') : `ITEM: ${item.name}`}
+                                            </span>
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                    {item.client_name || 'Estoque Geral'}
+                                                </span>
+                                                {opNumber && (
+                                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                        OP: {opNumber}
+                                                    </span>
+                                                )}
+                                                {item.status === 'BILLED' && (() => {
+                                                    const nfs = new Set();
+                                                    if (relatedTest?.nf_number) nfs.add(relatedTest.nf_number);
+                                                    if (relatedTest?.extra_data?.shipments) {
+                                                        relatedTest.extra_data.shipments.forEach(s => {
+                                                            if (s.nf_number) nfs.add(s.nf_number);
+                                                            if (s.nf) nfs.add(s.nf);
+                                                        });
+                                                    }
+                                                    const nfList = Array.from(nfs).filter(Boolean).join(', ');
+                                                    return nfList ? (
+                                                        <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                            NF: {nfList}
+                                                        </span>
+                                                    ) : null;
+                                                })()}
+                                                {item.status === 'DISCARDED' && (() => {
+                                                    const discardReason = item.justification_reason || 
+                                                        (relatedTest?.stock_destination === 'DISCARDED' ? 'DESCARTE TÉCNICO' : '') ||
+                                                        (relatedTest?.situation === 'REPROVADO' ? 'REPROVADO' : '') ||
+                                                        'DESCARTE TÉCNICO';
+                                                    return (
+                                                        <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                            MOTIVO: {discardReason}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </div>
+                                            {productName && (
+                                                <span className="text-[9px] font-medium text-indigo-600 uppercase tracking-tight">
+                                                    PROD: {productName}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div className="flex flex-col items-center">
+                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${item.stock_bin === 'ESTOQUE 14' ? 'bg-rose-50 text-rose-600' :
+                                                    item.stock_bin === 'ESTOQUE 0' ? 'bg-amber-50 text-amber-600' :
+                                                        item.stock_bin === 'ESTOQUE 65' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                                                }`}>
+                                                {item.stock_bin}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    {(() => {
+                                     const metrics = getInventoryMetrics(item, relatedTest);
+                                     return (
+                                         <>
+                                             <td className="p-4 text-center">
+                                                 <div className="flex flex-col items-center">
+                                                     <span className={`text-[12px] font-black ${metrics.volumesColor}`}>
+                                                         {metrics.volumes}
+                                                     </span>
+                                                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">
+                                                         {metrics.volumesLabel}
+                                                     </span>
+                                                 </div>
+                                             </td>
+                                             <td className="p-4 text-right">
+                                                 <div className="flex flex-col items-end">
+                                                     <div className="flex items-center gap-1">
+                                                         <span className={`text-[13px] font-black ${metrics.quantityColor}`}>
+                                                             {metrics.quantity.toFixed(2)}
+                                                         </span>
+                                                         <span className="text-[8px] font-bold text-slate-400 uppercase">
+                                                             {item.unit || 'KG'}
+                                                         </span>
+                                                     </div>
+                                                     {(item.status === 'BILLED' || item.status === 'DISCARDED') && (
+                                                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight">
+                                                             {metrics.quantityLabel}
+                                                         </span>
+                                                     )}
+                                                 </div>
+                                             </td>
+                                         </>
+                                     );
+                                 })()}
+                                 <td className="p-4 text-center">
+                                     <div className="flex items-center justify-center gap-2">
+                                         {(() => {
+                                             const badge = getStatusBadge(item.status || 'ACTIVE');
+                                             return (
+                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${badge.classes}`}>
+                                                     {badge.label}
+                                                 </span>
+                                             );
+                                         })()}
+                                         <ChevronRight size={14} className="text-slate-300 group-hover:text-brand-500 transition-colors" />
+                                     </div>
+                                 </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+
+                {hasMore && (
+                    <div className="p-4 flex justify-center bg-slate-50/50 border-t border-slate-100">
+                        <button
+                            onClick={onLoadMore}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-8 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:shadow-lg hover:shadow-slate-200 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    Carregando...
+                                </>
+                            ) : (
+                                'Carregar Mais Itens'
+                            )}
+                        </button>
+                    </div>
+                )}
+                {filteredInventory.length === 0 && (
+                    <div className="py-20 flex flex-col items-center justify-center text-slate-300 bg-white">
+                        <Database size={48} className="mb-4 opacity-20" />
+                        <p className="font-black text-xs uppercase tracking-widest">Nenhum item encontrado</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -192,171 +391,7 @@ const InventoryView = ({
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden min-h-0 h-0 max-h-[calc(100vh-320px)]">
-                <div className="flex-1 overflow-y-auto custom-scrollbar h-full min-h-0">
-                    <table className="w-full border-collapse text-left">
-                        <thead className="sticky top-0 bg-white z-10 shadow-sm">
-                            <tr className="border-b border-slate-100">
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item / Cliente</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Depósito</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Volumes</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo (KG)</th>
-                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                             {filteredInventory.map(item => {
-                                const relatedTest = tests?.find(t => t.id === item.test_id);
-                                const productName = relatedTest?.product_name || '';
-                                const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
-
-                                return (
-                                    <tr
-                                        key={item.id}
-                                        onClick={() => {
-                                            setSelectedInventoryItem(item);
-                                            setTempInventoryItem(item);
-                                        }}
-                                        className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
-                                    >
-                                        <td className="p-4">
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
-                                                    {item.name?.replace('RESÍDUO:', 'ITEM:').includes('ITEM:') ? item.name.replace('RESÍDUO:', 'ITEM:') : `ITEM: ${item.name}`}
-                                                </span>
-                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                        {item.client_name || 'Estoque Geral'}
-                                                    </span>
-                                                    {opNumber && (
-                                                        <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                                                            OP: {opNumber}
-                                                        </span>
-                                                    )}
-                                                    {item.status === 'BILLED' && (() => {
-                                                        const nfs = new Set();
-                                                        if (relatedTest?.nf_number) nfs.add(relatedTest.nf_number);
-                                                        if (relatedTest?.extra_data?.shipments) {
-                                                            relatedTest.extra_data.shipments.forEach(s => {
-                                                                if (s.nf_number) nfs.add(s.nf_number);
-                                                                if (s.nf) nfs.add(s.nf);
-                                                            });
-                                                        }
-                                                        const nfList = Array.from(nfs).filter(Boolean).join(', ');
-                                                        return nfList ? (
-                                                            <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                                                                NF: {nfList}
-                                                            </span>
-                                                        ) : null;
-                                                    })()}
-                                                    {item.status === 'DISCARDED' && (() => {
-                                                        const discardReason = item.justification_reason || 
-                                                            (relatedTest?.stock_destination === 'DISCARDED' ? 'DESCARTE TÉCNICO' : '') ||
-                                                            (relatedTest?.situation === 'REPROVADO' ? 'REPROVADO' : '') ||
-                                                            'DESCARTE TÉCNICO';
-                                                        return (
-                                                            <span className="text-[8px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                                                                MOTIVO: {discardReason}
-                                                            </span>
-                                                        );
-                                                    })()}
-                                                </div>
-                                                {productName && (
-                                                    <span className="text-[9px] font-medium text-indigo-600 uppercase tracking-tight">
-                                                        PROD: {productName}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex flex-col items-center">
-                                                <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${item.stock_bin === 'ESTOQUE 14' ? 'bg-rose-50 text-rose-600' :
-                                                        item.stock_bin === 'ESTOQUE 0' ? 'bg-amber-50 text-amber-600' :
-                                                            item.stock_bin === 'ESTOQUE 65' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
-                                                    }`}>
-                                                    {item.stock_bin}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        {(() => {
-                                         const metrics = getInventoryMetrics(item, relatedTest);
-                                         return (
-                                             <>
-                                                 <td className="p-4 text-center">
-                                                     <div className="flex flex-col items-center">
-                                                         <span className={`text-[12px] font-black ${metrics.volumesColor}`}>
-                                                             {metrics.volumes}
-                                                         </span>
-                                                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">
-                                                             {metrics.volumesLabel}
-                                                         </span>
-                                                     </div>
-                                                 </td>
-                                                 <td className="p-4 text-right">
-                                                     <div className="flex flex-col items-end">
-                                                         <div className="flex items-center gap-1">
-                                                             <span className={`text-[13px] font-black ${metrics.quantityColor}`}>
-                                                                 {metrics.quantity.toFixed(2)}
-                                                             </span>
-                                                             <span className="text-[8px] font-bold text-slate-400 uppercase">
-                                                                 {item.unit || 'KG'}
-                                                             </span>
-                                                         </div>
-                                                         {(item.status === 'BILLED' || item.status === 'DISCARDED') && (
-                                                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight">
-                                                                 {metrics.quantityLabel}
-                                                             </span>
-                                                         )}
-                                                     </div>
-                                                 </td>
-                                             </>
-                                         );
-                                     })()}
-                                     <td className="p-4 text-center">
-                                         <div className="flex items-center justify-center gap-2">
-                                             {(() => {
-                                                 const badge = getStatusBadge(item.status || 'ACTIVE');
-                                                 return (
-                                                     <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${badge.classes}`}>
-                                                         {badge.label}
-                                                     </span>
-                                                 );
-                                             })()}
-                                             <ChevronRight size={14} className="text-slate-300 group-hover:text-brand-500 transition-colors" />
-                                         </div>
-                                     </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-
-                    {hasMore && (
-                        <div className="p-4 flex justify-center bg-slate-50/50 border-t border-slate-100">
-                            <button
-                                onClick={onLoadMore}
-                                disabled={loading}
-                                className="flex items-center gap-2 px-8 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-xl hover:shadow-lg hover:shadow-slate-200 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
-                            >
-                                {loading ? (
-                                    <>
-                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        Carregando...
-                                    </>
-                                ) : (
-                                    'Carregar Mais Itens'
-                                )}
-                            </button>
-                        </div>
-                    )}
-                    {filteredInventory.length === 0 && (
-                        <div className="py-20 flex flex-col items-center justify-center text-slate-300 bg-white">
-                            <Database size={48} className="mb-4 opacity-20" />
-                            <p className="font-black text-xs uppercase tracking-widest">Nenhum item encontrado</p>
-                        </div>
-                    )}
-                </div>
-            </div>
+            {isMaximized ? createPortal(tableContent, document.body) : tableContent}
         </div>
     );
 };

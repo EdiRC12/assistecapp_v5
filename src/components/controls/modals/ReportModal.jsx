@@ -39,7 +39,7 @@ const ReportModal = ({
     if (!showReportModal) return null;
 
     return ReactDOM.createPortal(
-        <div id="print-overlay" className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+        <div id="print-overlay" className="fixed inset-0 z-[100005] flex items-center justify-center p-4 md:p-8">
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm no-print" onClick={() => setShowReportModal(false)}></div>
             <div id="print-main-modal" className="bg-white w-full max-w-5xl h-full max-h-[90vh] rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Header */}

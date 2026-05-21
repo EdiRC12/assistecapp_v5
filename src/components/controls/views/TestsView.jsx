@@ -1,6 +1,7 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
-    FlaskConical, Plus, Trash2, CheckCircle
+    FlaskConical, Plus, Trash2, CheckCircle, X
 } from 'lucide-react';
 
 const TestsView = ({
@@ -15,7 +16,9 @@ const TestsView = ({
     testStatusPresets = [],
     hasMore,
     onLoadMore,
-    loading
+    loading,
+    isMaximized,
+    setIsMaximized
 }) => {
     const getContrastColor = (hexColor) => {
         if (!hexColor || hexColor === 'transparent') return '#475569';
@@ -65,18 +68,76 @@ const TestsView = ({
     });
 
     if (tests.length === 0) {
-        return (
-            <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-[40px] border border-slate-100 shadow-sm">
+        const emptyContent = (
+            <div 
+                style={isMaximized ? {
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    zIndex: 99999,
+                    backgroundColor: '#ffffff',
+                    padding: '24px',
+                    boxSizing: 'border-box'
+                } : {}}
+                className={`bg-white flex flex-col items-center justify-center ${
+                    isMaximized 
+                        ? '' 
+                        : 'flex-1 rounded-[40px] border border-slate-100 shadow-sm'
+                }`}
+            >
+                {isMaximized && (
+                    <button
+                        onClick={() => setIsMaximized(false)}
+                        style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 100000 }}
+                        className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center border border-slate-200"
+                        title="Sair da Tela Cheia"
+                    >
+                        <X size={18} />
+                    </button>
+                )}
                 <div className="p-6 bg-slate-50 text-slate-200 rounded-full mb-4">
                     <FlaskConical size={48} />
                 </div>
                 <p className="text-slate-400 font-bold">Nenhum teste encontrado.</p>
             </div>
         );
+        if (isMaximized) {
+            return createPortal(emptyContent, document.body);
+        }
+        return emptyContent;
     }
 
-    return (
-        <div className="flex-1 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden flex flex-col relative group">
+    const tableContent = (
+        <div 
+            style={isMaximized ? {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                zIndex: 99999,
+                backgroundColor: '#ffffff',
+                padding: '24px',
+                boxSizing: 'border-box'
+            } : {}}
+            className={`bg-white overflow-hidden flex flex-col group ${
+                isMaximized 
+                    ? '' 
+                    : 'relative flex-1 rounded-[40px] border border-slate-100 shadow-sm'
+            }`}
+        >
+            {isMaximized && (
+                <button
+                    onClick={() => setIsMaximized(false)}
+                    style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 100000 }}
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all shadow-md active:scale-95 flex items-center justify-center border border-slate-200"
+                    title="Sair da Tela Cheia"
+                >
+                    <X size={18} />
+                </button>
+            )}
             <div className="flex-1 overflow-auto custom-scrollbar relative rounded-[40px]">
                 <table className="w-full border-separate border-spacing-0 text-left relative min-w-[950px] table-fixed">
                     <thead className="relative z-[40]">
@@ -241,6 +302,12 @@ const TestsView = ({
             </div>
         </div>
     );
+
+    if (isMaximized) {
+        return createPortal(tableContent, document.body);
+    }
+
+    return tableContent;
 };
 
 export default TestsView;

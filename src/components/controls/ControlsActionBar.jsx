@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    Search, Calendar, Plus, BarChart3, Upload
+    Search, Calendar, Plus, BarChart3, Upload, Maximize2, Minimize2
 } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 
@@ -28,7 +28,9 @@ const ControlsActionBar = ({
     viewMode = 'LIST',
     setViewMode,
     activeSection,
-    setActiveSection
+    setActiveSection,
+    isMaximized,
+    setIsMaximized
 }) => {
     const isMobile = useIsMobile();
     if (!activeTab) return null;
@@ -130,7 +132,7 @@ const ControlsActionBar = ({
 
                         {/* View Switcher (List/Dashboard) */}
                         {(activeTab === 'tests' || activeTab === 'inventory') && (
-                            <div className={`flex bg-slate-100 p-0.5 md:p-1 rounded-xl border border-slate-200 ${isMobile ? 'ml-0' : 'ml-2'}`}>
+                            <div className={`flex bg-slate-100 p-0.5 md:p-1 rounded-xl border border-slate-200 items-center ${isMobile ? 'ml-0' : 'ml-2'}`}>
                                 <button
                                     onClick={() => setViewMode('LIST')}
                                     className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
@@ -142,6 +144,14 @@ const ControlsActionBar = ({
                                     className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'DASHBOARD' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     Dash
+                                </button>
+                                <div className="w-px h-4 bg-slate-300 mx-1 md:mx-1.5" />
+                                <button
+                                    onClick={() => setIsMaximized(!isMaximized)}
+                                    className={`p-1 rounded-lg transition-all flex items-center justify-center ${isMaximized ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-indigo-600'}`}
+                                    title={isMaximized ? "Sair da Tela Cheia" : "Tela Cheia"}
+                                >
+                                    {isMaximized ? <Minimize2 size={isMobile ? 12 : 14} /> : <Maximize2 size={isMobile ? 12 : 14} />}
                                 </button>
                             </div>
                         )}

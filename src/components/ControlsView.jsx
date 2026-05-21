@@ -72,6 +72,27 @@ const ControlsView = ({
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [stockStatusFilter, setStockStatusFilter] = useState('ACTIVE');
     const [localViewMode, setLocalViewMode] = useState('LIST'); // 'LIST' or 'DASHBOARD' internal to Controls
+    const [isMaximized, setIsMaximized] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && isMaximized) {
+                setIsMaximized(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+
+        if (isMaximized) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = '';
+        };
+    }, [isMaximized]);
 
     // Custom Hook for Data & Base Functions
     const {
@@ -1245,6 +1266,8 @@ const ControlsView = ({
                             viewMode={localViewMode}
                             setViewMode={setLocalViewMode}
                             setActiveSection={setActivePoliSection}
+                            isMaximized={isMaximized}
+                            setIsMaximized={setIsMaximized}
                         />
 
                         <div className="flex-1 overflow-hidden print:overflow-visible flex flex-col px-6 py-6 bg-slate-50/30 min-h-0">
@@ -1286,6 +1309,8 @@ const ControlsView = ({
                                         testFlows={testFlows}
                                         hasMore={hasMore}
                                         onLoadMore={() => fetchData(true)}
+                                        isMaximized={isMaximized}
+                                        setIsMaximized={setIsMaximized}
                                     />
                                 ) : (
                                     <EngineeringDashboard
@@ -1317,6 +1342,8 @@ const ControlsView = ({
                                         onPrint={onPrintInventoryList}
                                         hasMore={hasMore}
                                         onLoadMore={() => fetchData(true)}
+                                        isMaximized={isMaximized}
+                                        setIsMaximized={setIsMaximized}
                                     />
                                 ) : (
                                     <InventoryDashboard

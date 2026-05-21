@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     X, Briefcase, FlaskConical, Tag, RefreshCw, Plus, Repeat as Replay
 } from 'lucide-react';
@@ -28,8 +29,8 @@ const NewRecordModal = ({
     if (!isOpen) return null;
 
     if (activeTab === 'tests') {
-        return (
-            <div className={`absolute inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm ${isMeetingView ? 'p-1' : 'p-4'} animate-in fade-in duration-300`}>
+        return createPortal(
+            <div className={`fixed inset-0 z-[100005] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm ${isMeetingView ? 'p-1' : 'p-4'} animate-in fade-in duration-300`}>
                 <div className={`bg-white rounded-[40px] shadow-2xl w-full ${isMeetingView ? 'max-w-5xl' : 'max-w-lg'} overflow-hidden flex flex-col ${isMeetingView ? 'max-h-[98%]' : ''} animate-in zoom-in-95 duration-200`}>
                     <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                         <div className="flex items-center gap-4">
@@ -352,13 +353,14 @@ const NewRecordModal = ({
                         </div>
                     </form>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
     }
 
     if (activeTab === 'inventory') {
-        return (
-            <div className="absolute inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+        return createPortal(
+            <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
                 <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                     <div className="p-8 border-b border-slate-100 flex justify-between items-center">
                         <div className="flex items-center gap-4">
@@ -454,13 +456,14 @@ const NewRecordModal = ({
                         </div>
                     </form>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
     }
 
     if (activeTab === 'visitation') {
-        return (
-            <div className="absolute inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+        return createPortal(
+            <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
                 <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
                     <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
                         <div className="flex items-center gap-3">
@@ -551,7 +554,8 @@ const NewRecordModal = ({
                         </div>
                     </form>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
     }
 
