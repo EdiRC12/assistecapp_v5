@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Factory, Edit2, Save, ChevronLeft, ChevronRight, Camera, Trash2 } from 'lucide-react';
+import { compressImageToBase64 } from '../../../utils/helpers';
 
 const MachineDetailModal = ({
     selectedMachineForView,
@@ -64,20 +65,8 @@ const MachineDetailModal = ({
         const remainingSlots = 6 - currentPhotos.length;
         const filesToProcess = files.slice(0, remainingSlots);
 
-        // Import helper inside or assume it exists in scope (actually it's in ClientHistoryView)
-        // Since this is a separate component, we expect the parent to handle it if needed,
-        // but here we can implement a local version of convertFileToBase64 if necessary
-        const convertToBase64 = (file) => {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-        };
-
         try {
-            const base64Array = await Promise.all(filesToProcess.map(file => convertToBase64(file)));
+            const base64Array = await Promise.all(filesToProcess.map(file => compressImageToBase64(file)));
             setMachineEditForm(prev => ({
                 ...prev,
                 photos: [...(prev.photos || []), ...base64Array]

@@ -73,6 +73,7 @@ const TaskModal = ({
     const [mapPickerGeo, setMapPickerGeo] = useState(null);
     const [newCustomStageName, setNewCustomStageName] = useState('');
     const isMobile = useIsMobile();
+    const [isLocked, setIsLocked] = useState(false);
 
     // Additional state for features added in V5
     const [travels, setTravels] = useState([]);
@@ -105,6 +106,29 @@ const TaskModal = ({
     const [isEditingReport, setIsEditingReport] = useState(false);
     const [reportRequired, setReportRequired] = useState(false);
     const [meetingActionId, setMeetingActionId] = useState(null);
+    const [reopenerName, setReopenerName] = useState('');
+
+    useEffect(() => {
+        const fetchReopenerName = async () => {
+            if (currentReport?.reopened_by) {
+                try {
+                    const { data } = await supabase
+                        .from('users')
+                        .select('username')
+                        .eq('id', currentReport.reopened_by)
+                        .single();
+                    if (data) {
+                        setReopenerName(data.username);
+                    }
+                } catch (e) {
+                    console.error("Erro ao buscar reabridor no TaskModal:", e);
+                }
+            } else {
+                setReopenerName('');
+            }
+        };
+        fetchReopenerName();
+    }, [currentReport?.reopened_by]);
 
     const [clientsRegistry, setClientsRegistry] = useState([]);
 
@@ -180,21 +204,27 @@ const TaskModal = ({
             setPendingStatus(null);
             setIsCanceling(false);
             setCancellationReason('');
-            setIsEditingReport(false);
+            
+            // Se vier flag para abrir direto o relatório, inicializa como editando relatório
+            if (initialData?._openReportDirectly) {
+                setIsEditingReport(true);
+            } else {
+                setIsEditingReport(false);
+            }
         } else {
             // CRÍTICO: Limpar TODOS os estados de relatório quando o modal fecha
             setReportRequired(false);
             setCurrentReport(null);
             setIsEditingReport(false);
         }
-    }, [isOpen]);
+    }, [isOpen, initialData]);
 
     // Limpar estados de relatório quando a tarefa muda
     useEffect(() => {
         // Sempre limpar ao trocar de tarefa
         setReportRequired(false);
         setCurrentReport(null);
-        setIsEditingReport(false);
+        setIsEditingReport(!!initialData?._openReportDirectly);
     }, [initialData?.id]);
 
     // Main loading effect
@@ -207,6 +237,7 @@ const TaskModal = ({
                 setTitle(initialData.title);
                 setDescription(initialData.description);
                 setStatus(initialData.status || TaskStatus.TO_START);
+                setIsLocked(initialData.status === TaskStatus.DONE);
                 setPriority(initialData.priority || Priority.MEDIUM);
                 setClient(initialData.client || '');
                 
@@ -227,7 +258,6 @@ const TaskModal = ({
                 setOutcome(initialData.outcome || null);
                 setMeetingActionId(initialData.meeting_action_id || null);
 
-                // Fetch existing reports (both types)
                 const fetchReports = async () => {
                     if (!initialData.id || initialData.id.toString().startsWith('test-')) {
                         console.warn('TaskModal: Busca de relatórios ignorada (ID de teste ou inválido):', initialData.id);
@@ -247,6 +277,21 @@ const TaskModal = ({
                         const final = reports.find(r => r.status === 'FINALIZADO');
                         const anyReport = reports[0];
                         const activeReport = final || anyReport;
+
+                        if (activeReport && activeReport.reopened_by) {
+                            try {
+                                const { data: userData } = await supabase
+                                    .from('users')
+                                    .select('username')
+                                    .eq('id', activeReport.reopened_by)
+                                    .single();
+                                if (userData) {
+                                    activeReport.reopenerName = userData.username;
+                                }
+                            } catch (err) {
+                                console.error('Erro ao buscar nome do reabridor:', err);
+                            }
+                        }
 
                         setCurrentReport(activeReport || null);
                         setReportRequired(!!activeReport);
@@ -291,6 +336,7 @@ const TaskModal = ({
                 setAssignedUsers([]); setVisibility('PUBLIC');
                 setIsCanceling(false); setCancellationReason('');
                 setIsReopening(false); setReopenReason(''); setPendingStatus(null);
+                setIsLocked(false);
 
                 // Limpar estados de relatório
                 setCurrentReport(null);
@@ -763,6 +809,7 @@ const TaskModal = ({
 
         setComments([...comments, reopenComment]);
         setStatus(pendingStatus);
+        setIsLocked(false);
         setIsReopening(false);
         setReopenReason('');
         setPendingStatus(null);
@@ -1026,6 +1073,36 @@ const TaskModal = ({
                         </div>
                     )}
 
+                    {/* Banner de Tarefa Concluída */}
+                    {isLocked && (
+                        <div className="bg-emerald-500/10 border-b border-emerald-500/30 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-600 rounded-lg text-white shadow-lg shadow-emerald-900/30">
+                                    <Check size={20} strokeWidth={3} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-emerald-400 uppercase tracking-wider">
+                                        Tarefa Concluída / Finalizada
+                                    </h3>
+                                    <p className="text-xs text-slate-300 mt-0.5">
+                                        {lastActivity ? (
+                                            <>Finalizada por <span className="font-bold text-emerald-300">{lastActivity.userName}</span> em {new Date(lastActivity.timestamp).toLocaleString()}</>
+                                        ) : (
+                                            <>Esta tarefa está marcada como finalizada.</>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleStatusChange(TaskStatus.IN_PROGRESS)}
+                                className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
+                            >
+                                <Unlock size={14} /> Reabrir Tarefa
+                            </button>
+                        </div>
+                    )}
+
                     <div className="overflow-y-auto custom-scrollbar p-6 flex-1 min-h-0 bg-[#1c2e6e]">
                         <datalist id="userSuggestions">
                             {users.map((u) => <option key={u.id} value={u.username} />)}
@@ -1040,7 +1117,7 @@ const TaskModal = ({
                                 <select
                                     value={category}
                                     onChange={(e) => handleCategoryChange(e.target.value)}
-                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                    disabled={isLocked || !canEdit}
                                     className="w-full bg-white text-black border border-slate-300 rounded-lg p-2.5 font-bold focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-200 disabled:cursor-not-allowed"
                                 >
                                     {(customCategories || []).map(c => (
@@ -1060,7 +1137,7 @@ const TaskModal = ({
                                             required
                                             value={client}
                                             onChange={handleClientChange}
-                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            disabled={isLocked || !canEdit}
                                             onFocus={(e) => {
                                                 const val = e.target.value;
                                                 if (val.trim().length > 0) {
@@ -1102,8 +1179,8 @@ const TaskModal = ({
 
                                 {/* Custom Fields based on category */}
                                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-                                    {currentConfig.fields.op && <div><label className="text-xs font-bold text-slate-200 mb-1 block">OP</label><input type="text" value={op} onChange={(e) => setOp(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
-                                    {currentConfig.fields.pedido && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Pedido</label><input type="text" value={pedido} onChange={(e) => setPedido(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.op && <div><label className="text-xs font-bold text-slate-200 mb-1 block">OP</label><input type="text" value={op} onChange={(e) => setOp(e.target.value)} disabled={isLocked || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.pedido && <div><label className="text-xs font-bold text-slate-200 mb-1 block">Pedido</label><input type="text" value={pedido} onChange={(e) => setPedido(e.target.value)} disabled={isLocked || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
                                     {currentConfig.fields.item && (
                                         <div>
                                             <label className="text-xs font-bold text-slate-200 mb-1 block">Item</label>
@@ -1113,29 +1190,29 @@ const TaskModal = ({
                                                 onChange={setItem}
                                                 label={null}
                                                 icon={null}
-                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                disabled={isLocked || !canEdit}
                                                 className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed uppercase"
                                                 containerClassName="relative"
                                             />
                                         </div>
                                     )}
-                                    {currentConfig.fields.rnc && <div><label className="text-xs font-bold text-slate-200 mb-1 block">RNC</label><input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
+                                    {currentConfig.fields.rnc && <div><label className="text-xs font-bold text-slate-200 mb-1 block">RNC</label><input type="text" value={rnc} onChange={(e) => setRnc(e.target.value)} disabled={isLocked || !canEdit} className="w-full px-3 py-2 bg-white text-black rounded-lg text-sm border border-slate-300 outline-none font-bold focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" /></div>}
                                 </div>
 
                                 <div>
                                     <label className="text-sm font-bold text-slate-200 mb-1 block">Descrição</label>
-                                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={status === TaskStatus.DONE || !canEdit} rows={3} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg resize-none text-sm font-bold outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" />
+                                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={isLocked || !canEdit} rows={3} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg resize-none text-sm font-bold outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Status</label><select value={status} onChange={(e) => handleStatusChange(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={TaskStatus.TO_START}>A Iniciar</option><option value={TaskStatus.IN_PROGRESS}>Em Andamento</option><option value={TaskStatus.WAITING_CLIENT}>Aguardando Cliente</option><option value={TaskStatus.DONE}>Finalizada</option><option value={TaskStatus.CANCELED}>Cancelada</option></select></div>
-                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Prioridade</label><select value={priority} onChange={(e) => setPriority(e.target.value)} disabled={!canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={Priority.LOW}>Baixa</option><option value={Priority.MEDIUM}>Média</option><option value={Priority.HIGH}>Alta</option></select></div>
+                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Status</label><select value={status} onChange={(e) => handleStatusChange(e.target.value)} disabled={isLocked || !canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={TaskStatus.TO_START}>A Iniciar</option><option value={TaskStatus.IN_PROGRESS}>Em Andamento</option><option value={TaskStatus.WAITING_CLIENT}>Aguardando Cliente</option><option value={TaskStatus.DONE}>Finalizada</option><option value={TaskStatus.CANCELED}>Cancelada</option></select></div>
+                                    <div><label className="text-sm font-bold text-slate-200 mb-1 block">Prioridade</label><select value={priority} onChange={(e) => setPriority(e.target.value)} disabled={isLocked || !canEdit} className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"><option value={Priority.LOW}>Baixa</option><option value={Priority.MEDIUM}>Média</option><option value={Priority.HIGH}>Alta</option></select></div>
                                     <div>
                                         <label className="text-sm font-bold text-slate-200 mb-1 block">Prazo de Entrega</label>
                                         <input
                                             type="date"
                                             value={dueDate}
                                             onChange={(e) => setDueDate(e.target.value)}
-                                            disabled={!canEdit}
+                                            disabled={isLocked || !canEdit}
                                             className="w-full px-3 py-2 bg-white text-black border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-brand-500 transition-all font-bold disabled:bg-gray-200 disabled:cursor-not-allowed"
                                         />
                                     </div>
@@ -1156,7 +1233,7 @@ const TaskModal = ({
                                                     key={opt.id}
                                                     type="button"
                                                     onClick={() => setOutcome(opt.id)}
-                                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                                    disabled={isLocked || !canEdit}
                                                     className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed ${outcome === opt.id
                                                         ? `${opt.color} border-white/20 text-white shadow-lg scale-105`
                                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'
@@ -1257,16 +1334,16 @@ const TaskModal = ({
                                         <button
                                             type="button"
                                             onClick={() => setVisibility('PUBLIC')}
-                                            disabled={!canEdit}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PUBLIC' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                            disabled={isLocked || !canEdit}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PUBLIC' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
                                         >
                                             Público
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setVisibility('PRIVATE')}
-                                            disabled={!canEdit}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PRIVATE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                                            disabled={isLocked || !canEdit}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${visibility === 'PRIVATE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
                                         >
                                             Privado
                                         </button>
@@ -1284,7 +1361,7 @@ const TaskModal = ({
                                                 <button
                                                     key={u.id}
                                                     type="button"
-                                                    disabled={!canEdit}
+                                                    disabled={isLocked || !canEdit}
                                                     onClick={() => {
                                                         if (isAssigned) setAssignedUsers(assignedUsers.filter(id => id !== u.id));
                                                         else setAssignedUsers([...assignedUsers, u.id]);
@@ -1308,7 +1385,7 @@ const TaskModal = ({
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            if (status === TaskStatus.DONE || !canEdit) return;
+                                            if (isLocked || !canEdit) return;
                                             const isRequired = !visitationRequired;
                                             setVisitationRequired(isRequired);
                                             if (isRequired) {
@@ -1320,11 +1397,11 @@ const TaskModal = ({
                                                 setSearchLocation('');
                                             }
                                         }}
-                                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${visitationRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${visitationRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(isLocked || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                                     >
                                         {visitationRequired && <Check size={12} className="text-white" strokeWidth={3} />}
                                     </button>
-                                    <label onClick={() => (status !== TaskStatus.DONE && canEdit) && setVisitationRequired(!visitationRequired)} className={`font-bold text-sm select-none ${status === TaskStatus.DONE ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer text-slate-200'}`}>Necessidade de Viagem</label>
+                                    <label onClick={() => (!isLocked && canEdit) && setVisitationRequired(!visitationRequired)} className={`font-bold text-sm select-none ${isLocked ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer text-slate-200'}`}>Necessidade de Viagem</label>
                                 </div>
 
                                 {visitationRequired && (
@@ -1337,17 +1414,17 @@ const TaskModal = ({
                                                     <button
                                                         type="button"
                                                         onClick={handleSearchLocation}
-                                                        disabled={locationSearching}
+                                                        disabled={isLocked || !canEdit || locationSearching}
                                                         className="text-[10px] bg-brand-600 text-white px-3 py-1 rounded hover:bg-brand-700 flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         {locationSearching ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
                                                         Validar Endereço
                                                     </button>
-                                                    <button type="button" onClick={() => setIsMapPickerOpen(true)} className="text-[10px] bg-slate-700 text-white px-2 py-1 rounded hover:bg-slate-600 flex items-center gap-1"><MapPin size={12} /> Mapa</button>
+                                                    <button type="button" onClick={() => setIsMapPickerOpen(true)} disabled={isLocked || !canEdit} className="text-[10px] bg-slate-700 text-white px-2 py-1 rounded hover:bg-slate-600 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><MapPin size={12} /> Mapa</button>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2 mb-2">
-                                                <input type="text" value={searchLocation} onChange={(e) => setSearchLocation(e.target.value)} placeholder="Pesquisar endereço..." className="flex-1 bg-white border border-slate-300 rounded text-xs px-3 py-2 text-black font-bold outline-none focus:border-brand-500" />
+                                                <input type="text" value={searchLocation} onChange={(e) => setSearchLocation(e.target.value)} disabled={isLocked || !canEdit} placeholder="Pesquisar endereço..." className="flex-1 bg-white border border-slate-300 rounded text-xs px-3 py-2 text-black font-bold outline-none focus:border-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed" />
                                             </div>
                                             {locationError && <div className="text-[10px] text-rose-400 font-bold mb-2">{locationError}</div>}
                                             {geo && <div className="text-[10px] text-emerald-500 font-mono mt-1 flex items-center gap-1"><Check size={10} /> Localização Fixada</div>}
@@ -1357,7 +1434,7 @@ const TaskModal = ({
                                         <div className="pt-2">
                                             <div className="flex justify-between items-center mb-2 mt-4">
                                                 <h4 className="text-xs font-bold text-slate-200 uppercase">Viagens Agendadas</h4>
-                                                <button type="button" onClick={() => setTravels([...travels, { 
+                                                <button type="button" disabled={isLocked || !canEdit} onClick={() => setTravels([...travels, { 
                                                     id: Date.now().toString(), 
                                                     date: '', 
                                                     team: [''], 
@@ -1365,12 +1442,12 @@ const TaskModal = ({
                                                     status: 'PROGRAMADA',
                                                     km: '',
                                                     expenses: ''
-                                                }])} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700 font-extrabold shadow-lg transition-all">+ Nova Viagem</button>
+                                                }])} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded hover:bg-brand-700 font-extrabold shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed">+ Nova Viagem</button>
                                             </div>
                                             <div className="space-y-3">
                                                 {travels.map((travel, idx) => (
                                                     <div key={travel.id} className={`border rounded p-4 relative transition-all ${travel.status === 'FINALIZADA' ? 'bg-emerald-900/5 border-emerald-500/30' : 'bg-slate-800/40 border-slate-700'}`}>
-                                                        <button type="button" onClick={() => setTravels(travels.filter(t => t.id !== travel.id))} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-lg z-10"><X size={12} /></button>
+                                                        <button type="button" disabled={isLocked || !canEdit} onClick={() => setTravels(travels.filter(t => t.id !== travel.id))} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 shadow-lg z-10 disabled:opacity-50 disabled:cursor-not-allowed"><X size={12} /></button>
                                                         
                                                         {/* Status Header */}
                                                         <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/5">
@@ -1380,6 +1457,7 @@ const TaskModal = ({
                                                             </div>
                                                             <button
                                                                 type="button"
+                                                                disabled={isLocked || !canEdit}
                                                                 onClick={() => {
                                                                     const newTravels = [...travels];
                                                                     newTravels[idx].status = travel.status === 'FINALIZADA' ? 'PROGRAMADA' : 'FINALIZADA';
@@ -1387,7 +1465,7 @@ const TaskModal = ({
                                                                 }}
                                                                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all ${travel.status === 'FINALIZADA' 
                                                                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                                                                    : 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'}`}
+                                                                    : 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'} disabled:opacity-50 disabled:cursor-not-allowed`}
                                                             >
                                                                 {travel.status === 'FINALIZADA' ? <Check size={12} /> : <Clock size={12} />}
                                                                 {travel.status === 'FINALIZADA' ? 'FINALIZADA' : 'PROGRAMADA'}
@@ -1401,28 +1479,29 @@ const TaskModal = ({
                                                                     <div className="flex items-center gap-2">
                                                                         <button
                                                                             type="button"
+                                                                            disabled={isLocked || !canEdit}
                                                                             onClick={() => {
                                                                                 const newTravels = [...travels];
                                                                                 newTravels[idx].isDateDefined = !travel.isDateDefined;
                                                                                 setTravels(newTravels);
                                                                             }}
-                                                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${!travel.isDateDefined ? 'bg-amber-500' : 'bg-slate-500/50'}`}
+                                                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${!travel.isDateDefined ? 'bg-amber-500' : 'bg-slate-500/50'} disabled:opacity-50 disabled:cursor-not-allowed`}
                                                                         >
                                                                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${!travel.isDateDefined ? 'translate-x-5' : 'translate-x-1'}`} />
                                                                         </button>
                                                                         <span className={`text-[10px] font-bold ${!travel.isDateDefined ? 'text-amber-400' : 'text-slate-400'}`}>A Definir Data</span>
                                                                     </div>
-                                                                    {travel.isDateDefined && <input type="date" value={travel.date} onChange={(e) => {
+                                                                    {travel.isDateDefined && <input type="date" value={travel.date} disabled={isLocked || !canEdit} onChange={(e) => {
                                                                         const newTravels = [...travels];
                                                                         newTravels[idx].date = e.target.value;
                                                                         setTravels(newTravels);
-                                                                    }} className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold focus:border-brand-500 outline-none" />}
+                                                                    }} className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold focus:border-brand-500 outline-none disabled:bg-gray-200 disabled:cursor-not-allowed" />}
                                                                 </div>
                                                             </div>
                                                             <div>
                                                                 <div className="flex justify-between items-center mb-1">
                                                                     <label className="text-[10px] text-slate-200 uppercase font-bold">Equipe (Quem vai?)</label>
-                                                                    <button type="button" onClick={() => addTeamMember(travel.id)} className="text-[10px] text-brand-400 font-bold hover:text-brand-300 flex items-center gap-1">+ Técnico</button>
+                                                                    <button type="button" disabled={isLocked || !canEdit} onClick={() => addTeamMember(travel.id)} className="text-[10px] text-brand-400 font-bold hover:text-brand-300 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed">+ Técnico</button>
                                                                 </div>
                                                                 <div className="space-y-2">
                                                                     {travel.team.map((member, tIdx) => (
@@ -1430,13 +1509,14 @@ const TaskModal = ({
                                                                             <input
                                                                                 type="text"
                                                                                 value={member}
+                                                                                disabled={isLocked || !canEdit}
                                                                                 onChange={(e) => handleTeamMemberChange(travel.id, tIdx, e.target.value)}
                                                                                 list="userSuggestions"
-                                                                                className="flex-1 bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                                className="flex-1 bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
                                                                                 placeholder="Nome do técnico..."
                                                                             />
                                                                             {travel.team.length > 1 && (
-                                                                                <button type="button" onClick={() => removeTeamMember(travel.id, tIdx)} className="bg-white border border-slate-300 px-2 rounded text-slate-600 hover:bg-red-500 hover:text-white transition-colors"><X size={14} /></button>
+                                                                                <button type="button" disabled={isLocked || !canEdit} onClick={() => removeTeamMember(travel.id, tIdx)} className="bg-white border border-slate-300 px-2 rounded text-slate-600 hover:bg-red-500 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"><X size={14} /></button>
                                                                             )}
                                                                         </div>
                                                                     ))}
@@ -1449,9 +1529,10 @@ const TaskModal = ({
                                                                     <input
                                                                         type="text"
                                                                         value={travel.contacts || ''}
+                                                                        disabled={isLocked || !canEdit}
                                                                         onChange={(e) => updateTravel(travel.id, 'contacts', e.target.value)}
                                                                         placeholder="Nome do contato..."
-                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
                                                                     />
                                                                 </div>
                                                                 <div>
@@ -1459,9 +1540,10 @@ const TaskModal = ({
                                                                     <input
                                                                         type="text"
                                                                         value={travel.role || ''}
+                                                                        disabled={isLocked || !canEdit}
                                                                         onChange={(e) => updateTravel(travel.id, 'role', e.target.value)}
                                                                         placeholder="Ex: Gerente, Manutenção..."
-                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500"
+                                                                        className="w-full bg-white border border-slate-300 rounded text-xs px-2 py-1.5 text-black font-bold outline-none focus:border-brand-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
                                                                     />
                                                                 </div>
                                                             </div>
@@ -1474,67 +1556,7 @@ const TaskModal = ({
                                 )}
                             </div>
 
-                            {/* Reports Section - Independent */}
-                            <div className="border border-white/15 rounded-xl p-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (status === TaskStatus.DONE || !canEdit) return;
-                                            const isNowRequired = !reportRequired;
-                                            setReportRequired(isNowRequired);
-                                            if (!isNowRequired) {
-                                                setCurrentReport(null);
-                                            }
-                                        }}
-                                        className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${reportRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                                    >
-                                        {reportRequired && <Check size={12} className="text-white" strokeWidth={3} />}
-                                    </button>
-                                    <label onClick={() => (status !== TaskStatus.DONE && canEdit) && setReportRequired(!reportRequired)} className={`text-xs font-bold uppercase tracking-wider select-none flex items-center gap-1.5 ${status === TaskStatus.DONE ? 'text-slate-500 cursor-not-allowed' : 'text-slate-200 cursor-pointer'}`}>
-                                        <FileText size={12} /> Necessita Relatório
-                                    </label>
-                                </div>
 
-                                {reportRequired && initialData?.id && (
-                                    <div className="space-y-3 pl-0 md:pl-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        {/* Botão de Ação Único - Gerenciar Relatório */}
-                                        <div className="mt-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsEditingReport(true)}
-                                                disabled={status === TaskStatus.DONE || !canEdit}
-                                                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white py-3 rounded-lg font-bold text-sm hover:from-brand-700 hover:to-brand-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:from-slate-700 disabled:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                <Printer size={16} />
-                                                {currentReport ? 'GERENCIAR RELATÓRIO TÉCNICO' : 'GERAR RELATÓRIO TÉCNICO'}
-                                            </button>
-
-                                            {currentReport && (
-                                                <div className="mt-2 text-center">
-                                                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${currentReport.status === 'FINALIZADO'
-                                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                                        }`}>
-                                                        Status Atual: {currentReport.status === 'FINALIZADO' ? 'FINALIZADO' : 'EM ANDAMENTO (PARCIAL)'}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                                            <p className="text-[10px] text-slate-400 leading-relaxed text-center">
-                                                <span className="text-brand-400 font-bold">Nota:</span> Use este editor único para criar rascunhos, relatórios parciais ou finais. Você pode alterar o status do relatório a qualquer momento dentro do editor.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {reportRequired && !initialData?.id && (
-                                    <p className="text-xs text-slate-400 italic text-center py-3 pl-0 md:pl-2">
-                                        Salve a tarefa para gerar relatórios
-                                    </p>
-                                )}
-                            </div>
 
                             {/* Custom Stages Section */}
                             <div className="border border-white/15 rounded-xl p-4">
@@ -1546,14 +1568,14 @@ const TaskModal = ({
                                             value={newCustomStageName}
                                             onChange={(e) => setNewCustomStageName(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCustomStage())}
-                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            disabled={isLocked || !canEdit}
                                             placeholder="Nome da etapa..."
                                             className="bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 w-40 disabled:bg-gray-200 disabled:cursor-not-allowed"
                                         />
                                         <button
                                             type="button"
                                             onClick={handleAddCustomStage}
-                                            disabled={status === TaskStatus.DONE || !canEdit || !newCustomStageName.trim()}
+                                            disabled={isLocked || !canEdit || !newCustomStageName.trim()}
                                             className="bg-brand-600 text-white hover:bg-brand-500 px-3 py-1 rounded text-[10px] font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                         >+ Nova Etapa</button>
                                     </div>
@@ -1570,26 +1592,26 @@ const TaskModal = ({
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                if (status === TaskStatus.DONE || !canEdit) return;
+                                                                if (isLocked || !canEdit) return;
                                                                 setStages(prev => ({
                                                                     ...prev,
                                                                     [stageName]: { ...prev[stageName], active: !stageData.active }
                                                                 }));
                                                             }}
-                                                            className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${stageData.active ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(status === TaskStatus.DONE || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                                            className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${stageData.active ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(isLocked || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                                                         >
                                                             {stageData.active && <Check size={12} className="text-white" strokeWidth={3} />}
                                                         </button>
                                                         <select
                                                             value={stageData.status || 'NOT_STARTED'}
                                                             onChange={(e) => {
-                                                                if (!stageData.active || status === TaskStatus.DONE || !canEdit) return;
+                                                                if (!stageData.active || isLocked || !canEdit) return;
                                                                 setStages(prev => ({
                                                                     ...prev,
                                                                     [stageName]: { ...prev[stageName], status: e.target.value }
                                                                 }));
                                                             }}
-                                                            disabled={!stageData.active || status === TaskStatus.DONE || !canEdit}
+                                                            disabled={!stageData.active || isLocked || !canEdit}
                                                             className={`text-[10px] font-bold rounded border bg-white px-1 py-0.5 ${isFinished ? 'text-emerald-700 border-emerald-500/50' :
                                                                 stageData.status === 'IN_PROGRESS' ? 'text-blue-700 border-blue-500/50' :
                                                                     'text-black border-slate-300'
@@ -1607,8 +1629,9 @@ const TaskModal = ({
                                                         {!isNative && (
                                                             <button
                                                                 type="button"
+                                                                disabled={isLocked || !canEdit}
                                                                 onClick={() => handleDeleteCustomStage(stageName)}
-                                                                className="text-slate-600 hover:text-red-500 opacity-60 hover:opacity-100 transition-all p-1"
+                                                                className="text-slate-600 hover:text-red-500 opacity-60 hover:opacity-100 transition-all p-1 disabled:opacity-30 disabled:cursor-not-allowed"
                                                                 title="Remover etapa"
                                                             >
                                                                 <Trash2 size={14} />
@@ -1626,7 +1649,7 @@ const TaskModal = ({
                                                                     ...prev,
                                                                     [stageName]: { ...prev[stageName], description: e.target.value }
                                                                 }))}
-                                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                                disabled={isLocked || !canEdit}
                                                                 placeholder="O que foi feito..."
                                                                 className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             />
@@ -1640,7 +1663,7 @@ const TaskModal = ({
                                                                     ...prev,
                                                                     [stageName]: { ...prev[stageName], date: e.target.value }
                                                                 }))}
-                                                                disabled={status === TaskStatus.DONE || !canEdit}
+                                                                disabled={isLocked || !canEdit}
                                                                 className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[10px] text-black font-bold outline-none focus:border-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             />
                                                         </div>
@@ -1663,11 +1686,11 @@ const TaskModal = ({
                                             type="file"
                                             multiple
                                             onChange={handleFileChange}
-                                            disabled={status === TaskStatus.DONE || !canEdit}
+                                            disabled={isLocked || !canEdit}
                                             className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                             title="Adicionar arquivos"
                                         />
-                                        <button type="button" disabled={status === TaskStatus.DONE || !canEdit} className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 px-3 py-1 rounded text-[10px] font-bold disabled:opacity-50">Upload</button>
+                                        <button type="button" disabled={isLocked || !canEdit} className="bg-brand-600/20 text-brand-500 hover:bg-brand-600/40 px-3 py-1 rounded text-[10px] font-bold disabled:opacity-50">Upload</button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1701,7 +1724,7 @@ const TaskModal = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
-                                                    disabled={status === TaskStatus.DONE || !canEdit}
+                                                    disabled={isLocked || !canEdit}
                                                     className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity z-20 disabled:hidden"
                                                     title="Remover anexo"
                                                 >
@@ -1744,13 +1767,117 @@ const TaskModal = ({
                                         value={newComment}
                                         onChange={(e) => setNewComment(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handlePostComment())}
-                                        disabled={status === TaskStatus.DONE}
-                                        placeholder={status === TaskStatus.DONE ? "Reabra a tarefa para comentar..." : "Digite um comentário..."}
+                                        disabled={isLocked}
+                                        placeholder={isLocked ? "Reabra a tarefa para comentar..." : "Digite um comentário..."}
                                         className="flex-1 px-3 py-2 bg-white border border-slate-300 text-black font-bold rounded-lg text-sm placeholder:text-slate-400 outline-none focus:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
-                                    <button type="button" onClick={handlePostComment} disabled={status === TaskStatus.DONE || !newComment.trim()} className="bg-brand-600 text-white p-2 rounded-lg hover:bg-brand-500 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <button type="button" onClick={handlePostComment} disabled={isLocked || !newComment.trim()} className="bg-brand-600 text-white p-2 rounded-lg hover:bg-brand-500 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed">
                                         <Send size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* ═══ ZONA B: RELATÓRIO TÉCNICO (SEMPRE DISPONÍVEL) ═══ */}
+                            <div className="border-t-4 border-dashed border-brand-500/40 pt-6 mt-6">
+                                <div className="bg-slate-900/60 border border-brand-500/30 rounded-xl p-5 shadow-inner">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="text-brand-400" size={18} />
+                                            <div>
+                                                <h3 className="text-xs font-black text-brand-400 uppercase tracking-widest">
+                                                    Zona B — Relatório Técnico
+                                                </h3>
+                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                    Disponível para reedições e consulta histórica.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Status Indicator / Checkbox */}
+                                        {initialData?.id && (
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isLocked) return; // checkbox locked if task is DONE
+                                                        if (!canEdit) return;
+                                                        const isNowRequired = !reportRequired;
+                                                        setReportRequired(isNowRequired);
+                                                        if (!isNowRequired) {
+                                                            setCurrentReport(null);
+                                                        }
+                                                    }}
+                                                    className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${reportRequired ? 'bg-brand-500 border-brand-500' : 'bg-transparent border-white/40 hover:border-white/80'} ${(isLocked || !canEdit) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                                                >
+                                                    {reportRequired && <Check size={12} className="text-white" strokeWidth={3} />}
+                                                </button>
+                                                <label 
+                                                    onClick={() => {
+                                                        if (isLocked) return;
+                                                        if (!canEdit) return;
+                                                        setReportRequired(!reportRequired);
+                                                    }} 
+                                                    className={`text-[10px] font-black uppercase tracking-wider select-none ${isLocked ? 'text-slate-500 cursor-not-allowed' : 'text-slate-300 cursor-pointer'}`}
+                                                >
+                                                    Necessita Relatório
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {reportRequired && initialData?.id && (
+                                        <div className="space-y-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEditingReport(true)}
+                                                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <Printer size={16} />
+                                                {currentReport ? 'GERENCIAR RELATÓRIO TÉCNICO' : 'GERAR RELATÓRIO TÉCNICO'}
+                                            </button>
+
+                                            {currentReport && (
+                                                <div className="flex flex-col items-center gap-2 p-3 bg-slate-950/60 rounded-xl border border-white/5">
+                                                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                                            currentReport.status === 'FINALIZADO'
+                                                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                                        }`}>
+                                                            Status: {currentReport.status === 'FINALIZADO' ? 'FINALIZADO' : 'EM ANDAMENTO (PARCIAL)'}
+                                                        </span>
+                                                        
+                                                        {currentReport.reopened_at && (
+                                                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-600/10 text-amber-300 border border-amber-500/25">
+                                                                Editado
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {currentReport.reopened_at && (
+                                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider text-center mt-1">
+                                                            Última reedição em: {new Date(currentReport.reopened_at).toLocaleString()}
+                                                            {reopenerName ? ` por ${reopenerName}` : ''}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {reportRequired && !initialData?.id && (
+                                        <p className="text-xs text-slate-400 italic text-center py-3">
+                                            Salve a tarefa primeiro para liberar a geração do relatório
+                                        </p>
+                                    )}
+
+                                    {!reportRequired && initialData?.id && (
+                                        <div className="text-center py-4 bg-slate-950/40 rounded-xl border border-white/5">
+                                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
+                                                Esta visita não requer relatório técnico
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1767,7 +1894,7 @@ const TaskModal = ({
                                             onClose();
                                         }
                                     }}
-                                    disabled={status === TaskStatus.DONE}
+                                    disabled={isLocked}
                                     className="text-red-400 hover:text-red-300 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                     <Trash2 size={16} /> Excluir Tarefa
@@ -1777,7 +1904,7 @@ const TaskModal = ({
                                 <button
                                     type="button"
                                     onClick={() => setShowCancelProtocol(true)}
-                                    disabled={status === TaskStatus.DONE}
+                                    disabled={isLocked}
                                     className="text-slate-400 hover:text-rose-400 text-sm font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-rose-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                     <Ban size={16} /> Cancelar Tarefa
@@ -1786,7 +1913,7 @@ const TaskModal = ({
                         </div>
                         <div className="flex gap-3 w-full md:w-auto">
                             <button type="button" onClick={onClose} className="flex-1 md:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-700 transition-all">Descartar</button>
-                            <button type="submit" className="flex-1 md:flex-none px-8 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-black shadow-lg shadow-brand-900/40 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <button type="submit" disabled={isLocked} className="flex-1 md:flex-none px-8 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-black shadow-lg shadow-brand-900/40 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                 <Save size={18} /> {initialData ? 'Salvar Alterações' : 'Criar Tarefa'}
                             </button>
                         </div>

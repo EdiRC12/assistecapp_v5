@@ -36,13 +36,15 @@ const ReportEditor = ({
     notifySuccess,
     notifyError,
     notifyWarning,
-    notifyInfo
+    notifyInfo,
+    forceUnlocked = false  // Quando true, abre desbloqueado mesmo que o relatório esteja FINALIZADO (p.ex. ao editar da aba Relatórios)
 }) => {
     // Estado para manter os dados completos da tarefa (incluindo OP, Pedido, etc.)
     const [task, setTask] = useState(initialTask);
 
     const [reportType, setReportType] = useState(report?.report_type || (report?.status === 'FINALIZADO' ? 'FINAL' : 'PARCIAL'));
-    const [isLocked, setIsLocked] = useState(report?.status === 'FINALIZADO');
+    // Bloqueia por padrão se o relatório já estiver salvo (possuir ID)
+    const [isLocked, setIsLocked] = useState(!!report?.id);
     const isFinalized = isLocked; // Mantendo o nome para compatibilidade com o restante do código
 
     // Definindo título inicial baseado no tipo de relatório
@@ -67,6 +69,30 @@ const ReportEditor = ({
 
     // Novos campos comerciais/pós-venda
     const [solicitanteVisita, setSolicitanteVisita] = useState(report?.solicitante || '');
+
+    const [reopenerName, setReopenerName] = useState('');
+
+    useEffect(() => {
+        const fetchReopenerName = async () => {
+            if (report?.reopened_by) {
+                try {
+                    const { data } = await supabase
+                        .from('users')
+                        .select('username')
+                        .eq('id', report.reopened_by)
+                        .single();
+                    if (data) {
+                        setReopenerName(data.username);
+                    }
+                } catch (e) {
+                    console.error("Erro ao buscar reabridor:", e);
+                }
+            } else {
+                setReopenerName('');
+            }
+        };
+        fetchReopenerName();
+    }, [report?.reopened_by]);
     
     // Suporte a múltiplos contatos
     const [contacts, setContacts] = useState(() => {
@@ -236,7 +262,11 @@ const ReportEditor = ({
             console.log('ReportEditor: Editando relatório existente - carregando dados');
             setTitle(report.title || newDefaultTitle);
             setRawNotes(report.raw_notes || '');
+            setContent(report.content || '');
             setReportLocation(report.location || '');
+            setSolicitanteVisita(report.solicitante || '');
+            setReportType(report.report_type || (report.status === 'FINALIZADO' ? 'FINAL' : 'PARCIAL'));
+            setIsLocked(true); // Bloqueia por padrão se o relatório já está salvo
             
             // Reconstituir contatos estruturados
             const names = (report.contato || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -249,7 +279,7 @@ const ReportEditor = ({
 
             setManualActions(report.manual_actions || []);
         }
-    }, [task.id, report?.id, report?.status]); // Adicionado report?.status para reagir a mudanças de status
+    }, [task.id, report?.id]);
 
 
 
@@ -652,7 +682,7 @@ const ReportEditor = ({
                 content,
                 media_urls: validMedia,
                 suggested_actions: suggestedActions,
-                status: finalize ? 'FINALIZADO' : 'EM_ABERTO',
+                status: (finalize || reportType === 'FINAL') ? 'FINALIZADO' : 'EM_ABERTO',
                 report_type: reportType,
                 solicitante: solicitanteVisita,
                 contato: contacts.map(c => c.name).filter(Boolean).join(', '),
@@ -661,6 +691,12 @@ const ReportEditor = ({
                 manual_actions: manualActions,
                 updated_at: new Date().toISOString()
             };
+
+            // Se for reedição de um relatório existente que estava FINALIZADO, registrar histórico
+            if (report?.id && report.status === 'FINALIZADO') {
+                reportData.reopened_at = new Date().toISOString();
+                reportData.reopened_by = currentUser?.id;
+            }
 
             if (finalize) {
                 // BLOQUEIO: Verificar se existem ações não concluídas
@@ -714,38 +750,15 @@ const ReportEditor = ({
         }
     };
 
-    const handleReopenReport = async () => {
+    const handleReopenReport = () => {
         if (!report?.id) return;
 
-        if (!window.confirm('Deseja reabrir este relatório para edição? Isso removerá a assinatura atual.')) {
+        if (!window.confirm('Deseja reabrir este relatório para edição? Isso registrará uma nova edição ao salvar as alterações.')) {
             return;
         }
 
-        try {
-            const { data, error } = await supabase
-                .from('task_reports')
-                .update({
-                    status: 'EM_ABERTO',
-                    reopened_at: new Date().toISOString(),
-                    reopened_by: currentUser?.id,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', report.id)
-                .select()
-                .single();
-
-            if (error) {
-                console.error("Reopen error:", error);
-                notifyError("Erro ao reabrir relatório", error.message);
-            } else {
-                setIsLocked(false);
-                notifySuccess('Relatório reaberto para edição.');
-                if (onSave) onSave(data);
-            }
-        } catch (err) {
-            console.error("Unexpected error:", err);
-            notifyError("Erro inesperado ao reabrir", err.message);
-        }
+        setIsLocked(false);
+        if (notifySuccess) notifySuccess('Relatório liberado para edição local.');
     };
 
     const handleExportPDF = async () => {
@@ -788,6 +801,12 @@ const ReportEditor = ({
                                 ? 'Ciclo de atendimento concluído e auditado via Brain AI.'
                                 : 'Análise intercalar de conformidade técnica em campo.'}
                         </p>
+                        {report?.reopened_at && (
+                            <p className="text-[9px] text-amber-400 font-bold uppercase tracking-wider mt-1">
+                                Última Edição: {new Date(report.reopened_at).toLocaleString()}
+                                {reopenerName ? ` por ${reopenerName}` : ''}
+                            </p>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -1305,19 +1324,27 @@ const ReportEditor = ({
                 <div className="space-y-4 pt-6 border-t-2 border-slate-100">
                     {!isFinalized ? (
                         <div className="flex flex-col md:flex-row gap-3">
-                            {reportType === 'PARCIAL' && (
-                                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSave(false); }} className="flex-1 py-4 bg-slate-100 text-slate-700 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all flex items-center justify-center gap-2 border border-slate-200">
-                                    <Save size={20} /> SALVAR RASCUNHO PARCIAL
+                            {report?.status === 'FINALIZADO' ? (
+                                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSave(false); }} className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 uppercase">
+                                    <Save size={20} /> SALVAR ALTERAÇÕES
                                 </button>
+                            ) : (
+                                <>
+                                    {reportType === 'PARCIAL' && (
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSave(false); }} className="flex-1 py-4 bg-slate-100 text-slate-700 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all flex items-center justify-center gap-2 border border-slate-200">
+                                            <Save size={20} /> SALVAR RASCUNHO PARCIAL
+                                        </button>
+                                    )}
+                                    {reportType === 'FINAL' && (
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.confirm("Finalizar e assinar este relatório?") && handleSave(true); }} className="flex-[1.5] py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-wide">
+                                            <CheckCircle size={20} /> Assinar e Finalizar
+                                        </button>
+                                    )}
+                                </>
                             )}
                             {onOpenPrint && (
                                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleOpenPrintPreview(); }} className="flex-1 py-4 bg-brand-50 text-brand-700 rounded-2xl font-black text-sm hover:bg-brand-100 transition-all flex items-center justify-center gap-2 border border-brand-200 uppercase">
                                     <Printer size={20} /> Pré-visualizar
-                                </button>
-                            )}
-                            {reportType === 'FINAL' && (
-                                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.confirm("Finalizar e assinar este relatório?") && handleSave(true); }} className="flex-[1.5] py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-wide">
-                                    <CheckCircle size={20} /> Assinar e Finalizar
                                 </button>
                             )}
                         </div>

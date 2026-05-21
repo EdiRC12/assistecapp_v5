@@ -7,7 +7,7 @@ import { TaskStatus, StatusLabels, Priority, PriorityColors } from '../constants
 import { generateUUID } from '../utils/helpers';
 import useIsMobile from '../hooks/useIsMobile';
 
-const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser, notifySuccess, notifyError }) => {
+const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser, notifySuccess, notifyError, notifyWarning }) => {
     const isMobile = useIsMobile();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState('MONTH'); // MONTH, WEEK, YEAR, DAY
@@ -17,6 +17,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
     const [touchGhostPos, setTouchGhostPos] = useState({ x: 0, y: 0 });
     const [previousViewMode, setPreviousViewMode] = useState(null);
     const [minimizedWeekends, setMinimizedWeekends] = useState(true);
+    const [showCompleted, setShowCompleted] = useState(false);
     const calendarRef = useRef(null);
     const popupRef = useRef(null);
 
@@ -59,7 +60,8 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
         const rawEvents = [];
         if (!Array.isArray(tasks) || !TaskStatus) return [];
         for (const task of tasks) {
-            if (!task || task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED) continue;
+            if (!task) continue;
+            if (!showCompleted && (task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED)) continue;
 
             const mainIdentifier = task.client || task.title || 'Sem identificação';
             const priority = task.priority || Priority.MEDIUM;
@@ -146,7 +148,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                 const counter = (total > 1 && ev.type !== 'DEADLINE') ? `[${idx + 1}/${total}] ` : '';
                 
                 // Melhoria na detecção de atraso para viagens e etapas
-                const isCompleted = ev.isCompleted || ev.isTravelFinalized;
+                const isCompleted = ev.isCompleted || ev.isTravelFinalized || ev.originalTask.status === TaskStatus.DONE || ev.originalTask.status === TaskStatus.CANCELED;
                 const isOverdue = ev.date < todayStr && !isCompleted;
 
                 const isFromTest = !!ev.originalTask.parent_test_id;
@@ -165,6 +167,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
 
                 finalEvents.push({
                     ...ev,
+                    title: `${mainIdentifier} / ${ev.titleSuffix}`,
                     isCompleted, // Normalizamos o status de conclusão
                     isOverdue,
                     isFromTest,
@@ -178,7 +181,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
         });
 
         return finalEvents;
-    }, [tasks]);
+    }, [tasks, showCompleted]);
 
     const focusedTaskId = useMemo(() => {
         if (!selectedEventId) return null;
@@ -285,7 +288,20 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
     };
 
     // Drag
-    const handleDragStart = (e, event) => { if (isMobile) { e.preventDefault(); return; } e.stopPropagation(); e.dataTransfer.setData('application/json', JSON.stringify({ taskId: event.taskId, type: event.type, stageName: event.stageName, travelId: event.travelId, travelIdx: event.travelIdx })); e.dataTransfer.effectAllowed = 'move'; };
+    const handleDragStart = (e, event) => {
+        if (isMobile) { e.preventDefault(); return; }
+        const task = event.originalTask;
+        if (task && (task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED)) {
+            e.preventDefault();
+            if (notifyWarning) {
+                notifyWarning('Tarefa Finalizada', 'Não é possível mover uma tarefa finalizada ou cancelada.');
+            }
+            return;
+        }
+        e.stopPropagation();
+        e.dataTransfer.setData('application/json', JSON.stringify({ taskId: event.taskId, type: event.type, stageName: event.stageName, travelId: event.travelId, travelIdx: event.travelIdx }));
+        e.dataTransfer.effectAllowed = 'move';
+    };
     const handleDragOver = (e, dateStr) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverDate !== dateStr) setDragOverDate(dateStr); };
     const handleDrop = (e, targetDateStr) => {
         e.preventDefault(); setDragOverDate(null);
@@ -295,6 +311,14 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
             const { taskId, type, stageName } = JSON.parse(dataStr);
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
+
+            // Proteção de Status no Drop
+            if (task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED) {
+                if (notifyWarning) {
+                    notifyWarning('Tarefa Finalizada', 'Não é possível modificar a data de uma tarefa finalizada ou cancelada.');
+                }
+                return;
+            }
 
             // Proteção de Permissão no Drop
             if (currentUser) {
@@ -413,8 +437,14 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
 
     const handleTouchStart = (e, event) => {
         if (isMobile) return;
-        // e.stopPropagation(); // Let it bubble if needed, but usually we want to grab
         if (e.touches.length !== 1) return;
+        const task = event.originalTask;
+        if (task && (task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED)) {
+            if (notifyWarning) {
+                notifyWarning('Tarefa Finalizada', 'Não é possível mover uma tarefa finalizada ou cancelada.');
+            }
+            return;
+        }
         const touch = e.touches[0];
         setTouchDragItem(event);
         setTouchGhostPos({ x: touch.clientX, y: touch.clientY });
@@ -480,7 +510,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                         let borderClass = isOver ? 'border-l-4 border-l-red-500' : ev.type === 'VISIT' ? 'border-l-4 border-l-emerald-500' : ev.type === 'DEADLINE' ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-amber-500';
 
                         return (
-                            <div key={ev.id} className={`bg-slate-50 rounded-lg border border-slate-200 p-3 hover:shadow-md transition-shadow ${borderClass}`}>
+                            <div key={ev.id} className={`bg-slate-50 rounded-lg border border-slate-200 p-3 hover:shadow-md transition-shadow ${borderClass} ${ev.isCompleted ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                                     <div className="flex-1 w-full relative cursor-pointer group-hover:bg-slate-100/50 rounded p-1 -m-1" onClick={() => onEditTask(ev.originalTask)}>
                                         <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -489,7 +519,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                                     <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Factory size={10} /> Produção</span>}
                                             <span className="text-xs text-slate-400 font-mono">{ev.date.split('-').reverse().join('/')}</span>
                                         </div>
-                                        <h3 className="text-sm md:text-base font-bold text-slate-800 group-hover:text-brand-600 break-words">{ev.title}</h3>
+                                        <h3 className={`text-sm md:text-base font-bold break-words ${ev.isCompleted ? 'text-slate-500 line-through' : 'text-slate-800 group-hover:text-brand-600'}`}>{ev.title}</h3>
                                         <div className="mt-2 text-sm text-slate-600 bg-white p-2 rounded border border-slate-100 pointer-events-none">{renderDetails(ev)}</div>
                                     </div>
                                     <div className="w-full md:w-32 shrink-0">
@@ -602,6 +632,22 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                     </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto mt-1 sm:mt-0">
+                    {/* Filtro de Concluídas */}
+                    <div className="flex bg-slate-200/50 p-0.5 rounded-lg shrink-0 overflow-x-auto border border-slate-300">
+                        <button 
+                            onClick={() => setShowCompleted(false)} 
+                            className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${!showCompleted ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Ativas
+                        </button>
+                        <button 
+                            onClick={() => setShowCompleted(true)} 
+                            className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${showCompleted ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Todas
+                        </button>
+                    </div>
+
                     <div className="flex bg-slate-200/50 p-0.5 rounded-lg shrink-0 overflow-x-auto border border-slate-300">
                         <button onClick={() => setViewMode('WEEK')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'WEEK' ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><List size={14} /> Semana</button>
                         <button onClick={() => setViewMode('MONTH')} className={`px-2.5 py-1 md:px-3 md:py-1.5 rounded-md text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-1 whitespace-nowrap ${viewMode === 'MONTH' ? 'bg-white text-brand-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><CalendarIcon size={14} /> Mês</button>
@@ -831,7 +877,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                 const isOver = ev.date < todayStr && !ev.isCompleted;
                                 let borderClass = isOver ? 'border-l-4 border-l-red-500' : ev.type === 'VISIT' ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-blue-500';
                                 return (
-                                    <div key={ev.id} className={`bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow ${borderClass}`}>
+                                    <div key={ev.id} className={`bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow ${borderClass} ${ev.isCompleted ? 'opacity-60 grayscale-[0.3]' : ''}`}>
                                         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                                             <div className="flex-1 w-full relative cursor-pointer group-hover:bg-slate-100/50 rounded p-1 -m-1" onClick={() => onEditTask(ev.originalTask)}>
                                                 <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -840,7 +886,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                                             <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"><Factory size={10} /> Produção</span>}
                                                     <span className="text-xs text-slate-400 font-mono">{ev.date.split('-').reverse().join('/')}</span>
                                                 </div>
-                                                <h3 className="text-base md:text-lg font-bold text-slate-800 cursor-pointer hover:text-brand-600 break-words">{ev.title}</h3>
+                                                <h3 className={`text-base md:text-lg font-bold break-words ${ev.isCompleted ? 'text-slate-500 line-through' : 'text-slate-800 cursor-pointer hover:text-brand-600'}`}>{ev.title}</h3>
                                                 <div className="mt-2 text-sm text-slate-600 bg-slate-50/50 p-2 md:p-0 rounded md:bg-transparent pointer-events-none">{renderDetails(ev)}</div>
                                             </div>
                                             <div className="w-full md:w-48 shrink-0">

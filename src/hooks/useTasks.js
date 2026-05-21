@@ -307,6 +307,15 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
 
+        if (task.status === TaskStatus.DONE) {
+            if (notifyWarning) {
+                notifyWarning('Ação Bloqueada', 'Uma tarefa finalizada não pode ser excluída. Reabra a tarefa antes de tentar excluí-la.');
+            } else {
+                alert('Uma tarefa finalizada não pode ser excluída. Reabra a tarefa antes de tentar excluí-la.');
+            }
+            return;
+        }
+
         if (window.confirm('Tem certeza que deseja excluir permanentemente? Isso apagará todo o histórico.')) {
             // Se era uma tarefa vinculada a uma reunião, volta o apontamento para PENDENTE
             if (task.meeting_action_id) {
@@ -323,7 +332,7 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
                 setTasks(prev => prev.filter(t => t.id !== taskId));
             }
         }
-    }, [supabase, tasks]);
+    }, [supabase, tasks, notifyWarning]);
 
     const handleTaskDrop = useCallback(async (taskId, newStatus) => {
         if (!supabase) return;

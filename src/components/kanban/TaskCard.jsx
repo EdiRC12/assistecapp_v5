@@ -13,7 +13,7 @@ const TaskCard = ({ task, onEdit, onDelete, users, currentUser, techTests = [], 
     }, [task, currentUser]);
 
     const handleDragStart = (e) => {
-        if (!canEdit || !task?.id || isMobile) {
+        if (!canEdit || !task?.id || isMobile || task.status === TaskStatus.DONE) {
             e.preventDefault();
             return;
         }
@@ -53,7 +53,7 @@ const TaskCard = ({ task, onEdit, onDelete, users, currentUser, techTests = [], 
 
     return (
         <div
-            draggable={isMobile ? false : canEdit}
+            draggable={isMobile ? false : (canEdit && task.status !== TaskStatus.DONE)}
             onDragStart={handleDragStart}
             className={`p-3 ${UI_TOKENS.RADIUS_XL} ${UI_TOKENS.SHADOW_SM} border hover:${UI_TOKENS.SHADOW_MD} ${UI_TOKENS.TRANSITION_ALL} group relative flex flex-col cursor-pointer card-hover ${originCardStyles} ${!isMobile ? 'animate-slide' : ''}`}
             onClick={() => onEdit(task)}

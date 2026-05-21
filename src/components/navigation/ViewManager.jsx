@@ -120,13 +120,14 @@ const ViewManager = ({
                     <div className={`flex-1 flex overflow-hidden relative ${calendarLayout === 'BOTTOM' ? 'flex-col' : calendarLayout === 'LEFT' ? 'flex-row-reverse' : 'flex-row'}`}>
                         <div className={`flex-1 overflow-auto md:rounded-xl m-1 md:m-4 shadow-sm border ${theme.border}`}>
                             <CalendarView
-                                tasks={tasks.filter(t => t.status !== TaskStatus.DONE && t.status !== TaskStatus.CANCELED)}
+                                tasks={tasks}
                                 onEditTask={async (t) => { setIsModalOpen(true); setEditingTask(t); await fetchTaskDetail(t.id); }}
                                 onUpdateTask={handleSaveTask}
                                 notes={notes}
                                 currentUser={currentUser}
                                 notifySuccess={notifySuccess}
                                 notifyError={notifyError}
+                                notifyWarning={notifyWarning}
                             />
                         </div>
                     </div>

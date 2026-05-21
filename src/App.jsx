@@ -1130,6 +1130,39 @@ const App = () => {
                             onFileView={handleViewTechnicalReport}
                             taskTypes={customCategories || []}
                             currentUser={currentUser}
+                            onEditReport={async (taskId) => {
+                                let task = tasks.find(t => t.id === taskId);
+                                if (!task && taskId) {
+                                    const { data } = await supabase.from('tasks').select('*').eq('id', taskId).single();
+                                    task = data;
+                                }
+
+                                if (task) {
+                                    const taskWithFlag = { ...task, _openReportDirectly: true };
+                                    setEditingTask(taskWithFlag);
+                                    setIsModalOpen(true);
+                                    await fetchTaskDetail(task.id);
+                                    setSelectedTechReport(null);
+                                } else {
+                                    notifyError("Erro", "Tarefa vinculada não encontrada.");
+                                }
+                            }}
+                            onEditTask={async (taskId) => {
+                                let task = tasks.find(t => t.id === taskId);
+                                if (!task && taskId) {
+                                    const { data } = await supabase.from('tasks').select('*').eq('id', taskId).single();
+                                    task = data;
+                                }
+
+                                if (task) {
+                                    setEditingTask(task);
+                                    setIsModalOpen(true);
+                                    await fetchTaskDetail(task.id);
+                                    setSelectedTechReport(null);
+                                } else {
+                                    notifyError("Erro", "Tarefa vinculada não encontrada.");
+                                }
+                            }}
                         />
                     )}
 

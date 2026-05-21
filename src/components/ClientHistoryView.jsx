@@ -5,7 +5,7 @@ import {
 import * as XLSX from 'xlsx';
 import ClientManager from './ClientManager';
 import { supabase } from '../supabaseClient';
-import { convertFileToBase64 } from '../utils/helpers';
+import { convertFileToBase64, compressImageToBase64, compressBase64Image } from '../utils/helpers';
 import useIsMobile from '../hooks/useIsMobile';
 
 // Modular Components
@@ -290,7 +290,7 @@ const ClientHistoryView = ({
         const filesToProcess = files.slice(0, remainingSlots);
 
         try {
-            const base64Array = await Promise.all(filesToProcess.map(file => convertFileToBase64(file)));
+            const base64Array = await Promise.all(filesToProcess.map(file => compressImageToBase64(file)));
             const updatedPhotos = [...currentPhotos, ...base64Array];
 
             setNewMachine(prev => ({
@@ -314,10 +314,13 @@ const ClientHistoryView = ({
         if (!clientObj || !newMachine.name) return;
 
         try {
+            const rawPhotos = newMachine.photos?.length > 0 ? newMachine.photos : (newMachine.photo ? [newMachine.photo] : []);
+            const compressedPhotos = await Promise.all(rawPhotos.map(photo => compressBase64Image(photo)));
+
             const machineData = {
                 ...newMachine,
                 client_id: clientObj.id,
-                photos: newMachine.photos?.length > 0 ? newMachine.photos : (newMachine.photo ? [newMachine.photo] : [])
+                photos: compressedPhotos
             };
 
             let { error } = await supabase.from('machines').insert([machineData]);
@@ -361,14 +364,18 @@ const ClientHistoryView = ({
     const handleSaveMachineDetails = async () => {
         if (!machineEditForm || !machineEditForm.name) return;
         try {
+            const compressedPhotos = await Promise.all(
+                (machineEditForm.photos || []).map(photo => compressBase64Image(photo))
+            );
+
             const updatePayload = {
                 name: machineEditForm.name,
                 model: machineEditForm.model,
                 serial_number: machineEditForm.serial_number,
                 notes: machineEditForm.notes,
                 quantity: machineEditForm.quantity,
-                photo: machineEditForm.photos?.[0] || machineEditForm.photo || '',
-                photos: machineEditForm.photos || []
+                photo: compressedPhotos[0] || '',
+                photos: compressedPhotos
             };
 
         let { error: updateError } = await supabase
