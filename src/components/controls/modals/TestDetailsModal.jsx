@@ -1368,203 +1368,200 @@ const TestDetailsModal = ({
                             </div>
                         </div>
 
-                        {/* COLUNA 3: RESUMOS E ANÁLISES */}
+                        {/* COLUNA 3: FATURAMENTO E LOGÍSTICA DE ENVIO */}
                         <div className="space-y-6 xl:sticky xl:top-0">
-                            {renderExecutiveSummary()}
-                            {renderFinancialAnalysis()}
+                            {/* CARD 3: FATURAMENTO E LOGÍSTICA DE ENVIO */}
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
+                                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
+                                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><FileSpreadsheet size={16} /></div>
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Faturamento & Logística de Envio</h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-1 gap-6">
+                                    <div className="space-y-4 lg:col-span-1 xl:col-span-1">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Logística de Envio</label>
+                                            <div className="p-1 bg-slate-200/50 rounded-xl flex border border-slate-200 shadow-inner h-[46px] items-center">
+                                                {['NÃO', 'SIM'].map(option => (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newExtra = { ...temporaryTest.extra_data, material_enviado: option };
+                                                            let updatedTest = { ...temporaryTest };
+                                                            if (option === 'NÃO') {
+                                                                delete newExtra.nf_nota;
+                                                                newExtra.shipments = [];
+                                                                updatedTest.nf_number = '';
+                                                                updatedTest.quantity_billed = 0;
+                                                            } else if (option === 'SIM' && (!newExtra.shipments || newExtra.shipments.length === 0)) {
+                                                                newExtra.shipments = [{
+                                                                    id: Date.now(),
+                                                                    nf: temporaryTest?.nf_number || temporaryTest?.extra_data?.nf_nota || '',
+                                                                    qty: temporaryTest?.quantity_billed || 0,
+                                                                    volumes: temporaryTest?.volumes || 0,
+                                                                    date: temporaryTest?.delivery_date ? temporaryTest.delivery_date.split('T')[0] : new Date().toISOString().split('T')[0]
+                                                                }];
+                                                            }
+                                                            updatedTest.extra_data = newExtra;
+                                                            setTemporaryTest(updatedTest);
+                                                        }}
+                                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                                                            (temporaryTest?.extra_data?.material_enviado === option || (!temporaryTest?.extra_data?.material_enviado && option === 'NÃO'))
+                                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                                : 'text-slate-400 hover:text-slate-600'
+                                                        }`}
+                                                    >
+                                                        {option}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                                                Qtd Faturada Total ({temporaryTest?.unit || 'KG'}) 
+                                                {(temporaryTest?.extra_data?.shipments?.length > 0) && <span className="text-emerald-600 italic ml-1"> (Vinc. Logística)</span>}
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    readOnly={isDonor || (temporaryTest?.extra_data?.shipments?.length > 0)}
+                                                    value={temporaryTest?.quantity_billed ?? ''}
+                                                    onChange={(e) => {
+                                                        if (!temporaryTest) return;
+                                                        const hasShipments = (temporaryTest?.extra_data?.shipments?.length > 0);
+                                                        if (isDonor || hasShipments) return;
+                                                        
+                                                        const val = parseFloat(e.target.value) || 0;
+                                                        const maxAvailable = (temporaryTest.produced_quantity || 0) + (invItem?.inventory_adjustment || 0);
+
+                                                        if (val > (maxAvailable)) {
+                                                            setTemporaryTest({ ...temporaryTest, quantity_billed: maxAvailable });
+                                                        } else {
+                                                            setTemporaryTest({ ...temporaryTest, quantity_billed: val });
+                                                        }
+                                                    }}
+                                                    className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
+                                                        (isDonor || (temporaryTest?.extra_data?.shipments?.length > 0)) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                                                    }`}
+                                                />
+                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Detalhes da Logística */}
+                                    <div className="p-4 bg-white border border-slate-200 rounded-[24px] space-y-4 lg:col-span-2 xl:col-span-1">
+                                        {temporaryTest?.extra_data?.material_enviado === 'SIM' && (
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">NFs / Remessas Cadastradas</span>
+                                                    <span className="text-[8px] font-bold text-slate-400">Total: {(temporaryTest?.extra_data?.shipments || []).length} NF(s)</span>
+                                                </div>
+
+                                                <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                                                    {(temporaryTest?.extra_data?.shipments || []).map((s) => (
+                                                        <div key={s.id} className="p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3 relative group hover:border-slate-300 transition-all">
+                                                            <button 
+                                                                onClick={() => removeShipment(s.id)}
+                                                                className="absolute top-3 right-3 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
+                                                                title="Remover Faturamento"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                            
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-3 pr-6">
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Nº da NF</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="000.000"
+                                                                        value={s.nf || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'nf', e.target.value.toUpperCase())}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Qtd ({temporaryTest?.unit || 'KG'})</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={s.qty || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'qty', e.target.value)}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Volumes</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={s.volumes || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'volumes', e.target.value)}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Preço Venda (R$/{temporaryTest?.unit || 'KG'})</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        placeholder="Opcional"
+                                                                        value={s.sale_price || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'sale_price', e.target.value)}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Custo Frete (R$)</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        placeholder="Opcional"
+                                                                        value={s.freight_cost || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'freight_cost', e.target.value)}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Data</label>
+                                                                    <input
+                                                                        type="date"
+                                                                        value={s.date || ''}
+                                                                        onChange={(e) => updateShipmentField(s.id, 'date', e.target.value)}
+                                                                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {(!temporaryTest?.extra_data?.shipments || temporaryTest?.extra_data?.shipments?.length === 0) && (
+                                                        <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-[10px] font-bold text-slate-400 uppercase">
+                                                            Nenhum faturamento registrado.
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <button 
+                                                    onClick={handleAddShipment}
+                                                    className="w-full py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                                                >
+                                                    <Plus size={12} /> Adicionar Faturamento
+                                                </button>
+                                            </div>
+                                        )}
+                                        {temporaryTest?.extra_data?.material_enviado !== 'SIM' && (
+                                            <div className="text-[9px] font-bold text-slate-400 italic text-center py-6">Aguardando envio de material</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                     </div>
 
                     {/* SEÇÕES DE LARGURA COMPLETA (Abaixo do Grid de 3 Colunas) */}
-
-                    {/* CARD 3: FATURAMENTO E LOGÍSTICA DE ENVIO */}
-                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><FileSpreadsheet size={16} /></div>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Faturamento & Logística de Envio</h3>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="space-y-4 lg:col-span-1">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Logística de Envio</label>
-                                    <div className="p-1 bg-slate-200/50 rounded-xl flex border border-slate-200 shadow-inner h-[46px] items-center">
-                                        {['NÃO', 'SIM'].map(option => (
-                                            <button
-                                                key={option}
-                                                type="button"
-                                                onClick={() => {
-                                                    const newExtra = { ...temporaryTest.extra_data, material_enviado: option };
-                                                    let updatedTest = { ...temporaryTest };
-                                                    if (option === 'NÃO') {
-                                                        delete newExtra.nf_nota;
-                                                        newExtra.shipments = [];
-                                                        updatedTest.nf_number = '';
-                                                        updatedTest.quantity_billed = 0;
-                                                    } else if (option === 'SIM' && (!newExtra.shipments || newExtra.shipments.length === 0)) {
-                                                        newExtra.shipments = [{
-                                                            id: Date.now(),
-                                                            nf: temporaryTest?.nf_number || temporaryTest?.extra_data?.nf_nota || '',
-                                                            qty: temporaryTest?.quantity_billed || 0,
-                                                            volumes: temporaryTest?.volumes || 0,
-                                                            date: temporaryTest?.delivery_date ? temporaryTest.delivery_date.split('T')[0] : new Date().toISOString().split('T')[0]
-                                                        }];
-                                                    }
-                                                    updatedTest.extra_data = newExtra;
-                                                    setTemporaryTest(updatedTest);
-                                                }}
-                                                className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                                                    (temporaryTest?.extra_data?.material_enviado === option || (!temporaryTest?.extra_data?.material_enviado && option === 'NÃO'))
-                                                        ? 'bg-slate-900 text-white shadow-sm'
-                                                        : 'text-slate-400 hover:text-slate-600'
-                                                }`}
-                                            >
-                                                {option}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                                        Qtd Faturada Total ({temporaryTest?.unit || 'KG'}) 
-                                        {(temporaryTest?.extra_data?.shipments?.length > 0) && <span className="text-emerald-600 italic ml-1"> (Vinc. Logística)</span>}
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            readOnly={isDonor || (temporaryTest?.extra_data?.shipments?.length > 0)}
-                                            value={temporaryTest?.quantity_billed ?? ''}
-                                            onChange={(e) => {
-                                                if (!temporaryTest) return;
-                                                const hasShipments = (temporaryTest?.extra_data?.shipments?.length > 0);
-                                                if (isDonor || hasShipments) return;
-                                                
-                                                const val = parseFloat(e.target.value) || 0;
-                                                const maxAvailable = (temporaryTest.produced_quantity || 0) + (invItem?.inventory_adjustment || 0);
-
-                                                if (val > (maxAvailable)) {
-                                                    setTemporaryTest({ ...temporaryTest, quantity_billed: maxAvailable });
-                                                } else {
-                                                    setTemporaryTest({ ...temporaryTest, quantity_billed: val });
-                                                }
-                                            }}
-                                            className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
-                                                (isDonor || (temporaryTest?.extra_data?.shipments?.length > 0)) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
-                                            }`}
-                                        />
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Detalhes da Logística */}
-                            <div className="p-4 bg-white border border-slate-200 rounded-[24px] space-y-4 lg:col-span-2">
-                                {temporaryTest?.extra_data?.material_enviado === 'SIM' && (
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">NFs / Remessas Cadastradas</span>
-                                            <span className="text-[8px] font-bold text-slate-400">Total: {(temporaryTest?.extra_data?.shipments || []).length} NF(s)</span>
-                                        </div>
-
-                                        <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
-                                            {(temporaryTest?.extra_data?.shipments || []).map((s) => (
-                                                <div key={s.id} className="p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3 relative group hover:border-slate-300 transition-all">
-                                                    <button 
-                                                        onClick={() => removeShipment(s.id)}
-                                                        className="absolute top-3 right-3 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
-                                                        title="Remover Faturamento"
-                                                    >
-                                                        <X size={12} />
-                                                    </button>
-                                                    
-                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pr-6">
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Nº da NF</label>
-                                                            <input
-                                                                type="text"
-                                                                placeholder="000.000"
-                                                                value={s.nf || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'nf', e.target.value.toUpperCase())}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Qtd ({temporaryTest?.unit || 'KG'})</label>
-                                                            <input
-                                                                type="number"
-                                                                value={s.qty || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'qty', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Volumes</label>
-                                                            <input
-                                                                type="number"
-                                                                value={s.volumes || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'volumes', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Preço Venda (R$/{temporaryTest?.unit || 'KG'})</label>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                placeholder="Opcional"
-                                                                value={s.sale_price || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'sale_price', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Custo Frete (R$)</label>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                placeholder="Opcional"
-                                                                value={s.freight_cost || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'freight_cost', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Data</label>
-                                                            <input
-                                                                type="date"
-                                                                value={s.date || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'date', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-
-                                            {(!temporaryTest?.extra_data?.shipments || temporaryTest?.extra_data?.shipments?.length === 0) && (
-                                                <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-[10px] font-bold text-slate-400 uppercase">
-                                                    Nenhum faturamento registrado.
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        <button 
-                                            onClick={handleAddShipment}
-                                            className="w-full py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
-                                        >
-                                            <Plus size={12} /> Adicionar Faturamento
-                                        </button>
-                                    </div>
-                                )}
-                                {temporaryTest?.extra_data?.material_enviado !== 'SIM' && (
-                                    <div className="text-[9px] font-bold text-slate-400 italic text-center py-6">Aguardando envio de material</div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
 
                     {/* CARD 5: FLUXO DE RASTREABILIDADE DE AUDITORIA */}
                     {temporaryTest && (() => {
@@ -1848,6 +1845,12 @@ const TestDetailsModal = ({
                         }
                         return null;
                     })()}
+
+                    {/* RESUMOS E ANÁLISES NO FINAL DA PÁGINA (RODAPÉ) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {renderExecutiveSummary()}
+                        {renderFinancialAnalysis()}
+                    </div>
                 </div>
                 <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4 shrink-0">
                     <button onClick={onClose} className="flex-1 py-4 bg-white text-slate-450 text-xs font-black rounded-2xl border border-slate-200 uppercase tracking-widest hover:bg-slate-50 transition-all">Sair</button>
