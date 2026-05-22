@@ -140,6 +140,19 @@ const App = () => {
         };
     }, []);
 
+    // --- Prevenção de alteração acidental de inputs numéricos por scroll do mouse ---
+    useEffect(() => {
+        const handleWheel = (e) => {
+            if (document.activeElement && document.activeElement.type === 'number') {
+                document.activeElement.blur();
+            }
+        };
+        document.addEventListener('wheel', handleWheel);
+        return () => {
+            document.removeEventListener('wheel', handleWheel);
+        };
+    }, []);
+
     // --- Background Monitors ---
     useReminderMonitor(notes, { notifyWarning, notifyInfo, handleSaveNote });
 

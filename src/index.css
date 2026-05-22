@@ -235,3 +235,16 @@ textarea.bg-white {
   text-orientation: mixed;
   transform: rotate(180deg);
 }
+
+/* Desativa as setas incrementais padrão de inputs numéricos (Chrome, Safari, Edge, Opera) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Desativa as setas incrementais padrão no Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
