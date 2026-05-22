@@ -181,7 +181,8 @@ export const handlePrintFullReport = ({
             const statusTests = filteredReportData.filter(t => status === 'PENDENTE' ? !['APROVADO', 'REPROVADO'].includes(t.status) : t.status === status);
             const statusCost = statusTests.reduce((acc, t) => {
                 const ck = tasks.filter(tk => String(tk.parent_test_id) === String(t.id)).reduce((tA, tk) => tA + (tk.trip_cost || 0) + (tk.travels || []).reduce((trA, tr) => trA + (tr.cost || 0), 0), 0);
-                return acc + (t.op_cost || 0) + ck;
+                const manualFreight = (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+                return acc + (t.op_cost || t.gross_total_cost || t.production_cost || 0) + ck + manualFreight;
             }, 0);
             const perc = reportTotals.investment > 0 ? (statusCost / reportTotals.investment) * 100 : 0;
             const color = status === 'APROVADO' ? '#34d399' : status === 'REPROVADO' ? '#fb7185' : '#cbd5e1';
@@ -246,7 +247,11 @@ export const handlePrintFullReport = ({
         tableHeadersHtml = `<tr><th>Data</th><th>Cliente / Item</th><th style="text-align: center;">OP</th><th style="text-align: right;">Total (R$)</th><th style="text-align: center;">Status</th></tr>`;
         tableRowsHtml = filteredReportData.map(t => {
             const ck = tasks.filter(tk => String(tk.parent_test_id) === String(t.id)).reduce((acc, tk) => acc + (tk.trip_cost || 0) + (tk.travels || []).reduce((trA, tr) => trA + (tr.cost || 0), 0), 0);
-            const total = (t.op_cost || 0) + ck;
+            const manualFreight = (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+            const costValue = reportContext === 'AUDIT' && t.amortized_cost !== undefined 
+                ? t.amortized_cost 
+                : (t.op_cost || t.gross_total_cost || t.production_cost || 0);
+            const total = costValue + ck + manualFreight;
             const isReuse = reportContext === 'AUDIT' && t.consumed_stock_id;
             return `
                 <tr style="border-bottom: 2px solid #ffffff; background-color: ${isReuse ? '#ecfdf5' : t.status_color || '#f1f5f9'}33; border-left: 6px solid ${isReuse ? '#10b981' : t.status_color || '#cbd5e1'};">
@@ -369,7 +374,8 @@ export const generateAIInsights = async ({
 
         const totalReprovedCost = completedTests.filter(t => t.status === 'REPROVADO').reduce((acc, t) => {
             const taskCosts = tasks.filter(tk => String(tk.parent_test_id) === String(t.id)).reduce((ta, cur) => ta + (cur.trip_cost || 0) + (cur.travels || []).reduce((tr, tc) => tr + (tc.cost || 0), 0), 0);
-            return acc + (t.op_cost || 0) + taskCosts;
+            const manualFreight = (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+            return acc + (t.op_cost || t.gross_total_cost || t.production_cost || 0) + taskCosts + manualFreight;
         }, 0);
 
         const realAssertivity = completedTests.length > 0 ? (approvedFinal / completedTests.length) * 100 : 0;

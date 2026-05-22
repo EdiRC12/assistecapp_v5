@@ -440,6 +440,8 @@ const ControlsView = ({
             const taskCosts = isTest ? (tasks || [])
                 .filter(tk => String(tk?.parent_test_id || '') === String(t.id))
                 .reduce((tAcc, curr) => tAcc + parseFloat(curr?.trip_cost || 0) + (curr?.travels || []).reduce((trAcc, trCurr) => trAcc + parseFloat(trCurr?.cost || 0), 0), 0) : 0;
+            const manualFreight = isTest ? (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0) : 0;
+            const totalLogisticsForTest = taskCosts + manualFreight;
 
             const costValue = context === 'AUDIT' && t.amortized_cost !== undefined 
                 ? t.amortized_cost 
@@ -448,8 +450,8 @@ const ControlsView = ({
             const prodQty = isTest ? (t.produced_quantity || 0) : (t.qty_produced || t.quantity || 0);
             const isKg = (t.unit?.toUpperCase() || 'KG') === 'KG';
 
-            acc.investment += costValue + taskCosts;
-            acc.logistics += taskCosts;
+            acc.investment += costValue + totalLogisticsForTest;
+            acc.logistics += totalLogisticsForTest;
             acc.production += costValue;
 
             if (isKg) acc.weightKg += prodQty;
@@ -479,11 +481,14 @@ const ControlsView = ({
                     const manualCost = parseFloat(curr?.trip_cost || 0);
                     const travelsArrayCost = (curr?.travels || []).reduce((trAcc, trCurr) => trAcc + parseFloat(trCurr?.cost || 0), 0);
                     return acc + manualCost + travelsArrayCost;
+                }, 0) + (tests || []).reduce((acc, t) => {
+                    const shipments = t.extra_data?.shipments || [];
+                    return acc + shipments.reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
                 }, 0);
         }
 
         return totals;
-    }, [filteredReportData, tasks, reportContext, inventory]);
+    }, [filteredReportData, tasks, reportContext, inventory, tests]);
 
 
     const executeSaveSnapshot = async (forceContext = null, forceData = null, forceTotals = null) => {

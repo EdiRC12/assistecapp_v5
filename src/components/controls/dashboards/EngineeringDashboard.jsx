@@ -32,13 +32,16 @@ const EngineeringDashboard = ({ tests, tasks, setSuggestions, setViewMode, setAc
         };
 
         // 1. Cálculo Global de Logística (Copia a lógica da Gestão de Custos)
-        // Somar apenas tarefas que possuem vínculo direto com testes (parent_test_id)
+        // Somar apenas tarefas que possuem vínculo direto com testes (parent_test_id) e os fretes manuais de NFs
         counts.logisticsCost = (tasks || [])
             .filter(tk => tk?.parent_test_id)
             .reduce((acc, curr) => {
                 const manualCost = parseFloat(curr?.trip_cost || 0);
                 const travelsArrayCost = (curr?.travels || []).reduce((trAcc, tr) => trAcc + parseFloat(tr?.cost || 0), 0);
                 return acc + manualCost + travelsArrayCost;
+            }, 0) + (tests || []).reduce((acc, t) => {
+                const shipments = t.extra_data?.shipments || [];
+                return acc + shipments.reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
             }, 0);
 
         tests.forEach(t => {

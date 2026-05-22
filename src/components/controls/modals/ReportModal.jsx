@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import {
     X, FileText, Brain, RefreshCw, History, Printer,
-    BarChart3, PieChart, TrendingUp, Target, Sparkles, Info
+    BarChart3, PieChart, TrendingUp, Target, Sparkles, Info, Car, Package
 } from 'lucide-react';
 
 const InfoTooltip = ({ text }) => (
@@ -477,7 +477,8 @@ const ReportModal = ({
                                                 const taskCosts = tasks
                                                     .filter(tk => String(tk.parent_test_id) === String(t.id))
                                                     .reduce((tAcc, tk) => tAcc + (tk.trip_cost || 0) + (tk.travels || []).reduce((trAcc, tr) => trAcc + (tr.cost || 0), 0), 0);
-                                                return acc + (t.op_cost || t.gross_total_cost || t.production_cost || 0) + taskCosts;
+                                                const manualFreight = (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+                                                return acc + (t.op_cost || t.gross_total_cost || t.production_cost || 0) + taskCosts + manualFreight;
                                             }, 0);
 
                                             const percentage = reportTotals.investment > 0 ? (statusCost / reportTotals.investment) * 100 : 0;
@@ -597,7 +598,7 @@ const ReportModal = ({
                                             <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">OP</th>
                                             <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Qtd</th>
                                             <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Custo Prod.</th>
-                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Custo Logist.</th>
+                                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Logística / Frete</th>
                                             <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Inv.</th>
                                             <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                                         </>
@@ -726,6 +727,8 @@ const ReportModal = ({
                                             const produced = t.produced_quantity || t.quantity || t.qty_produced || 0;
                                             const unit = t.unit || 'KG';
                                             const costToDisplay = t.amortized_cost !== undefined ? t.amortized_cost : (t.op_cost || t.gross_total_cost || t.production_cost || 0);
+                                            const manualFreight = (t.extra_data?.shipments || []).reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+                                            const totalInvestment = costToDisplay + taskCosts + manualFreight;
 
                                             return (
                                                 <tr key={t.id} className={`text-[10px] transition-colors break-inside-avoid page-break-inside-avoid ${isReuse ? 'bg-emerald-50/40 print:bg-emerald-50/40' : ''} ${isDiscarded ? 'bg-rose-50/40 print:bg-rose-50/40' : ''}`}>
@@ -761,8 +764,35 @@ const ReportModal = ({
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 text-right font-bold text-indigo-600">R$ {taskCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                                    <td className="p-4 text-right font-black text-slate-900 bg-slate-50/30">R$ {(costToDisplay + taskCosts).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="p-4">
+                                                        <div className="flex flex-col items-end">
+                                                            {taskCosts === 0 && manualFreight === 0 ? (
+                                                                <span className="text-slate-300 text-[10px] font-bold">-</span>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-1 w-full items-end">
+                                                                    {taskCosts > 0 && (
+                                                                        <div className="flex flex-col items-end">
+                                                                            <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]" title="Custos de viagens/vistorias lançados na aba de Viagens">
+                                                                                <Car size={10} />
+                                                                                <span>R$ {taskCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                            </div>
+                                                                            <span className="text-[7px] text-slate-400 font-bold uppercase tracking-tighter">Viagens</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {manualFreight > 0 && (
+                                                                        <div className="flex flex-col items-end">
+                                                                            <div className="flex items-center gap-1 text-teal-600 font-black text-[10px]" title="Custo de frete informado no cadastro do teste">
+                                                                                <Package size={10} />
+                                                                                <span>R$ {manualFreight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                            </div>
+                                                                            <span className="text-[7px] text-slate-400 font-bold uppercase tracking-tighter">Frete NF</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-right font-black text-slate-900 bg-slate-50/30">R$ {totalInvestment.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-4">
                                                         <div className="flex justify-center">
                                                             <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
