@@ -911,9 +911,9 @@ const TestDetailsModal = ({
     if (!isOpen) return null;
 
     return createPortal(
-        <div className={`fixed inset-0 z-[100005] flex items-center justify-center bg-black/60 backdrop-blur-sm ${isMeetingView ? 'p-1' : 'p-4'} animate-in fade-in duration-200`}>
-            <div className={`bg-white rounded-[40px] shadow-2xl w-full ${isMeetingView ? 'max-w-5xl' : 'max-w-2xl'} overflow-hidden flex flex-col ${isMeetingView ? 'max-h-[98%]' : 'max-h-[90vh]'} animate-in zoom-in-95 duration-200`}>
-                <div className="flex justify-between items-center px-8 py-8 border-b border-slate-100 bg-slate-50/30">
+        <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-[95vw] h-[94vh] max-h-[94vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center px-8 py-8 border-b border-slate-100 bg-slate-50/30 shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="p-4 bg-brand-50 text-brand-600 rounded-3xl shadow-sm"><FileSpreadsheet size={28} /></div>
                         <div className="flex-1 min-w-0">
@@ -982,215 +982,401 @@ const TestDetailsModal = ({
                         <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-800 transition-colors"><X size={28} /></button>
                     </div>
                 </div>
-                  <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-                    {renderExecutiveSummary()}
-                    {renderFinancialAnalysis()}
 
-                    {/* CARD 1: IDENTIFICAÇÃO E SITUAÇÃO */}
-                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                            <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><FileText size={16} /></div>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Identificação & Situação</h3>
-                        </div>
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+                    
+                    {/* GRID DE 3 COLUNAS - SEÇÕES PRINCIPAIS */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Status do Experimento */}
-                            <div className="space-y-3">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Status do Experimento</label>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {testStatusPresets.map(p => (
-                                        <button
-                                            key={p.label}
-                                            type="button"
-                                            onClick={() => setTemporaryTest({ ...temporaryTest, status: p.label, status_color: p.color })}
-                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black transition-all border ${temporaryTest?.status === p.label ? 'shadow-sm scale-105' : 'border-slate-200 bg-white text-slate-400 opacity-60'}`}
-                                            style={{
-                                                backgroundColor: temporaryTest?.status === p.label ? p.color : 'transparent',
-                                                color: temporaryTest?.status === p.label ? 'white' : '#94a3b8',
-                                                borderColor: temporaryTest?.status === p.label ? 'transparent' : '#e2e8f0'
-                                            }}
+                        {/* COLUNA 1: IDENTIFICAÇÃO E SITUAÇÃO */}
+                        <div className="space-y-6">
+                            {/* CARD 1: IDENTIFICAÇÃO E SITUAÇÃO */}
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
+                                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
+                                    <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><FileText size={16} /></div>
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Identificação & Situação</h3>
+                                </div>
+                                
+                                <div className="space-y-6">
+                                    {/* Status do Experimento */}
+                                    <div className="space-y-3">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Status do Experimento</label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {testStatusPresets.map(p => (
+                                                <button
+                                                    key={p.label}
+                                                    type="button"
+                                                    onClick={() => setTemporaryTest({ ...temporaryTest, status: p.label, status_color: p.color })}
+                                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black transition-all border ${temporaryTest?.status === p.label ? 'shadow-sm scale-105' : 'border-slate-200 bg-white text-slate-400 opacity-60'}`}
+                                                    style={{
+                                                        backgroundColor: temporaryTest?.status === p.label ? p.color : 'transparent',
+                                                        color: temporaryTest?.status === p.label ? 'white' : '#94a3b8',
+                                                        borderColor: temporaryTest?.status === p.label ? 'transparent' : '#e2e8f0'
+                                                    }}
+                                                >
+                                                    {p.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Fluxo Interno */}
+                                    <div className="space-y-3">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">FLUXO INTERNO (FASE ATUAL PLASTIMARAU)</label>
+                                        <select
+                                            value={temporaryTest?.flow_stage || ''}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, flow_stage: e.target.value })}
+                                            className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-sm uppercase tracking-wide"
                                         >
-                                            {p.label}
-                                        </button>
-                                    ))}
+                                            <option value="">FASE NÃO DEFINIDA</option>
+                                            {testFlows?.map((f, i) => (
+                                                <option key={i} value={typeof f === 'string' ? f : f.label}>
+                                                    {typeof f === 'string' ? f : f.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Inputs de Identificação */}
+                                <div className="grid grid-cols-1 gap-4 border-t border-slate-200/60 pt-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nº do Pedido</label>
+                                        <input
+                                            type="text"
+                                            value={temporaryTest?.test_order || ''}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, test_order: e.target.value })}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nº da OP</label>
+                                        <input
+                                            type="text"
+                                            value={temporaryTest?.op_number || ''}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, op_number: e.target.value })}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Data de Entrega</label>
+                                        <input
+                                            type="date"
+                                            value={temporaryTest?.delivery_date ? temporaryTest.delivery_date.split('T')[0] : ''}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, delivery_date: e.target.value })}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome do Produto</label>
+                                        <ProductAutocomplete
+                                            clientName={temporaryTest?.client_name}
+                                            value={temporaryTest?.product_name || ''}
+                                            onChange={(val) => setTemporaryTest({ ...temporaryTest, product_name: val })}
+                                            label={null}
+                                            icon={null}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 uppercase"
+                                            containerClassName="relative"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Situação de Validação</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Situação (Ex: AGUARDANDO...)"
+                                            value={temporaryTest?.situation || ''}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, situation: e.target.value })}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 uppercase"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* COLUNA 2: DADOS DE PRODUÇÃO, CUSTOS E ESTOQUE */}
+                        <div className="space-y-6">
+                            {/* CARD 2: DADOS DE PRODUÇÃO E CUSTOS */}
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={16} /></div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dados de Produção & Custos</h3>
+                                    </div>
+                                    {isDonor && (
+                                        <div className="px-3 py-1 bg-rose-50 border border-rose-200 rounded-full flex items-center gap-1.5 animate-pulse shrink-0">
+                                            <AlertTriangle size={10} className="text-rose-500" />
+                                            <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Saldo em Uso</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Qtd Produzida</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                readOnly={!!temporaryTest?.consumed_stock_id || isDonor}
+                                                value={temporaryTest?.produced_quantity || ''}
+                                                onChange={(e) => {
+                                                    if (temporaryTest?.consumed_stock_id) return;
+                                                    setTemporaryTest({ ...temporaryTest, produced_quantity: parseFloat(e.target.value) || 0 });
+                                                }}
+                                                className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
+                                                    (temporaryTest?.consumed_stock_id || isDonor) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                                                }`}
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Volumes</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                min="0"
+                                                value={temporaryTest?.volumes || ''}
+                                                onChange={(e) => setTemporaryTest({ ...temporaryTest, volumes: parseFloat(e.target.value) || 0 })}
+                                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
+                                                placeholder="0"
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">Vols</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 col-span-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Unidade de Medida</label>
+                                        <div className="flex gap-2 p-1 bg-white rounded-2xl border border-slate-200 h-[46px] items-center">
+                                            {['KG', 'SACOS'].map(u => (
+                                                <button
+                                                    key={u}
+                                                    type="button"
+                                                    onClick={() => setTemporaryTest({ ...temporaryTest, unit: u })}
+                                                    className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${temporaryTest?.unit === u || (!temporaryTest?.unit && u === 'KG') ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    {u}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 col-span-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Custo Total (R$)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">R$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                readOnly={!!temporaryTest?.consumed_stock_id || isDonor}
+                                                value={temporaryTest?.op_cost || ''}
+                                                onChange={(e) => {
+                                                    if (temporaryTest?.consumed_stock_id) return;
+                                                    setTemporaryTest({ ...temporaryTest, op_cost: parseFloat(e.target.value) || 0 });
+                                                }}
+                                                className={`w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
+                                                    (temporaryTest?.consumed_stock_id || isDonor) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
+                                                }`}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-white border border-slate-150 rounded-2xl flex flex-col gap-1 w-full">
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">
+                                        {temporaryTest?.consumed_stock_id ? 'Custo Amortizado p/ ' + (temporaryTest?.unit || 'KG') : 'Custo por ' + (temporaryTest?.unit || 'KG')}
+                                    </span>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-[10px] text-slate-400 font-bold">R$</span>
+                                        <span className={`text-lg font-black ${temporaryTest?.consumed_stock_id ? 'text-brand-600' : 'text-slate-800'}`}>
+                                            {temporaryTest?.produced_quantity > 0
+                                                ? (temporaryTest.op_cost / temporaryTest.produced_quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                                : '0,00'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Fluxo Interno (Fase Atual Plastimarau) */}
-                            <div className="space-y-3">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">FLUXO INTERNO (FASE ATUAL PLASTIMARAU)</label>
-                                <select
-                                    value={temporaryTest?.flow_stage || ''}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, flow_stage: e.target.value })}
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-sm uppercase tracking-wide"
-                                >
-                                    <option value="">FASE NÃO DEFINIDA</option>
-                                    {testFlows?.map((f, i) => (
-                                        <option key={i} value={typeof f === 'string' ? f : f.label}>
-                                            {typeof f === 'string' ? f : f.label}
-                                        </option>
-                                    ))}
-                                </select>
+                            {/* CARD 4: DESTINO E CONCILIÇÃO DE ESTOQUE */}
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><RefreshCw size={16} /></div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Destino & Estoque</h3>
+                                    </div>
+                                </div>
+
+                                {/* Reaproveitamento de Saldo */}
+                                <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <RefreshCw size={14} className="text-brand-500" />
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Reaproveitamento (Origem)</span>
+                                        </div>
+                                        {temporaryTest?.consumed_stock_id ? (
+                                            <button
+                                                onClick={() => setTemporaryTest({ ...temporaryTest, consumed_stock_id: null })}
+                                                className="text-[8px] font-bold text-rose-500 hover:text-rose-600 uppercase underline"
+                                            >
+                                                Remover
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setLocalShowStock(!localShowStock)}
+                                                className="text-[8px] font-black bg-brand-500 text-white px-3 py-1.5 rounded-lg uppercase hover:bg-brand-600 transition-all shadow-sm"
+                                            >
+                                                {localShowStock ? 'Cancelar' : 'Vincular'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {temporaryTest?.consumed_stock_id && (
+                                        <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl flex items-center justify-between">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-[10px] font-black text-brand-600 uppercase">
+                                                    {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.name || 'Item Vinculado'}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-slate-500 uppercase">
+                                                    Disponível: {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.quantity} {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.unit}
+                                                </span>
+                                            </div>
+                                            <CheckCircle size={16} className="text-brand-500" />
+                                        </div>
+                                    )}
+
+                                    {localShowStock && !temporaryTest?.consumed_stock_id && (
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Pesquisar..."
+                                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                    value={localStockSearch}
+                                                    onChange={e => setLocalStockSearch(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1 pr-1 bg-slate-50/50 rounded-xl p-2 border border-slate-100">
+                                                {inventory
+                                                    .filter(i => i.quantity > 0 && (!localStockSearch || i.name.toLowerCase().includes(localStockSearch.toLowerCase()) || i.client_name?.toLowerCase().includes(localStockSearch.toLowerCase())))
+                                                    .map(item => (
+                                                        <button
+                                                            key={item.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const sourceTest = tests.find(t => t.id === item.test_id);
+                                                                const originalQty = item.qty_produced || (sourceTest?.produced_quantity || 0);
+                                                                const originalCost = sourceTest?.op_cost || 0;
+
+                                                                const unitPrice = originalQty > 0 ? originalCost / originalQty : 0;
+                                                                const inheritedCost = item.production_cost || (unitPrice * item.quantity);
+
+                                                                setTemporaryTest({
+                                                                    ...temporaryTest,
+                                                                    consumed_stock_id: item.id,
+                                                                    produced_quantity: item.quantity,
+                                                                    op_cost: parseFloat(inheritedCost.toFixed(2)),
+                                                                    unit: item.unit
+                                                                });
+                                                                setLocalShowStock(false);
+                                                            }}
+                                                            className="w-full p-2 hover:bg-slate-100 rounded-lg text-left flex justify-between items-center transition-colors group"
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-black text-slate-700 group-hover:text-brand-600">{item.name}</span>
+                                                                <span className="text-[7px] font-bold text-slate-400 uppercase">{item.client_name || 'Sem Cliente'} • {item.stock_bin}</span>
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-slate-600">{item.quantity} {item.unit}</span>
+                                                        </button>
+                                                    ))
+                                                }
+                                                {inventory.filter(i => i.quantity > 0 && (!localStockSearch || i.name.toLowerCase().includes(localStockSearch.toLowerCase()) || i.client_name?.toLowerCase().includes(localStockSearch.toLowerCase()))).length === 0 && (
+                                                    <div className="text-center py-4 text-[9px] font-bold text-slate-400 uppercase italic">Nenhum saldo compatível</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Destino e Descarte */}
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Destino de Saldo</label>
+                                        <select
+                                            value={temporaryTest?.stock_destination || 'ESTOQUE 0'}
+                                            onChange={(e) => setTemporaryTest({ ...temporaryTest, stock_destination: e.target.value })}
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all appearance-none cursor-pointer uppercase h-[46px]"
+                                        >
+                                            <option value="ESTOQUE 0" className="text-amber-600 font-bold italic">ESTOQUE 0 (A RESERVAR)</option>
+                                            <option value="ESTOQUE 01" className="text-brand-600">ESTOQUE 01 (ACABADO)</option>
+                                            <option value="ESTOQUE 65" className="text-slate-700">ESTOQUE 65 (BOA)</option>
+                                            <option value="ESTOQUE 14" className="text-slate-700">ESTOQUE 14 (QUARENTENA)</option>
+                                            <option value="DISCARDED" className="text-rose-600">DESCARTE DIRETO</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Qtd Descartada ({temporaryTest?.unit || 'KG'})</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                min="0"
+                                                value={temporaryTest?.quantity_discarded ?? ''}
+                                                onChange={(e) => {
+                                                    if (!temporaryTest) return;
+                                                    const val = parseFloat(e.target.value) || 0;
+                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                    const consumedByOthers = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                    
+                                                    const maxAvailable = (temporaryTest.produced_quantity || 0) - (temporaryTest.quantity_billed || 0) - consumedByOthers + (invItem?.inventory_adjustment || 0);
+                                                    
+                                                    if (val > maxAvailable) {
+                                                        setTemporaryTest({ ...temporaryTest, quantity_discarded: Math.max(0, maxAvailable) });
+                                                    } else {
+                                                        setTemporaryTest({ ...temporaryTest, quantity_discarded: val });
+                                                    }
+                                                }}
+                                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
+                                                placeholder="0.0"
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white border border-slate-200 p-3 rounded-2xl flex flex-col gap-0.5 justify-center h-[66px]">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic leading-none">
+                                            Saldo p/ {temporaryTest?.stock_destination || 'ESTOQUE'}
+                                        </span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className={`text-lg font-black ${(temporaryTest?.quantity_billed || 0) > (temporaryTest?.produced_quantity || 0) ? 'text-rose-600' : 'text-brand-600'}`}>
+                                                {(() => {
+                                                    if (!temporaryTest) return '0.0';
+                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                    const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                                    return currentBalance.toFixed(2);
+                                                })()}
+                                            </span>
+                                            <span className="text-[9px] font-black uppercase text-slate-400">{temporaryTest?.unit || 'KG'}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Grid de Inputs de Identificação */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-200/60 pt-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nº do Pedido</label>
-                                <input
-                                    type="text"
-                                    value={temporaryTest?.test_order || ''}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, test_order: e.target.value })}
-                                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nº da OP</label>
-                                <input
-                                    type="text"
-                                    value={temporaryTest?.op_number || ''}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, op_number: e.target.value })}
-                                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Data de Entrega</label>
-                                <input
-                                    type="date"
-                                    value={temporaryTest?.delivery_date ? temporaryTest.delivery_date.split('T')[0] : ''}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, delivery_date: e.target.value })}
-                                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
-                                />
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome do Produto</label>
-                                <ProductAutocomplete
-                                    clientName={temporaryTest?.client_name}
-                                    value={temporaryTest?.product_name || ''}
-                                    onChange={(val) => setTemporaryTest({ ...temporaryTest, product_name: val })}
-                                    label={null}
-                                    icon={null}
-                                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 uppercase"
-                                    containerClassName="relative"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Situação de Validação</label>
-                                <input
-                                    type="text"
-                                    placeholder="Situação (Ex: AGUARDANDO, CONCLUÍDO...)"
-                                    value={temporaryTest?.situation || ''}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, situation: e.target.value })}
-                                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 uppercase"
-                                />
-                            </div>
+                        {/* COLUNA 3: RESUMOS E ANÁLISES */}
+                        <div className="space-y-6 xl:sticky xl:top-0">
+                            {renderExecutiveSummary()}
+                            {renderFinancialAnalysis()}
                         </div>
+
                     </div>
 
-                    {/* CARD 2: DADOS DE PRODUÇÃO E CUSTOS */}
-                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={16} /></div>
-                                <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dados de Produção & Custos</h3>
-                            </div>
-                            {isDonor && (
-                                <div className="px-3 py-1 bg-rose-50 border border-rose-200 rounded-full flex items-center gap-1.5 animate-pulse">
-                                    <AlertTriangle size={10} className="text-rose-500" />
-                                    <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Registro Travado: Saldo em Uso</span>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Quantidade Produzida</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        readOnly={!!temporaryTest?.consumed_stock_id || isDonor}
-                                        value={temporaryTest?.produced_quantity || ''}
-                                        onChange={(e) => {
-                                            if (temporaryTest?.consumed_stock_id) return;
-                                            setTemporaryTest({ ...temporaryTest, produced_quantity: parseFloat(e.target.value) || 0 });
-                                        }}
-                                        className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
-                                            (temporaryTest?.consumed_stock_id || isDonor) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
-                                        }`}
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Volumes (Bobinas/Pacotes)</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        step="1"
-                                        min="0"
-                                        value={temporaryTest?.volumes || ''}
-                                        onChange={(e) => setTemporaryTest({ ...temporaryTest, volumes: parseFloat(e.target.value) || 0 })}
-                                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
-                                        placeholder="0"
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">Vols</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Unidade de Medida</label>
-                                <div className="flex gap-2 p-1 bg-white rounded-2xl border border-slate-200 h-[46px] items-center">
-                                    {['KG', 'SACOS'].map(u => (
-                                        <button
-                                            key={u}
-                                            type="button"
-                                            onClick={() => setTemporaryTest({ ...temporaryTest, unit: u })}
-                                            className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${temporaryTest?.unit === u || (!temporaryTest?.unit && u === 'KG') ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        >
-                                            {u}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Custo Total (R$)</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">R$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        readOnly={!!temporaryTest?.consumed_stock_id || isDonor}
-                                        value={temporaryTest?.op_cost || ''}
-                                        onChange={(e) => {
-                                            if (temporaryTest?.consumed_stock_id) return;
-                                            setTemporaryTest({ ...temporaryTest, op_cost: parseFloat(e.target.value) || 0 });
-                                        }}
-                                        className={`w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 ${
-                                            (temporaryTest?.consumed_stock_id || isDonor) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''
-                                        }`}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 bg-white border border-slate-150 rounded-2xl flex flex-col gap-1 w-full md:w-fit">
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">
-                                {temporaryTest?.consumed_stock_id ? 'Custo Amortizado p/ ' + (temporaryTest?.unit || 'KG') : 'Custo por ' + (temporaryTest?.unit || 'KG')}
-                            </span>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-[10px] text-slate-400 font-bold">R$</span>
-                                <span className={`text-lg font-black ${temporaryTest?.consumed_stock_id ? 'text-brand-600' : 'text-slate-800'}`}>
-                                    {temporaryTest?.produced_quantity > 0
-                                        ? (temporaryTest.op_cost / temporaryTest.produced_quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                        : '0,00'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    {/* SEÇÕES DE LARGURA COMPLETA (Abaixo do Grid de 3 Colunas) */}
 
                     {/* CARD 3: FATURAMENTO E LOGÍSTICA DE ENVIO */}
                     <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
@@ -1199,8 +1385,8 @@ const TestDetailsModal = ({
                             <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Faturamento & Logística de Envio</h3>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="space-y-4 lg:col-span-1">
                                 <div className="space-y-2">
                                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Logística de Envio</label>
                                     <div className="p-1 bg-slate-200/50 rounded-xl flex border border-slate-200 shadow-inner h-[46px] items-center">
@@ -1275,7 +1461,7 @@ const TestDetailsModal = ({
                             </div>
 
                             {/* Detalhes da Logística */}
-                            <div className="p-4 bg-white border border-slate-200 rounded-[24px] space-y-4">
+                            <div className="p-4 bg-white border border-slate-200 rounded-[24px] space-y-4 lg:col-span-2">
                                 {temporaryTest?.extra_data?.material_enviado === 'SIM' && (
                                     <div className="space-y-4">
                                         <div className="flex justify-between items-center">
@@ -1283,18 +1469,18 @@ const TestDetailsModal = ({
                                             <span className="text-[8px] font-bold text-slate-400">Total: {(temporaryTest?.extra_data?.shipments || []).length} NF(s)</span>
                                         </div>
 
-                                        <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                                        <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
                                             {(temporaryTest?.extra_data?.shipments || []).map((s) => (
-                                                <div key={s.id} className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2 relative group hover:border-slate-300 transition-all">
+                                                <div key={s.id} className="p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3 relative group hover:border-slate-300 transition-all">
                                                     <button 
                                                         onClick={() => removeShipment(s.id)}
-                                                        className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
+                                                        className="absolute top-3 right-3 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-all"
                                                         title="Remover Faturamento"
                                                     >
-                                                        <X size={10} />
+                                                        <X size={12} />
                                                     </button>
                                                     
-                                                    <div className="grid grid-cols-2 gap-2 pr-6">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pr-6">
                                                         <div className="space-y-1">
                                                             <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Nº da NF</label>
                                                             <input
@@ -1314,8 +1500,6 @@ const TestDetailsModal = ({
                                                                 className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
                                                             />
                                                         </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
                                                         <div className="space-y-1">
                                                             <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Volumes</label>
                                                             <input
@@ -1325,17 +1509,6 @@ const TestDetailsModal = ({
                                                                 className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
                                                             />
                                                         </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Data</label>
-                                                            <input
-                                                                type="date"
-                                                                value={s.date || ''}
-                                                                onChange={(e) => updateShipmentField(s.id, 'date', e.target.value)}
-                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
                                                         <div className="space-y-1">
                                                             <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Preço Venda (R$/{temporaryTest?.unit || 'KG'})</label>
                                                             <input
@@ -1358,12 +1531,21 @@ const TestDetailsModal = ({
                                                                 className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
                                                             />
                                                         </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-[8px] font-black text-slate-400 uppercase ml-1">Data</label>
+                                                            <input
+                                                                type="date"
+                                                                value={s.date || ''}
+                                                                onChange={(e) => updateShipmentField(s.id, 'date', e.target.value)}
+                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
 
                                             {(!temporaryTest?.extra_data?.shipments || temporaryTest?.extra_data?.shipments?.length === 0) && (
-                                                <div className="text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-[10px] font-bold text-slate-400">
+                                                <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-[10px] font-bold text-slate-400 uppercase">
                                                     Nenhum faturamento registrado.
                                                 </div>
                                             )}
@@ -1371,7 +1553,7 @@ const TestDetailsModal = ({
                                         
                                         <button 
                                             onClick={handleAddShipment}
-                                            className="w-full py-2.5 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                                            className="w-full py-3 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
                                         >
                                             <Plus size={12} /> Adicionar Faturamento
                                         </button>
@@ -1380,172 +1562,6 @@ const TestDetailsModal = ({
                                 {temporaryTest?.extra_data?.material_enviado !== 'SIM' && (
                                     <div className="text-[9px] font-bold text-slate-400 italic text-center py-6">Aguardando envio de material</div>
                                 )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* CARD 4: DESTINO E CONCILIÇÃO DE ESTOQUE */}
-                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                            <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><RefreshCw size={16} /></div>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Destino & Conciliação de Estoque</h3>
-                        </div>
-
-                        {/* Reaproveitamento de Saldo */}
-                        <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-4">
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <RefreshCw size={14} className="text-brand-500" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Reaproveitamento de Saldo (Origem)</span>
-                                </div>
-                                {temporaryTest?.consumed_stock_id ? (
-                                    <button
-                                        onClick={() => setTemporaryTest({ ...temporaryTest, consumed_stock_id: null })}
-                                        className="text-[8px] font-bold text-rose-500 hover:text-rose-600 uppercase underline"
-                                    >
-                                        Remover Vínculo
-                                    </button>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => setLocalShowStock(!localShowStock)}
-                                        className="text-[8px] font-black bg-brand-500 text-white px-3 py-1.5 rounded-lg uppercase hover:bg-brand-600 transition-all shadow-sm"
-                                    >
-                                        {localShowStock ? 'Cancelar' : 'Vincular Origem'}
-                                    </button>
-                                )}
-                            </div>
-
-                            {temporaryTest?.consumed_stock_id && (
-                                <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl flex items-center justify-between">
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-[10px] font-black text-brand-600 uppercase">
-                                            {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.name || 'Item Vinculado'}
-                                        </span>
-                                        <span className="text-[8px] font-bold text-slate-500 uppercase">
-                                            Disponível: {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.quantity} {inventory.find(i => i.id === temporaryTest.consumed_stock_id)?.unit}
-                                        </span>
-                                    </div>
-                                    <CheckCircle size={16} className="text-brand-500" />
-                                </div>
-                            )}
-
-                            {localShowStock && !temporaryTest?.consumed_stock_id && (
-                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                        <input
-                                            type="text"
-                                            placeholder="Pesquisar em todos os depósitos..."
-                                            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-brand-500"
-                                            value={localStockSearch}
-                                            onChange={e => setLocalStockSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1 pr-1 bg-slate-50/50 rounded-xl p-2 border border-slate-100">
-                                        {inventory
-                                            .filter(i => i.quantity > 0 && (!localStockSearch || i.name.toLowerCase().includes(localStockSearch.toLowerCase()) || i.client_name?.toLowerCase().includes(localStockSearch.toLowerCase())))
-                                            .map(item => (
-                                                <button
-                                                    key={item.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const sourceTest = tests.find(t => t.id === item.test_id);
-                                                        const originalQty = item.qty_produced || (sourceTest?.produced_quantity || 0);
-                                                        const originalCost = sourceTest?.op_cost || 0;
-
-                                                        const unitPrice = originalQty > 0 ? originalCost / originalQty : 0;
-                                                        const inheritedCost = item.production_cost || (unitPrice * item.quantity);
-
-                                                        setTemporaryTest({
-                                                            ...temporaryTest,
-                                                            consumed_stock_id: item.id,
-                                                            produced_quantity: item.quantity,
-                                                            op_cost: parseFloat(inheritedCost.toFixed(2)),
-                                                            unit: item.unit
-                                                        });
-                                                        setLocalShowStock(false);
-                                                    }}
-                                                    className="w-full p-2 hover:bg-slate-100 rounded-lg text-left flex justify-between items-center transition-colors group"
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-black text-slate-700 group-hover:text-brand-600">{item.name}</span>
-                                                        <span className="text-[7px] font-bold text-slate-400 uppercase">{item.client_name || 'Sem Cliente'} • {item.stock_bin}</span>
-                                                    </div>
-                                                    <span className="text-[9px] font-black text-slate-600">{item.quantity} {item.unit}</span>
-                                                </button>
-                                            ))
-                                        }
-                                        {inventory.filter(i => i.quantity > 0 && (!localStockSearch || i.name.toLowerCase().includes(localStockSearch.toLowerCase()) || i.client_name?.toLowerCase().includes(localStockSearch.toLowerCase()))).length === 0 && (
-                                            <div className="text-center py-4 text-[9px] font-bold text-slate-400 uppercase italic">Nenhum saldo compatível encontrado</div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Destino e Descarte */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Destino de Saldo</label>
-                                <select
-                                    value={temporaryTest?.stock_destination || 'ESTOQUE 0'}
-                                    onChange={(e) => setTemporaryTest({ ...temporaryTest, stock_destination: e.target.value })}
-                                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500 transition-all appearance-none cursor-pointer uppercase h-[46px]"
-                                >
-                                    <option value="ESTOQUE 0" className="text-amber-600 font-bold italic">ESTOQUE 0 (A RESERVAR)</option>
-                                    <option value="ESTOQUE 01" className="text-brand-600">ESTOQUE 01 (ACABADO)</option>
-                                    <option value="ESTOQUE 65" className="text-slate-700">ESTOQUE 65 (BOA)</option>
-                                    <option value="ESTOQUE 14" className="text-slate-700">ESTOQUE 14 (QUARENTENA)</option>
-                                    <option value="DISCARDED" className="text-rose-600">DESCARTE DIRETO</option>
-                                </select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Qtd Descartada ({temporaryTest?.unit || 'KG'})</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        value={temporaryTest?.quantity_discarded ?? ''}
-                                        onChange={(e) => {
-                                            if (!temporaryTest) return;
-                                            const val = parseFloat(e.target.value) || 0;
-                                            const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                            const consumedByOthers = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                            
-                                            const maxAvailable = (temporaryTest.produced_quantity || 0) - (temporaryTest.quantity_billed || 0) - consumedByOthers + (invItem?.inventory_adjustment || 0);
-                                            
-                                            if (val > maxAvailable) {
-                                                setTemporaryTest({ ...temporaryTest, quantity_discarded: Math.max(0, maxAvailable) });
-                                            } else {
-                                                setTemporaryTest({ ...temporaryTest, quantity_discarded: val });
-                                            }
-                                        }}
-                                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all"
-                                        placeholder="0.0"
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-[10px]">{temporaryTest?.unit || 'KG'}</span>
-                                </div>
-                            </div>
-
-                            <div className="bg-white border border-slate-200 p-3 rounded-2xl flex flex-col gap-0.5 justify-center h-[66px] mt-1.5">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic leading-none">
-                                    Saldo p/ {temporaryTest?.stock_destination || 'ESTOQUE'}
-                                </span>
-                                <div className="flex items-baseline gap-1">
-                                    <span className={`text-lg font-black ${(temporaryTest?.quantity_billed || 0) > (temporaryTest?.produced_quantity || 0) ? 'text-rose-600' : 'text-brand-600'}`}>
-                                        {(() => {
-                                            if (!temporaryTest) return '0.0';
-                                            const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                            const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                            const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
-                                            return currentBalance.toFixed(2);
-                                        })()}
-                                    </span>
-                                    <span className="text-[9px] font-black uppercase text-slate-400">{temporaryTest?.unit || 'KG'}</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1565,11 +1581,11 @@ const TestDetailsModal = ({
                         }
 
                         return (
-                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-4 shadow-sm animate-in fade-in zoom-in-95 duration-500">
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-4 shadow-sm">
                                 <div className="flex items-center justify-between pb-3 border-b border-slate-200/60">
                                     <div className="flex items-center gap-2">
                                         <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg"><Database size={16} /></div>
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-800">Fluxo de Rastreabilidade (Auditoria)</span>
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-800">Fluxo de Rastreabilidade (Auditoria de Estoque)</span>
                                     </div>
                                     {unitCost > 0 && (
                                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
@@ -1578,165 +1594,152 @@ const TestDetailsModal = ({
                                     )}
                                 </div>
                                 
-                                <div className="grid grid-cols-1 gap-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                                     {/* 1. Produção Original */}
-                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">
-                                                {temporaryTest?.consumed_stock_id ? '(+) Reaproveitamento de Saldo' : '(+) Produção Original'}
+                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                                {temporaryTest?.consumed_stock_id ? '(+) Reaproveitamento' : '(+) Produção Original'}
                                             </span>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xs font-black text-slate-800">{(temporaryTest?.produced_quantity || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
-                                                <span className="text-[9px] font-black text-slate-400">R$ {((temporaryTest?.produced_quantity || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end mt-2">
+                                            <span className="text-xs font-black text-slate-800">{(temporaryTest?.produced_quantity || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
+                                            <span className="text-[9px] font-black text-slate-400">R$ {((temporaryTest?.produced_quantity || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                         {(() => {
                                             const sourceInvItem = inventory?.find(i => i.id === temporaryTest?.consumed_stock_id);
                                             const sourceTest = tests?.find(t => t.id === sourceInvItem?.test_id);
                                             return sourceTest && (
-                                                <span className="text-[9px] font-black text-brand-600 uppercase tracking-tighter italic mt-1">
-                                                    ORIGEM: {sourceTest.test_number || 'Sem N°'} - {sourceTest.title}
+                                                <span className="text-[8px] font-black text-brand-650 uppercase tracking-tighter italic mt-1 bg-brand-50/50 p-1 rounded border border-brand-100/50 w-full text-center">
+                                                    ORIGEM: #{sourceTest.test_number || 'S/N'}
                                                 </span>
                                             );
                                         })()}
                                     </div>
 
                                     {/* 2. Saídas Faturadas */}
-                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">(-) Saídas Faturadas (NFs)</span>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xs font-black text-rose-600">{(temporaryTest?.quantity_billed || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
-                                                <span className="text-[9px] font-black text-rose-500/80">R$ -{((temporaryTest?.quantity_billed || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">(-) Saídas Faturadas (NFs)</span>
+                                        </div>
+                                        <div className="flex flex-col items-end mt-2">
+                                            <span className="text-xs font-black text-rose-600">{(temporaryTest?.quantity_billed || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
+                                            <span className="text-[9px] font-black text-rose-500/80">R$ -{((temporaryTest?.quantity_billed || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                         {(temporaryTest?.extra_data?.shipments || []).length > 0 ? (
-                                            <div className="flex flex-col gap-1.5 mt-2 pl-2 border-l-2 border-rose-500/20">
-                                                {temporaryTest.extra_data.shipments.map((s, idx) => (
-                                                    <div key={idx} className="flex justify-between items-center text-[9px] font-bold bg-slate-50 p-2 rounded border border-slate-150">
-                                                        <span className="text-rose-600">NF {s.nf || 'S/N'}</span>
-                                                        <span className="text-slate-600">{s.qty || 0} {temporaryTest?.unit || 'KG'} | R$ {((parseFloat(s.qty)||0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                                    </div>
-                                                ))}
+                                            <div className="flex flex-col gap-1 mt-1 border-t border-slate-100 pt-1 w-full text-center">
+                                                <span className="text-[7px] text-slate-400 font-bold uppercase truncate">NFs: {(temporaryTest.extra_data.shipments.map(s => s.nf).filter(Boolean).join(', '))}</span>
                                             </div>
                                         ) : (temporaryTest?.nf_number || temporaryTest?.extra_data?.nf_nota) && (
-                                            <div className="mt-1 p-2 bg-slate-50 rounded border border-slate-150">
-                                                <span className="text-[9px] font-bold text-amber-600 uppercase italic tracking-tighter">
-                                                    NOTA: {temporaryTest.nf_number || temporaryTest.extra_data.nf_nota}
+                                            <div className="mt-1 border-t border-slate-100 pt-1 w-full text-center">
+                                                <span className="text-[8px] font-bold text-amber-600 uppercase italic">
+                                                    NF: {temporaryTest.nf_number || temporaryTest.extra_data.nf_nota}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
 
                                     {/* 3. Consumo em outros testes */}
-                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">(-) Consumo em outros Testes</span>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xs font-black text-amber-600">
-                                                    {(() => {
-                                                        const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                        const qty = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                        return qty.toFixed(2);
-                                                    })()} {temporaryTest?.unit || 'KG'}
-                                                </span>
-                                                <span className="text-[9px] font-black text-amber-600/80">
-                                                    R$ -{((() => {
-                                                        const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                        return tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                    })() * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </span>
-                                            </div>
+                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">(-) Consumo Outros Testes</span>
+                                        </div>
+                                        <div className="flex flex-col items-end mt-2">
+                                            <span className="text-xs font-black text-amber-600">
+                                                {(() => {
+                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                    const qty = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                    return qty.toFixed(2);
+                                                })()} {temporaryTest?.unit || 'KG'}
+                                            </span>
+                                            <span className="text-[9px] font-black text-amber-600/80">
+                                                R$ -{((() => {
+                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                    return tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                })() * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
                                         </div>
                                         {(() => {
                                             const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
                                             const consumers = tests?.filter(t => t.consumed_stock_id === invItem?.id);
                                             return consumers?.length > 0 && (
-                                                <div className="flex flex-col gap-1 mt-1 pl-2 border-l-2 border-amber-500/20">
-                                                    {consumers.map((c, i) => (
-                                                        <span key={i} className="text-[9px] font-bold bg-slate-50 text-slate-600 px-2 py-1 rounded border border-slate-150 break-words">
-                                                            {c.test_number || 'Sem N°'} - {c.title}
-                                                        </span>
-                                                    ))}
+                                                <div className="flex flex-col gap-1 mt-1 border-t border-slate-100 pt-1 w-full text-center">
+                                                    <span className="text-[7px] text-slate-450 font-bold uppercase truncate">
+                                                        Destinos: {consumers.map(c => `#${c.test_number}`).join(', ')}
+                                                    </span>
                                                 </div>
                                             );
                                         })()}
                                     </div>
 
                                     {/* 4. Descartes */}
-                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">(-) Descartes de Saldo</span>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-xs font-black text-rose-600">{(temporaryTest?.quantity_discarded || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
-                                                <span className="text-[9px] font-black text-rose-500/80">R$ -{((temporaryTest?.quantity_discarded || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">(-) Descartes de Saldo</span>
+                                        </div>
+                                        <div className="flex flex-col items-end mt-2">
+                                            <span className="text-xs font-black text-rose-600">{(temporaryTest?.quantity_discarded || 0).toFixed(2)} {temporaryTest?.unit || 'KG'}</span>
+                                            <span className="text-[9px] font-black text-rose-500/80">R$ -{((temporaryTest?.quantity_discarded || 0) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                     </div>
 
                                     {/* 5. Ajustes de Inventário */}
-                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold text-slate-500 uppercase">
+                                    <div className="flex flex-col gap-1 px-3 py-2 bg-white border border-slate-150 rounded-xl hover:border-slate-300 transition-colors justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">
                                                 {(() => {
                                                     const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
                                                     const adj = invItem?.inventory_adjustment || 0;
-                                                    return adj >= 0 ? '(+) Ajustes de Inventário' : '(-) Ajustes de Inventário (Auditoria)';
+                                                    return adj >= 0 ? '(+) Ajuste Inventário' : '(-) Ajuste Inventário';
                                                 })()}
                                             </span>
-                                            <div className="flex flex-col items-end">
-                                                <span className={`text-xs font-black ${(() => {
-                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                    const adj = invItem?.inventory_adjustment || 0;
-                                                    return adj >= 0 ? (adj === 0 ? 'text-slate-400' : 'text-emerald-600') : 'text-rose-600';
-                                                })()}`}>
-                                                    {(() => {
-                                                        const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                        return (invItem?.inventory_adjustment || 0).toFixed(2);
-                                                    })()} {temporaryTest?.unit || 'KG'}
-                                                </span>
-                                                <span className={`text-[9px] font-black ${(() => {
-                                                    const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                    const adj = invItem?.inventory_adjustment || 0;
-                                                    return adj >= 0 ? (adj === 0 ? 'text-slate-400' : 'text-emerald-600/80') : 'text-rose-500/80';
-                                                })()}`}>
-                                                    R$ {(() => {
-                                                        const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                        const adj = invItem?.inventory_adjustment || 0;
-                                                        return (adj * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                                                    })()}
-                                                </span>
-                                            </div>
                                         </div>
-                                        {(() => {
-                                            const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                            return invItem?.justification_reason && (
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic mt-1">MOTIVO: {invItem.justification_reason}</span>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    {/* 6. Saldo Final Disponível */}
-                                    <div className="flex justify-between items-center px-4 py-4 bg-brand-500/10 border border-brand-500/20 rounded-xl mt-3">
-                                        <span className="text-xs font-black text-brand-600 uppercase tracking-widest">(=) Saldo Final Disponível</span>
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-sm font-black text-slate-800">
+                                        <div className="flex flex-col items-end mt-2">
+                                            <span className={`text-xs font-black ${(() => {
+                                                const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                const adj = invItem?.inventory_adjustment || 0;
+                                                return adj >= 0 ? (adj === 0 ? 'text-slate-400' : 'text-emerald-600') : 'text-rose-600';
+                                            })()}`}>
                                                 {(() => {
                                                     const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                    const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
-                                                    return currentBalance.toFixed(2);
+                                                    return (invItem?.inventory_adjustment || 0).toFixed(2);
                                                 })()} {temporaryTest?.unit || 'KG'}
                                             </span>
-                                            <span className="text-[10px] font-black text-emerald-600">
+                                            <span className={`text-[9px] font-black ${(() => {
+                                                const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                const adj = invItem?.inventory_adjustment || 0;
+                                                return adj >= 0 ? (adj === 0 ? 'text-slate-400' : 'text-emerald-600/80') : 'text-rose-500/80';
+                                            })()}`}>
                                                 R$ {(() => {
                                                     const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
-                                                    const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
-                                                    const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
-                                                    return (Math.max(0, currentBalance) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                                                    const adj = invItem?.inventory_adjustment || 0;
+                                                    return (adj * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
                                                 })()}
                                             </span>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Saldo Final Disponível */}
+                                <div className="flex justify-between items-center px-6 py-4 bg-brand-500/10 border border-brand-500/20 rounded-2xl mt-4">
+                                    <span className="text-xs font-black text-brand-600 uppercase tracking-widest">(=) Saldo Final Disponível em Estoque</span>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-sm font-black text-slate-800">
+                                            {(() => {
+                                                const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                                return currentBalance.toFixed(2);
+                                            })()} {temporaryTest?.unit || 'KG'}
+                                        </span>
+                                        <span className="text-[10px] font-black text-emerald-600">
+                                            R$ {(() => {
+                                                const invItem = inventory?.find(i => i.test_id === temporaryTest?.id);
+                                                const totalConsumed = tests?.filter(t => t.consumed_stock_id === invItem?.id)?.reduce((sum, t) => sum + (t.produced_quantity || 0), 0) || 0;
+                                                const currentBalance = ((temporaryTest?.produced_quantity || 0) - (temporaryTest?.quantity_billed || 0) - (temporaryTest?.quantity_discarded || 0)) - totalConsumed + (invItem?.inventory_adjustment || 0);
+                                                return (Math.max(0, currentBalance) * unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                                            })()}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -1846,8 +1849,8 @@ const TestDetailsModal = ({
                         return null;
                     })()}
                 </div>
-                <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
-                    <button onClick={onClose} className="flex-1 py-4 bg-white text-slate-400 text-xs font-black rounded-2xl border border-slate-200 uppercase tracking-widest hover:bg-slate-50 transition-all">Sair</button>
+                <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4 shrink-0">
+                    <button onClick={onClose} className="flex-1 py-4 bg-white text-slate-450 text-xs font-black rounded-2xl border border-slate-200 uppercase tracking-widest hover:bg-slate-50 transition-all">Sair</button>
                     <button
                         onClick={handleSaveDetails}
                         disabled={isSaving}
@@ -1864,3 +1867,4 @@ const TestDetailsModal = ({
 };
 
 export default TestDetailsModal;
+
