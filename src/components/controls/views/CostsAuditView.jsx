@@ -43,6 +43,14 @@ const CostsAuditView = ({
     const custoViagens = useMemo(() =>
         tasks.filter(t => t.parent_test_id).reduce((acc, t) => acc + (t.trip_cost || 0) + (t.travels || []).reduce((s, tr) => s + (tr.cost || 0), 0), 0), [tasks]);
 
+    const custoFreteTotal = useMemo(() =>
+        tests.reduce((acc, t) => {
+            const shipments = t.extra_data?.shipments || [];
+            return acc + shipments.reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+        }, 0), [tests]);
+
+    const totalLogisticaEFrete = useMemo(() => custoViagens + custoFreteTotal, [custoViagens, custoFreteTotal]);
+
     // Valor não monetizado: saldo físico × custo unitário de cada teste
     const valorNaoMonetizado = useMemo(() => {
         return tests.reduce((total, t) => {
@@ -283,7 +291,7 @@ const CostsAuditView = ({
                     { label: 'Investimento Novo', value: f(investimentoNovo), sub: 'Capital injetado na Engenharia', color: '#0f172a' },
                     { label: 'Patrimônio em Estoque', value: f(patrimonioEstoque), sub: 'Ativo circulante nos depósitos', color: '#16a34a' },
                     { label: 'Custo Amortizado (Reuso)', value: f(custoAmortizado), sub: 'Economia por reaproveitamento', color: '#d97706' },
-                    { label: 'Viagens / Logística', value: f(custoViagens), sub: 'Custos vinculados a testes', color: '#6366f1' },
+                    { label: 'Logística & Frete', value: f(totalLogisticaEFrete), sub: `Viagens: ${f(custoViagens)} | Frete: ${f(custoFreteTotal)}`, color: '#6366f1' },
                     { label: 'Capital Não Monetizado', value: f(valorNaoMonetizado), sub: 'Estoque aguardando venda/destino', color: '#7c3aed' },
                     { label: 'Aguardando Análise', value: aguardandoAnalise.length + ' testes', sub: `de ${totalTests} testes com produção`, color: '#ea580c' },
                 ].map(c => `
@@ -495,12 +503,12 @@ const CostsAuditView = ({
                             <span className="text-[9px] font-bold text-amber-500 italic">Economia gerada por reaproveitamento</span>
                         </div>
                         <div className="bg-slate-900 p-6 rounded-[32px] shadow-xl flex flex-col gap-1 border-l-4 border-l-brand-500">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Viagens (Logística)</span>
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Logística & Frete</span>
                             <div className="flex items-baseline gap-1">
                                 <span className="text-xs font-bold text-slate-500">R$</span>
-                                <span className="text-2xl font-black text-white">{fmtNum(custoViagens)}</span>
+                                <span className="text-2xl font-black text-white">{fmtNum(totalLogisticaEFrete)}</span>
                             </div>
-                            <span className="text-[9px] font-bold text-slate-500 italic">Custos vinculados a testes técnicos</span>
+                            <span className="text-[9px] font-bold text-slate-500 italic">Viagens: R$ {fmtNum(custoViagens)} | Frete: R$ {fmtNum(custoFreteTotal)}</span>
                         </div>
                     </div>
 
@@ -549,7 +557,7 @@ const CostsAuditView = ({
                                             ['Descarte', 'Quantidade excedente descartada por inviabilidade de aproveitamento.', 'center'],
                                             ['Saldo Físico', 'Saldo físico atual disponível em estoque (Patrimônio Líquido).', 'center'],
                                             ['Custo Prod.', 'Custo total amortizado de produção (baseado no saldo e faturamento).', 'center'],
-                                            ['Custo Log.', 'Custos logísticos consolidados de viagens e vistorias vinculadas.', 'center'],
+                                            ['Logística / Frete', 'Custos consolidados de viagens de vistorias (aba de Viagens) e fretes de envio (cadastro do teste).', 'center'],
                                             ['Status Auditoria', 'Resultado do cruzamento de dados físicos e financeiros da auditoria.', 'right'],
                                         ].map(([label, tip, align]) => (
                                             <th key={label} className={`p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : ''} ${label === 'Faturamento' ? 'text-emerald-600' : label === 'Reuso' ? 'text-amber-600' : label === 'Perda' ? 'text-rose-600' : label === 'Descarte' ? 'text-rose-500' : label === 'Saldo Físico' ? 'text-slate-800' : ''}`}>
@@ -654,13 +662,35 @@ const CostsAuditView = ({
                                                     <div className="flex flex-col items-center">
                                                         {(() => {
                                                             const linkedTaskCosts = tasks.filter(tk => tk.parent_test_id === t.id).reduce((acc, curr) => acc + (curr.trip_cost || 0) + (curr.travels || []).reduce((tAcc, tCurr) => tAcc + (tCurr.cost || 0), 0), 0);
-                                                            if (linkedTaskCosts > 0) return (
-                                                                <div className="flex flex-col items-center gap-0.5">
-                                                                    <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]"><Car size={10} /><span>R$ {linkedTaskCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
-                                                                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-tighter">Investimento Logístico</span>
+                                                            const shipments = t.extra_data?.shipments || [];
+                                                            const manualFreight = shipments.reduce((s, sh) => s + parseFloat(sh.freight_cost || 0), 0);
+
+                                                            if (linkedTaskCosts === 0 && manualFreight === 0) {
+                                                                return <span className="text-slate-300 text-[10px] font-bold">-</span>;
+                                                            }
+
+                                                            return (
+                                                                <div className="flex flex-col gap-2 w-full items-center">
+                                                                    {linkedTaskCosts > 0 && (
+                                                                        <div className="flex flex-col items-center">
+                                                                            <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]" title="Custos de viagens/vistorias lançados na aba de Viagens">
+                                                                                <Car size={10} />
+                                                                                <span>R$ {linkedTaskCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                            </div>
+                                                                            <span className="text-[7px] text-slate-400 font-bold uppercase tracking-tighter">Viagens</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {manualFreight > 0 && (
+                                                                        <div className="flex flex-col items-center">
+                                                                            <div className="flex items-center gap-1 text-teal-600 font-black text-[10px]" title="Custo de frete informado no cadastro do teste">
+                                                                                <Package size={10} />
+                                                                                <span>R$ {manualFreight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                            </div>
+                                                                            <span className="text-[7px] text-slate-400 font-bold uppercase tracking-tighter">Frete NF</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             );
-                                                            return <span className="text-slate-300 text-[10px] font-bold">-</span>;
                                                         })()}
                                                     </div>
                                                 </td>
