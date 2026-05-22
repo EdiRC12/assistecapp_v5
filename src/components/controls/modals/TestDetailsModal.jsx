@@ -914,7 +914,7 @@ const TestDetailsModal = ({
         <div className="fixed inset-0 z-[100005] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-[95vw] h-[94vh] max-h-[94vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center px-8 py-8 border-b border-slate-100 bg-slate-50/30 shrink-0">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0 mr-8">
                         <div className="p-4 bg-brand-50 text-brand-600 rounded-3xl shadow-sm"><FileSpreadsheet size={28} /></div>
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -971,7 +971,7 @@ const TestDetailsModal = ({
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={handlePrint}
                             className="p-2 text-slate-450 hover:text-brand-600 hover:bg-slate-100 rounded-xl transition-all"
@@ -992,9 +992,9 @@ const TestDetailsModal = ({
                         <div className="space-y-6">
                             {/* CARD 1: IDENTIFICAÇÃO E SITUAÇÃO */}
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                                    <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><FileText size={16} /></div>
-                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Identificação & Situação</h3>
+                                <div className="flex items-center gap-3 bg-brand-200 border border-brand-300 p-3.5 rounded-2xl">
+                                    <div className="p-2 bg-brand-600 text-white rounded-xl shadow-sm"><FileText size={16} /></div>
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-brand-950">Identificação & Situação</h3>
                                 </div>
                                 
                                 <div className="space-y-6">
@@ -1097,15 +1097,15 @@ const TestDetailsModal = ({
                         <div className="space-y-6">
                             {/* CARD 2: DADOS DE PRODUÇÃO E CUSTOS */}
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={16} /></div>
-                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Dados de Produção & Custos</h3>
+                                <div className="flex items-center justify-between bg-indigo-200 border border-indigo-300 p-3.5 rounded-2xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm"><Coins size={16} /></div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-indigo-950">Dados de Produção & Custos</h3>
                                     </div>
                                     {isDonor && (
-                                        <div className="px-3 py-1 bg-rose-50 border border-rose-200 rounded-full flex items-center gap-1.5 animate-pulse shrink-0">
-                                            <AlertTriangle size={10} className="text-rose-500" />
-                                            <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest">Saldo em Uso</span>
+                                        <div className="px-3 py-1 bg-rose-500 text-white rounded-full flex items-center gap-1.5 animate-pulse shrink-0 shadow-sm">
+                                            <AlertTriangle size={10} />
+                                            <span className="text-[8px] font-black uppercase tracking-widest">Saldo em Uso</span>
                                         </div>
                                     )}
                                 </div>
@@ -1201,10 +1201,10 @@ const TestDetailsModal = ({
 
                             {/* CARD 4: DESTINO E CONCILIÇÃO DE ESTOQUE */}
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 bg-brand-50 text-brand-600 rounded-lg"><RefreshCw size={16} /></div>
-                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Destino & Estoque</h3>
+                                <div className="flex items-center justify-between bg-amber-200 border border-amber-300 p-3.5 rounded-2xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-amber-600 text-white rounded-xl shadow-sm"><RefreshCw size={16} /></div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-amber-950">Destino & Estoque</h3>
                                     </div>
                                 </div>
 
@@ -1372,9 +1372,9 @@ const TestDetailsModal = ({
                         <div className="space-y-6 xl:sticky xl:top-0">
                             {/* CARD 3: FATURAMENTO E LOGÍSTICA DE ENVIO */}
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                                <div className="flex items-center gap-2 border-b border-slate-200/60 pb-3">
-                                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><FileSpreadsheet size={16} /></div>
-                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Faturamento & Logística de Envio</h3>
+                                <div className="flex items-center gap-3 bg-emerald-200 border border-emerald-300 p-3.5 rounded-2xl">
+                                    <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm"><FileSpreadsheet size={16} /></div>
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-emerald-950">Faturamento & Logística de Envio</h3>
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-1 gap-6">
@@ -1579,13 +1579,13 @@ const TestDetailsModal = ({
 
                         return (
                             <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-4 shadow-sm">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-200/60">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg"><Database size={16} /></div>
-                                        <span className="text-xs font-black uppercase tracking-widest text-slate-800">Fluxo de Rastreabilidade (Auditoria de Estoque)</span>
+                                <div className="flex items-center justify-between bg-slate-300 border border-slate-400 p-3.5 rounded-2xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-slate-600 text-white rounded-xl shadow-sm"><Database size={16} /></div>
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-950">Fluxo de Rastreabilidade (Auditoria de Estoque)</h3>
                                     </div>
                                     {unitCost > 0 && (
-                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter bg-white border border-slate-200 px-2 py-1 rounded-md shadow-sm">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter bg-white border border-slate-200/80 px-2 py-1 rounded-md shadow-sm">
                                             Valor Unitário: R$ {unitCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / {temporaryTest.unit || 'KG'}
                                         </span>
                                     )}
@@ -1745,15 +1745,16 @@ const TestDetailsModal = ({
 
                     {/* CARD 6: INFORMAÇÕES ADICIONAIS */}
                     <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-6 shadow-sm">
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 ml-1 text-[10px] font-black text-slate-500 uppercase tracking-widest"><Info size={14} className="text-brand-500" /> Descrição Técnica</div>
-                            <textarea
-                                value={temporaryTest?.description || ''}
-                                onChange={(e) => setTemporaryTest({ ...temporaryTest, description: e.target.value })}
-                                className="w-full p-5 bg-white rounded-[24px] border border-slate-200 text-sm text-slate-700 leading-relaxed font-medium outline-none focus:ring-2 focus:ring-brand-500 min-h-[120px] resize-none shadow-inner"
-                                placeholder="Descreva aqui os detalhes do teste..."
-                            />
+                        <div className="flex items-center gap-3 bg-violet-200 border border-violet-300 p-3.5 rounded-2xl">
+                            <div className="p-2 bg-violet-600 text-white rounded-xl shadow-sm"><Info size={16} /></div>
+                            <h3 className="text-xs font-black uppercase tracking-widest text-violet-950">Descrição Técnica</h3>
                         </div>
+                        <textarea
+                            value={temporaryTest?.description || ''}
+                            onChange={(e) => setTemporaryTest({ ...temporaryTest, description: e.target.value })}
+                            className="w-full p-5 bg-white rounded-[24px] border border-slate-200 text-sm text-slate-700 leading-relaxed font-medium outline-none focus:ring-2 focus:ring-brand-500 min-h-[120px] resize-none shadow-inner"
+                            placeholder="Descreva aqui os detalhes do teste..."
+                        />
                     </div>
 
                     {/* RESUMO FINANCEIRO CONSOLIDADO */}
