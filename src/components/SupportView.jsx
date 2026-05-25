@@ -183,17 +183,17 @@ const SupportView = ({
                     </div>
 
                     {/* Premium Pills Navigation (Displays Menu Principal Home button as well) */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 px-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl w-max max-w-full">
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 px-1 bg-slate-200/70 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/60 shadow-inner rounded-xl w-max max-w-full">
                         {/* Dashboard Home tab option */}
                         <button
                             onClick={() => setActiveSection(null)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-300 whitespace-nowrap ${
+                            className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-black transition-all duration-300 whitespace-nowrap ${
                                 activeSection === null
-                                    ? `bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm scale-102`
-                                    : `text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-800/40`
+                                    ? `bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm border border-slate-150 dark:border-slate-650 scale-102`
+                                    : `text-slate-650 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50`
                             }`}
                         >
-                            <LayoutGrid size={14} className={activeSection === null ? 'text-brand-500' : 'text-slate-400'} />
+                            <LayoutGrid size={14} className={activeSection === null ? 'text-brand-500' : 'text-slate-400 dark:text-slate-300 group-hover:text-slate-600 dark:group-hover:text-white transition-colors'} />
                             <span>Menu Principal</span>
                         </button>
 
@@ -204,13 +204,13 @@ const SupportView = ({
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveSection(tab.id)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-300 whitespace-nowrap ${
+                                    className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-black transition-all duration-300 whitespace-nowrap ${
                                         isActive
-                                            ? `bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm scale-102`
-                                            : `text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-800/40`
+                                            ? `bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm border border-slate-150 dark:border-slate-650 scale-102`
+                                            : `text-slate-650 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50`
                                     }`}
                                 >
-                                    <IconComponent size={14} className={isActive ? 'text-brand-500' : 'text-slate-400'} />
+                                    <IconComponent size={14} className={isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-300 group-hover:text-slate-600 dark:group-hover:text-white transition-colors'} />
                                     <span>{tab.label}</span>
                                 </button>
                             );
