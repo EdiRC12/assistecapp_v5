@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Search, MapPin, Compass, Navigation, Trash2, X, Star, Building2, HelpCircle } from 'lucide-react';
+import { Search, MapPin, Compass, Navigation, Trash2, X, Star, Building2, HelpCircle, Layers } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 
 // Leaflet Icon Setup
@@ -65,6 +65,14 @@ const SupportMapView = ({
         other: true,
         client: true
     });
+
+    const [legendOpen, setLegendOpen] = useState(true);
+
+    useEffect(() => {
+        if (isMobile) {
+            setLegendOpen(false);
+        }
+    }, [isMobile]);
     
     // Client Reference State (Fetched locally for high detail)
     const [clientPins, setClientPins] = useState([]);
@@ -395,43 +403,66 @@ const SupportMapView = ({
                     </div>
                 ) : null}
 
+                {/* Floating Legend Trigger (when collapsed) */}
+                {!loading && !legendOpen && (
+                    <button
+                        onClick={() => setLegendOpen(true)}
+                        className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-2 rounded-full shadow-lg border border-slate-200/80 z-[500] text-slate-650 hover:text-slate-800 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center w-8 h-8"
+                        title="Ver Legenda e Filtros"
+                    >
+                        <Layers size={16} className="text-brand-600" />
+                    </button>
+                )}
+
                 {/* Floating Legend & Filter Panel */}
-                {!loading && (
-                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-3.5 rounded-xl shadow-xl border border-slate-200/80 z-20 w-56 text-slate-700 select-none animate-in fade-in-50 duration-200">
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-                            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400">Filtros & Legenda</span>
-                            <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-full">
-                                {filteredPlaces.length + filteredClients.length} pin(s)
+                {!loading && legendOpen && (
+                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-2 md:p-3.5 rounded-xl shadow-xl border border-slate-200/80 z-[500] w-44 md:w-56 text-slate-700 select-none animate-in fade-in-50 duration-200">
+                        <div className="flex items-center justify-between pb-1.5 md:pb-2 mb-1.5 md:mb-2 border-b border-slate-100">
+                            <span className="font-extrabold text-[9px] md:text-[11px] uppercase tracking-wider text-slate-400">
+                                {isMobile ? 'Legenda' : 'Filtros & Legenda'}
                             </span>
+                            <div className="flex items-center gap-1 md:gap-1.5">
+                                <span className="text-[9px] md:text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                    {filteredPlaces.length + filteredClients.length} pin(s)
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setLegendOpen(false)}
+                                    className="text-slate-400 hover:text-red-500 p-0.5 hover:bg-slate-100 rounded transition-colors"
+                                    title="Recolher legenda"
+                                >
+                                    <X size={isMobile ? 10 : 12} />
+                                </button>
+                            </div>
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-1 md:space-y-2">
                             {[
                                 { id: 'hotel', label: 'Hotéis', color: 'bg-blue-500', count: places.filter(p => p.type === 'hotel').length },
                                 { id: 'restaurant', label: 'Restaurantes', color: 'bg-red-500', count: places.filter(p => p.type === 'restaurant').length },
-                                { id: 'fuel', label: 'Postos de Gasolina', color: 'bg-green-500', count: places.filter(p => p.type === 'fuel').length },
-                                { id: 'other', label: 'Pontos de Apoio', color: 'bg-yellow-500', count: places.filter(p => p.type === 'other').length },
-                                { id: 'client', label: 'Clientes (Referência)', color: 'bg-slate-400', count: clientPins.length }
+                                { id: 'fuel', label: isMobile ? 'Postos Comb.' : 'Postos de Gasolina', color: 'bg-green-500', count: places.filter(p => p.type === 'fuel').length },
+                                { id: 'other', label: isMobile ? 'Ptos. Apoio' : 'Pontos de Apoio', color: 'bg-yellow-500', count: places.filter(p => p.type === 'other').length },
+                                { id: 'client', label: isMobile ? 'Clientes (Ref.)' : 'Clientes (Referência)', color: 'bg-slate-400', count: clientPins.length }
                             ].map((cat) => (
                                 <label
                                     key={cat.id}
-                                    className="flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer text-xs"
+                                    className="flex items-center justify-between p-1 md:p-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer text-[10px] md:text-xs"
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-3 h-3 rounded-full ${cat.color} border border-white shadow-sm shrink-0`} />
-                                        <span className={`font-medium ${activeFilters[cat.id] ? 'text-slate-800' : 'text-slate-400 line-through'}`}>
+                                    <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+                                        <span className={`w-2 md:h-3 md:w-3 h-2 rounded-full ${cat.color} border border-white shadow-sm shrink-0`} />
+                                        <span className={`font-semibold md:font-medium truncate ${activeFilters[cat.id] ? 'text-slate-800' : 'text-slate-400 line-through'}`}>
                                             {cat.label}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 bg-slate-100 px-1 py-0.5 rounded-full shrink-0">
                                             {cat.count}
                                         </span>
                                         <input
                                             type="checkbox"
                                             checked={activeFilters[cat.id]}
                                             onChange={() => toggleFilter(cat.id)}
-                                            className="rounded text-brand-600 focus:ring-brand-500 border-slate-300 w-3.5 h-3.5 cursor-pointer accent-brand-600"
+                                            className="rounded text-brand-600 focus:ring-brand-500 border-slate-300 w-3 h-3 md:w-3.5 md:h-3.5 cursor-pointer accent-brand-600"
                                         />
                                     </div>
                                 </label>

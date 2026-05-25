@@ -602,55 +602,63 @@ const SupportOvertime = ({
             )}
 
             {/* Financial and Hours Summary Cards */}
-            <div className="p-4 md:p-6 pb-2 shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 z-0">
+            <div className="p-2.5 md:p-6 pb-2 shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 z-0">
                 
                 {/* Total Worked */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-150 flex items-center gap-3">
-                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                        <Clock size={20} />
+                <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-150 flex items-center gap-2 md:gap-3">
+                    <div className="p-1.5 md:p-2.5 bg-slate-100 text-slate-600 rounded-lg md:rounded-xl shrink-0">
+                        <Clock size={isMobile ? 16 : 20} />
                     </div>
-                    <div>
-                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Horas Trabalhadas</span>
-                        <span className="text-base font-black text-slate-800 leading-snug mt-1 block">
+                    <div className="min-w-0">
+                        <span className="block text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider md:tracking-widest leading-none truncate">
+                            {isMobile ? "Horas Trab." : "Horas Trabalhadas"}
+                        </span>
+                        <span className="text-xs md:text-base font-black text-slate-800 leading-snug mt-0.5 md:mt-1 block truncate">
                             {totals.workedStr}
                         </span>
                     </div>
                 </div>
 
                 {/* Overtime 50% */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-150 flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                        <Clock size={20} />
+                <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-150 flex items-center gap-2 md:gap-3">
+                    <div className="p-1.5 md:p-2.5 bg-blue-50 text-blue-600 rounded-lg md:rounded-xl shrink-0">
+                        <Clock size={isMobile ? 16 : 20} />
                     </div>
-                    <div>
-                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Extras Acumuladas 50%</span>
-                        <span className="text-base font-black text-blue-700 leading-snug mt-1 block">
+                    <div className="min-w-0">
+                        <span className="block text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider md:tracking-widest leading-none truncate">
+                            {isMobile ? "Extras 50%" : "Extras Acumuladas 50%"}
+                        </span>
+                        <span className="text-xs md:text-base font-black text-blue-700 leading-snug mt-0.5 md:mt-1 block truncate">
                             {totals.extra50Str}
                         </span>
                     </div>
                 </div>
 
                 {/* Overtime 100% */}
-                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-150 flex items-center gap-3">
-                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
-                        <Clock size={20} />
+                <div className="bg-white rounded-xl md:rounded-2xl p-2.5 md:p-4 shadow-sm border border-slate-150 flex items-center gap-2 md:gap-3">
+                    <div className="p-1.5 md:p-2.5 bg-amber-50 text-amber-600 rounded-lg md:rounded-xl shrink-0">
+                        <Clock size={isMobile ? 16 : 20} />
                     </div>
-                    <div>
-                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Extras Especiais 100%</span>
-                        <span className="text-base font-black text-amber-600 leading-snug mt-1 block">
+                    <div className="min-w-0">
+                        <span className="block text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-wider md:tracking-widest leading-none truncate">
+                            {isMobile ? "Extras 100%" : "Extras Especiais 100%"}
+                        </span>
+                        <span className="text-xs md:text-base font-black text-amber-600 leading-snug mt-0.5 md:mt-1 block truncate">
                             {totals.extra100Str}
                         </span>
                     </div>
                 </div>
 
                 {/* Estimated Earnings Estimation (Currency) */}
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-4 shadow-sm border border-emerald-500 flex items-center gap-3">
-                    <div className="p-2.5 bg-white/20 text-white rounded-xl">
-                        <DollarSign size={20} />
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl md:rounded-2xl p-2.5 md:p-4 shadow-sm border border-emerald-500 flex items-center gap-2 md:gap-3">
+                    <div className="p-1.5 md:p-2.5 bg-white/20 text-white rounded-lg md:rounded-xl shrink-0">
+                        <DollarSign size={isMobile ? 16 : 20} />
                     </div>
-                    <div>
-                        <span className="block text-[9px] font-black text-white/80 uppercase tracking-widest leading-none">Adicional Adquirido (Est.)</span>
-                        <span className="text-lg font-black leading-snug mt-0.5 block font-mono">
+                    <div className="min-w-0">
+                        <span className="block text-[8px] md:text-[9px] font-black text-white/80 uppercase tracking-wider md:tracking-widest leading-none truncate">
+                            {isMobile ? "Adicional (Est.)" : "Adicional Adquirido (Est.)"}
+                        </span>
+                        <span className="text-xs md:text-lg font-black leading-snug mt-0.5 block truncate font-mono">
                             R$ {totals.estimatedEarnings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     </div>
@@ -658,7 +666,7 @@ const SupportOvertime = ({
             </div>
 
             {/* Time log table display */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 pb-6 custom-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto px-2.5 md:px-6 pb-6 custom-scrollbar">
                 <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
                     <div className="p-3 bg-slate-50 border-b flex justify-between items-center px-4">
                         <h4 className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">
