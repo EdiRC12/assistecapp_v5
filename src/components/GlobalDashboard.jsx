@@ -239,7 +239,7 @@ const GlobalDashboard = ({
                                     <p className="text-[9px] font-bold text-slate-400 uppercase">{tr.status === 'EM_CURSO' ? '🚗 Em Deslocamento' : 'Planejado'}</p>
                                     <p className="text-xs font-black text-slate-800 group-hover:text-sky-700 truncate">{tr.client}</p>
                                 </div>
-                                <p className="text-[9px] font-mono text-slate-400 shrink-0">{new Date(tr.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
+                                <p className="text-[9px] font-mono text-slate-400 shrink-0">{new Date(tr.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })}</p>
                             </div>
                         ))}
                     </div>
@@ -280,7 +280,7 @@ const GlobalDashboard = ({
                                     <p className="text-xs font-black text-slate-800 group-hover:text-indigo-700 truncate">{item.client || 'Sem Cliente'}</p>
                                     <p className="text-[9px] text-slate-400 truncate">{item.title}</p>
                                 </div>
-                                <p className="text-[9px] font-mono text-slate-400 shrink-0">{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>
+                                <p className="text-[9px] font-mono text-slate-400 shrink-0">{new Date(item.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })}</p>
                             </div>
                         ))}
                     </div>
@@ -351,7 +351,7 @@ const GlobalDashboard = ({
                                     className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-emerald-50 cursor-pointer group">
                                     <MapPin size={10} className="text-emerald-500 shrink-0" />
                                     <p className="text-[9px] font-black text-slate-700 truncate group-hover:text-emerald-700">{v.client}</p>
-                                    {v.due_date && <p className="text-[8px] font-mono text-slate-400 shrink-0 ml-auto">{new Date(v.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</p>}
+                                    {v.due_date && <p className="text-[8px] font-mono text-slate-400 shrink-0 ml-auto">{new Date(v.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })}</p>}
                                 </div>
                             ))}
                         </div>

@@ -245,7 +245,8 @@ export const buildAIDataPackage = (notes, mediaItems, taskContext) => {
         location: taskContext.location || 'Não informado',
         rnc: taskContext.rnc || 'N/A',
         manualActions: taskContext.manualActions || [],
-        commentsList: commentsList || null
+        commentsList: commentsList || null,
+        travels: travels
     };
 };
 
@@ -274,6 +275,24 @@ export const generateNativeReportFallback = (data, status) => {
     // 1. Objetivo da Visita
     content += `<h3 style="${styles.sectionTitle}">OBJETIVO DA VISITA</h3>`;
     content += `<p style="font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 20px;">${data.objective || 'Atendimento técnico programado para análise e suporte conforme solicitação do cliente.'}</p>`;
+
+    // 1.5. Cronograma de Viagens
+    if (data.travels && data.travels.length > 0) {
+        const validTravels = data.travels.filter(tr => tr.isDateDefined && tr.date);
+        if (validTravels.length > 0) {
+            content += `<h3 style="${styles.sectionTitle}">CRONOGRAMA DE VIAGENS</h3>`;
+            validTravels.forEach((tr) => {
+                const dateFormatted = new Date(tr.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                const teamMembers = Array.isArray(tr.team) ? tr.team.filter(Boolean).join(', ') : (tr.team || 'Não informado');
+                const contactPerson = tr.contacts || 'Não informado';
+                const contactRole = tr.role ? `, ${tr.role}` : '';
+                content += `<p style="font-size: 14.5px; color: #334155; line-height: 1.6; margin-bottom: 12px; font-family: sans-serif;">`;
+                content += `Viagem realizada em <strong>${dateFormatted}</strong>, por <strong>${teamMembers}</strong>, recebido por <strong>${contactPerson}</strong>${contactRole ? ` (${contactRole.replace(', ', '')})` : ''}.`;
+                content += `</p>`;
+            });
+            content += `<br/>`;
+        }
+    }
 
     // 2. Descrição do Chamado
     if (data.description && data.description !== 'Não informado') {

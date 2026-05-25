@@ -255,7 +255,7 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                                             <div className="mt-2 bg-slate-50 p-2 rounded border border-slate-200">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] font-bold text-slate-500">DATA:</span>
-                                                    <span className="text-[10px] font-black text-slate-700">{item.date ? new Date(item.date).toLocaleDateString('pt-BR') : 'A DEFINIR'}</span>
+                                                    <span className="text-[10px] font-black text-slate-700">{item.date ? new Date(item.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A DEFINIR'}</span>
                                                 </div>
                                                 <div className="text-[10px] text-slate-600">
                                                     <span className="font-bold">EQUIPE:</span> {item.travel.team?.join(', ') || 'Nenhum'}

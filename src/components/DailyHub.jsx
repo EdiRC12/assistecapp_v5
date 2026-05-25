@@ -325,7 +325,7 @@ const DailyHub = ({
                                             <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between">
                                                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
                                                     <Clock size={12} className="text-brand-500" />
-                                                    <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'A concluir'}</span>
+                                                    <span>{task.due_date ? new Date(task.due_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A concluir'}</span>
                                                 </div>
                                                 <div className="text-[9px] font-black text-brand-600/40 uppercase tracking-widest">#{task.id}</div>
                                             </div>
@@ -479,7 +479,7 @@ const DailyHub = ({
                                         {item.itemType === 'TASK' ? 'Tarefa Atrasada' : <><StickyNote size={8} /> Lembrete Vencido</>}
                                     </span>
                                     <span className="text-[9px] font-bold text-red-400">
-                                        {new Date(item.due_date || item.dueDate || item.note_date || item.date).toLocaleDateString()}
+                                        {new Date(item.due_date || item.dueDate || item.note_date || item.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                                     </span>
                                 </div>
                                 <h4 className="text-xs font-bold text-slate-800 line-clamp-2">

@@ -563,7 +563,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             const months = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
             return `${months[parseInt(month)-1]} / ${year}`;
         }
-        return new Date(filters.date).toLocaleDateString('pt-BR');
+        return new Date(filters.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
     };
 
     const handleOpenProrationModal = () => {
@@ -1144,9 +1144,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                                     <td className="p-4 align-top">
                                                         <div className="flex flex-col">
                                                             <span className={`text-xs font-bold ${!trip.isDateDefined ? 'text-amber-600' : 'text-slate-700'}`}>
-                                                                {trip.isDateDefined ? new Date(trip.date).toLocaleDateString() : 'A Definir'}
+                                                                {trip.isDateDefined ? new Date(trip.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'A Definir'}
                                                             </span>
-                                                            {trip.isDateDefined && <span className="text-[10px] text-slate-400 uppercase">{new Date(trip.date).toLocaleDateString('pt-BR', { weekday: 'short' })}</span>}
+                                                            {trip.isDateDefined && <span className="text-[10px] text-slate-400 uppercase">{new Date(trip.date).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' })}</span>}
                                                         </div>
                                                     </td>
                                                     <td className="p-4 align-top">
