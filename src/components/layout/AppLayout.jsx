@@ -4,7 +4,7 @@ import {
     CheckSquare, FileText, Headphones, Sparkles, Settings2, LogOut,
     PanelLeft, PanelBottom, ChevronRight, ChevronLeft, X, Menu, Search,
     User as UserIcon, StickyNote, AlertTriangle, LogIn, Settings, Car,
-    CheckSquare as CheckSquareIcon, Users as UsersIcon, History
+    CheckSquare as CheckSquareIcon, Users as UsersIcon, History, LifeBuoy
 } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
 import DailyHub from '../DailyHub';
@@ -69,12 +69,14 @@ const AppLayout = ({
         { id: 'traceability', label: 'Rastreabilidade', icon: History, color: 'text-amber-600' },
         { id: 'meetings', label: 'Reunião', icon: UsersIcon, color: 'text-brand-600' },
         { id: 'poli', label: 'POLI', icon: Sparkles, color: 'text-purple-500' },
+        { id: 'support', label: 'Suporte', icon: LifeBuoy, color: 'text-rose-600' },
         { id: 'controls', label: 'Controles', icon: Settings2, color: 'text-slate-600' },
         { id: 'global_dashboard', label: 'Global', icon: LayoutDashboard, color: 'text-indigo-600' }
     ];
 
-    const mobileAllowedItems = ['kanban', 'calendar', 'map', 'clients', 'reports', 'global_dashboard', 'controls', 'visit_pending', 'traceability'];
+    const mobileAllowedItems = ['kanban', 'calendar', 'map', 'clients', 'reports', 'global_dashboard', 'controls', 'visit_pending', 'traceability', 'support'];
     const menuItems = isMobile ? rawMenuItems.filter(item => mobileAllowedItems.includes(item.id)) : rawMenuItems;
+
 
     return (
         <div

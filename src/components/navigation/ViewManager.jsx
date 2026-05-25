@@ -13,6 +13,7 @@ import GlobalDashboard from '../GlobalDashboard';
 import PlanningHub from '../planning/PlanningHub';
 import MeetingHub from '../MeetingHub';
 import TraceabilityView from '../TraceabilityView';
+import SupportView from '../SupportView';
 import { TaskStatus } from '../../constants/taskConstants';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -421,6 +422,21 @@ const ViewManager = ({
                         notifyError={notifyError}
                         notifyWarning={notifyWarning}
                         notifySuccess={notifySuccess}
+                    />
+                </ErrorBoundary>
+            );
+
+        case 'support':
+            return (
+                <ErrorBoundary componentName="SupportView" currentUser={currentUser} notifyError={notifyError}>
+                    <SupportView
+                        supabase={supabase}
+                        currentUser={currentUser}
+                        tasks={tasks}
+                        theme={theme}
+                        notifySuccess={notifySuccess}
+                        notifyError={notifyError}
+                        notifyWarning={notifyWarning}
                     />
                 </ErrorBoundary>
             );
