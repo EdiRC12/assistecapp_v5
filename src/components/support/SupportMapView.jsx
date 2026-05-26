@@ -5,26 +5,52 @@ import 'leaflet/dist/leaflet.css';
 import { Search, MapPin, Compass, Navigation, Trash2, X, Star, Building2, HelpCircle, Layers } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 
-// Leaflet Icon Setup
-const getCustomIcon = (color, className = '') => {
-    return new L.Icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41],
-        className: className
+// Leaflet premium HTML custom pins creator
+const createPremiumPin = (color, iconType, className = '') => {
+    let iconHtml = '';
+    if (iconType === 'hotel') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`;
+    } else if (iconType === 'restaurant') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v8c0 1.1.9 2 2 2h3Z"/><path d="M18 22V15"/></svg>`;
+    } else if (iconType === 'fuel') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="2" y2="2"/><path d="M12 22V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v14"/><path d="M16 13h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-3"/><path d="M9 6h2"/><path d="M6 10h6"/><path d="M9 14h2"/><circle cx="9" cy="18" r="1"/></svg>`;
+    } else if (iconType === 'home') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+    } else if (iconType === 'compass') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`;
+    } else if (iconType === 'search') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>`;
+    } else if (iconType === 'client') {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/></svg>`;
+    } else {
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`;
+    }
+
+    return L.divIcon({
+        html: `
+            <div style="position: relative; width: 30px; height: 38px; display: flex; align-items: center; justify-content: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 30" width="30" height="38" style="position: absolute; top: 0; left: 0; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.3));">
+                    <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M12 0C5.37 0 0 5.37 0 12c0 7.33 12 18 12 18s12-10.67 12-18C24 5.37 18.63 0 12 0z"/>
+                </svg>
+                <div style="position: absolute; top: 8px; left: 8.5px; display: flex; align-items: center; justify-content: center; color: white; width: 13px; height: 13px;">
+                    ${iconHtml}
+                </div>
+            </div>
+        `,
+        className: className || 'custom-premium-marker',
+        iconSize: [30, 38],
+        iconAnchor: [15, 38],
+        popupAnchor: [0, -34]
     });
 };
 
 const icons = {
-    hotel: getCustomIcon('blue'),       // Blue for Hotels
-    restaurant: getCustomIcon('red'),  // Red for Restaurants
-    fuel: getCustomIcon('green'),      // Green for Gas Stations
-    other: getCustomIcon('yellow'),    // Yellow for Others
-    client: getCustomIcon('grey', 'client-reference-marker'), // Grey for Clients Reference (with class-opacity)
-    search: getCustomIcon('orange')    // Orange for Search Pin
+    hotel: createPremiumPin('#2563eb', 'hotel'),       // Blue for Hotels
+    restaurant: createPremiumPin('#dc2626', 'restaurant'),  // Red for Restaurants
+    fuel: createPremiumPin('#16a34a', 'fuel'),      // Green for Gas Stations
+    other: createPremiumPin('#ca8a04', 'other'),    // Yellow for Others
+    client: createPremiumPin('#64748b', 'client', 'client-reference-marker'), // Grey for Clients Reference
+    search: createPremiumPin('#ea580c', 'search')    // Orange for Search Pin
 };
 
 // Component to dynamically pan/zoom map to specific coordinates

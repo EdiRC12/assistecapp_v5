@@ -231,6 +231,7 @@ const ViewManager = ({
             return (
                 <ErrorBoundary componentName="PlanningHub" currentUser={currentUser} notifyError={notifyError}>
                     <PlanningHub
+                        supabase={supabase}
                         currentUser={currentUser}
                         allClients={allClients}
                         tasks={tasks}
@@ -240,6 +241,7 @@ const ViewManager = ({
                         onEditTask={async (t) => { setIsModalOpen(true); setEditingTask(t); await fetchTaskDetail(t.id); }}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
+                        theme={theme}
                     />
                 </ErrorBoundary>
             );

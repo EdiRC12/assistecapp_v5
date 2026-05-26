@@ -1,13 +1,25 @@
 import React, { useState } from 'react';
 import { 
     Calendar, CheckSquare, ChevronRight, 
-    Briefcase, ClipboardList, Clock, AlertTriangle 
+    Briefcase, ClipboardList, Clock, AlertTriangle, Route
 } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 import VisitationTab from './VisitationTab';
 import PendingActionsTab from './PendingActionsTab';
+import SupportRoutePlanner from '../support/SupportRoutePlanner';
 
 const TABS = [
+    {
+        id: 'PENDING',
+        label: 'AÇÕES PENDENTES',
+        fullLabel: 'Pendências de Visita',
+        desc: 'Ações e tarefas pós-atendimento',
+        color: 'emerald',
+        icon: CheckSquare,
+        activeText: 'text-emerald-600',
+        activeBg: 'bg-emerald-600',
+        ring: 'ring-emerald-500',
+    },
     {
         id: 'VISITATION',
         label: 'PROSPECÇÃO',
@@ -20,19 +32,20 @@ const TABS = [
         ring: 'ring-indigo-500',
     },
     {
-        id: 'PENDING',
-        label: 'AÇÕES PENDENTES',
-        fullLabel: 'Pendências de Visita',
-        desc: 'Ações e tarefas pós-atendimento',
-        color: 'emerald',
-        icon: CheckSquare,
-        activeText: 'text-emerald-600',
-        activeBg: 'bg-emerald-600',
-        ring: 'ring-emerald-500',
+        id: 'ROUTE_PLANNER',
+        label: 'ROTA DE VIAGEM',
+        fullLabel: 'Planejador de Rotas',
+        desc: 'Simulação e roteirização de viagens',
+        color: 'indigo',
+        icon: Route,
+        activeText: 'text-indigo-600',
+        activeBg: 'bg-indigo-600',
+        ring: 'ring-indigo-500',
     }
 ];
 
 const PlanningHub = ({
+    supabase,
     currentUser,
     allClients,
     tasks,
@@ -42,10 +55,11 @@ const PlanningHub = ({
     onTaskCreated,
     techTests, // Needed for Visitation linkage
     notifySuccess,
-    notifyError
+    notifyError,
+    theme
 }) => {
     const isMobile = useIsMobile();
-    const [activeTab, setActiveTab] = useState('VISITATION');
+    const [activeTab, setActiveTab] = useState('PENDING');
 
     const activeTabInfo = TABS.find(t => t.id === activeTab) || TABS[0];
 
@@ -106,6 +120,16 @@ const PlanningHub = ({
                         onTaskCreated={onTaskCreated}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
+                    />
+                ) : activeTab === 'ROUTE_PLANNER' ? (
+                    <SupportRoutePlanner
+                        supabase={supabase}
+                        currentUser={currentUser}
+                        theme={theme}
+                        notifySuccess={notifySuccess}
+                        notifyError={notifyError}
+                        onNewTask={onNewTask}
+                        tasks={tasks}
                     />
                 ) : (
                     <PendingActionsTab 

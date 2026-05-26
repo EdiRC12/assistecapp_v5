@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    Plus, ChevronLeft, Download, Upload, MapPin, Printer
+    Plus, ChevronLeft, Download, Upload, MapPin, Printer,
+    Briefcase, ShieldAlert, MessageSquare, ListChecks, Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ClientManager from './ClientManager';
@@ -59,6 +60,8 @@ const ClientHistoryView = ({
     const [clientMachines, setClientMachines] = useState([]);
     const [clientTests, setClientTests] = useState([]); // Novos testes técnicos
     const [clientFollowups, setClientFollowups] = useState([]); // Acompanhamentos
+    const [clientRncs, setClientRncs] = useState([]); // Relatórios de Não Conformidade
+    const [clientSacs, setClientSacs] = useState([]); // Canal de Suporte SAC
     const [loadingMachines, setLoadingMachines] = useState(false);
 
     const [clientProducts, setClientProducts] = useState([]);
@@ -73,6 +76,16 @@ const ClientHistoryView = ({
     const [selectedMachineForView, setSelectedMachineForView] = useState(null);
     const [isEditingMachineDetails, setIsEditingMachineDetails] = useState(false);
     const [machineEditForm, setMachineEditForm] = useState(null);
+
+    // Global filters for client details
+    const [globalFilterMonth, setGlobalFilterMonth] = useState('ALL');
+    const [globalFilterYear, setGlobalFilterYear] = useState('ALL');
+
+    // Sincroniza os filtros globais com os locais para propagação em cascata automática
+    useEffect(() => {
+        setFilterMonth(globalFilterMonth === 'ALL' ? '' : globalFilterMonth);
+        setFilterYear(globalFilterYear === 'ALL' ? '' : globalFilterYear);
+    }, [globalFilterMonth, globalFilterYear]);
 
     // Filters for tasks
     const [filterCategory, setFilterCategory] = useState('');
@@ -155,7 +168,7 @@ const ClientHistoryView = ({
             // Nome normalizado para busca flexível e robusta
             const normalizedClient = normalizeText(clientName);
 
-            const [contactsRes, reportsRes, testsRes, followupsRes] = await Promise.all([
+            const [contactsRes, reportsRes, testsRes, followupsRes, rncsRes, sacsRes] = await Promise.all([
                 supabase.from('client_contacts').select('*').eq('client_id', clientId).order('name'),
                 clientTaskIds.length > 0
                     ? supabase.from('task_reports').select('*').in('task_id', clientTaskIds).order('updated_at', { ascending: false })
@@ -167,7 +180,13 @@ const ClientHistoryView = ({
                 supabase.from('tech_followups')
                     .select('*')
                     .or(`client_name.eq."${clientName}",client_name.ilike."%${normalizedClient}%"`)
-                    .order('created_at', { ascending: false })
+                    .order('created_at', { ascending: false }),
+                supabase.from('rnc_records')
+                    .select('id, client_name')
+                    .or(`client_name.eq."${clientName}",client_name.ilike."%${normalizedClient}%"`),
+                supabase.from('sac_tickets')
+                    .select('id, client_name')
+                    .or(`client_name.eq."${clientName}",client_name.ilike."%${normalizedClient}%"`)
             ]);
 
             setClientContacts(contactsRes.data || []);
@@ -177,9 +196,13 @@ const ClientHistoryView = ({
             // Refinamento no frontend para garantir match absoluto via normalização
             const testsMatched = (testsRes.data || []).filter(t => normalizeText(t.client_name) === normalizedClient);
             const followupsMatched = (followupsRes.data || []).filter(f => normalizeText(f.client_name) === normalizedClient);
+            const rncsMatched = (rncsRes.data || []).filter(r => normalizeText(r.client_name) === normalizedClient);
+            const sacsMatched = (sacsRes.data || []).filter(s => normalizeText(s.client_name) === normalizedClient);
 
             setClientTests(testsMatched);
             setClientFollowups(followupsMatched);
+            setClientRncs(rncsMatched);
+            setClientSacs(sacsMatched);
         } catch (err) {
             console.error('Error fetching client details:', err);
         }
@@ -260,6 +283,46 @@ const ClientHistoryView = ({
             console.error('Error deleting client product:', err);
             if (notifyError) notifyError('Erro ao excluir item', err.message);
         }
+    };
+
+    const handleUpdateNotes = async (updatedNotes) => {
+        if (!activeClientObj) return;
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('clients')
+                .update({ operational_notes: updatedNotes })
+                .eq('id', activeClientObj.id);
+
+            if (error) throw error;
+
+            // Atualiza o estado local clientsData para sincronização em tempo real na tela
+            setClientsData(prev => prev.map(c => c.id === activeClientObj.id ? { ...c, operational_notes: updatedNotes } : c));
+            if (notifySuccess) notifySuccess('Sucesso!', 'Notas operacionais atualizadas com sucesso.');
+        } catch (err) {
+            console.error('Erro ao salvar notas operacionais:', err);
+            if (notifyError) notifyError('Erro ao salvar notas', err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddNote = (text) => {
+        if (!text.trim() || !activeClientObj) return;
+        const newNote = {
+            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
+            text: text.trim(),
+            created_at: new Date().toISOString()
+        };
+        const updatedNotes = [newNote, ...(activeClientObj.operational_notes || [])];
+        handleUpdateNotes(updatedNotes);
+    };
+
+    const handleDeleteNote = (noteId) => {
+        if (!window.confirm('Deseja excluir esta nota operacional?')) return;
+        if (!activeClientObj) return;
+        const updatedNotes = (activeClientObj.operational_notes || []).filter(n => n.id !== noteId);
+        handleUpdateNotes(updatedNotes);
     };
 
     const handleAddContact = async (e) => {
@@ -436,6 +499,101 @@ const filteredClients = sortedClients.filter(c => {
     return matchesSearch && matchesClass;
 });
 
+// ==========================================
+// FILTROS E MÉTRICAS DO DASHBOARD DO CLIENTE
+// ==========================================
+
+const filteredTasksCount = useMemo(() => {
+    if (!selectedClient) return 0;
+    const normalizedSelected = normalizeText(selectedClient);
+    let list = tasks.filter(t => normalizeText(t.client) === normalizedSelected);
+    if (globalFilterMonth !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.createdAt || t.created_at || t.due_date;
+            return date && (new Date(date).getMonth() + 1) === parseInt(globalFilterMonth);
+        });
+    }
+    if (globalFilterYear !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.createdAt || t.created_at || t.due_date;
+            return date && new Date(date).getFullYear() === parseInt(globalFilterYear);
+        });
+    }
+    return list.length;
+}, [tasks, selectedClient, globalFilterMonth, globalFilterYear]);
+
+const filteredRncsCount = useMemo(() => {
+    let list = [...clientRncs];
+    if (globalFilterMonth !== 'ALL') {
+        list = list.filter(r => {
+            const date = r.report_date || r.created_at;
+            return date && (new Date(date).getMonth() + 1) === parseInt(globalFilterMonth);
+        });
+    }
+    if (globalFilterYear !== 'ALL') {
+        list = list.filter(r => {
+            const date = r.report_date || r.created_at;
+            return date && new Date(date).getFullYear() === parseInt(globalFilterYear);
+        });
+    }
+    return list.length;
+}, [clientRncs, globalFilterMonth, globalFilterYear]);
+
+const filteredSacsCount = useMemo(() => {
+    let list = [...clientSacs];
+    if (globalFilterMonth !== 'ALL') {
+        list = list.filter(s => {
+            const date = s.report_date || s.created_at;
+            return date && (new Date(date).getMonth() + 1) === parseInt(globalFilterMonth);
+        });
+    }
+    if (globalFilterYear !== 'ALL') {
+        list = list.filter(s => {
+            const date = s.report_date || s.created_at;
+            return date && new Date(date).getFullYear() === parseInt(globalFilterYear);
+        });
+    }
+    return list.length;
+}, [clientSacs, globalFilterMonth, globalFilterYear]);
+
+const filteredTestsCount = useMemo(() => {
+    let list = [...clientTests];
+    if (globalFilterMonth !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.created_at;
+            return date && (new Date(date).getMonth() + 1) === parseInt(globalFilterMonth);
+        });
+    }
+    if (globalFilterYear !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.created_at;
+            return date && new Date(date).getFullYear() === parseInt(globalFilterYear);
+        });
+    }
+    return list.length;
+}, [clientTests, globalFilterMonth, globalFilterYear]);
+
+const visitsMetrics = useMemo(() => {
+    if (!selectedClient) return { planned: 0, completed: 0 };
+    const normalizedSelected = normalizeText(selectedClient);
+    let list = tasks.filter(t => normalizeText(t.client) === normalizedSelected && t.visitation?.required);
+    if (globalFilterMonth !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.createdAt || t.created_at || t.due_date;
+            return date && (new Date(date).getMonth() + 1) === parseInt(globalFilterMonth);
+        });
+    }
+    if (globalFilterYear !== 'ALL') {
+        list = list.filter(t => {
+            const date = t.createdAt || t.created_at || t.due_date;
+            return date && new Date(date).getFullYear() === parseInt(globalFilterYear);
+        });
+    }
+    const planned = list.length;
+    const completed = list.filter(t => t.status === 'CONCLUÍDO').length;
+    return { planned, completed };
+}, [tasks, selectedClient, globalFilterMonth, globalFilterYear]);
+
 const clientTasks = useMemo(() => {
     if (!selectedClient) return [];
     const normalizedSelected = normalizeText(selectedClient);
@@ -520,6 +678,16 @@ const clientTrips = useMemo(() => {
         if (normalizeText(task.client) !== normalizedSelected) return;
         if (!task.visitation?.required) return;
 
+        // Filtro de mês e ano para as viagens
+        if (filterMonth) {
+            const date = task.due_date || task.createdAt || task.created_at;
+            if (!date || (new Date(date).getMonth() + 1) !== parseInt(filterMonth)) return;
+        }
+        if (filterYear) {
+            const date = task.due_date || task.createdAt || task.created_at;
+            if (!date || new Date(date).getFullYear() !== parseInt(filterYear)) return;
+        }
+
         if (task.travels && task.travels.length > 0) {
             task.travels.forEach((t, travelIdx) => {
                 list.push({
@@ -551,7 +719,7 @@ const clientTrips = useMemo(() => {
         }
     });
     return list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-}, [tasks, selectedClient]);
+}, [tasks, selectedClient, filterMonth, filterYear]);
 
 const handlePrint = () => {
     if (!onOpenClientReport) return;
@@ -789,15 +957,112 @@ return (
 
                     {/* Main Interaction Area */}
                     <div className={`flex-1 overflow-y-auto custom-scrollbar ${isMobile ? 'p-3' : 'p-6'}`}>
+                        {/* Barra de Filtro de Período Global Unificado */}
+                        <div className="mb-6 bg-white border border-slate-200 p-4 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+                            <div>
+                                <span className="text-[10px] font-black text-brand-600 uppercase tracking-widest block">Período de Análise</span>
+                                <p className="text-[11px] text-slate-400 font-bold uppercase mt-0.5">Filtragem global de atividades, viagens e indicadores</p>
+                            </div>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex-1 sm:flex-initial">
+                                    <select
+                                        value={globalFilterMonth}
+                                        onChange={(e) => setGlobalFilterMonth(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-slate-600 cursor-pointer w-full"
+                                    >
+                                        <option value="ALL">TODOS OS MESES</option>
+                                        {months.map((m, i) => (
+                                            <option key={i} value={m.val}>{m.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex-1 sm:flex-initial">
+                                    <select
+                                        value={globalFilterYear}
+                                        onChange={(e) => setGlobalFilterYear(e.target.value)}
+                                        className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-slate-600 cursor-pointer w-full"
+                                    >
+                                        <option value="ALL">TODOS OS ANOS</option>
+                                        {years.map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
                         {!activeTopic ? (
-                            <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${isMobile ? 'gap-3' : 'gap-6'} animate-in fade-in duration-300`}>
-                                <DashboardCard title="Cadastro" icon={Plus} isCompact onClick={() => setActiveTopic('CADASTRO')} />
-                                <DashboardCard title="Contatos / WhatsApp" icon={Plus} isCompact onClick={() => setActiveTopic('CONTATOS')} />
-                                <DashboardCard title="Máquinas" icon={Plus} isCompact onClick={() => setActiveTopic('MAQUINAS')} />
-                                <DashboardCard title="Histórico de Atividades" icon={Plus} isCompact onClick={() => { setActiveTopic('ATIVIDADES'); setFilterCategory(''); setFilterType('ALL'); }} />
-                                <DashboardCard title="Viagens / Deslocamentos" icon={Plus} isCompact onClick={() => setActiveTopic('VIAGENS')} />
-                                <DashboardCard title="Relatórios" icon={Plus} isCompact onClick={() => setActiveTopic('RELATORIOS')} />
-                                <DashboardCard title="Itens do Cliente" icon={Plus} isCompact onClick={() => setActiveTopic('PRODUTOS')} />
+                            <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+                                {/* Dashboard de Estatísticas Dinâmicas */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                    {/* OS / Tarefas */}
+                                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/30 border border-indigo-100/80 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow transition-all group">
+                                        <div>
+                                            <span className="text-[10px] font-black text-indigo-500/80 uppercase tracking-widest">OS / Tarefas</span>
+                                            <h4 className="text-2xl font-black text-indigo-900 mt-1">{filteredTasksCount}</h4>
+                                        </div>
+                                        <div className="w-10 h-10 bg-indigo-500/10 text-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Briefcase size={20} />
+                                        </div>
+                                    </div>
+
+                                    {/* Ocorrências RNC */}
+                                    <div className="bg-gradient-to-br from-rose-50 to-rose-100/30 border border-rose-100/80 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow transition-all group">
+                                        <div>
+                                            <span className="text-[10px] font-black text-rose-500/80 uppercase tracking-widest">Ocorrências RNC</span>
+                                            <h4 className="text-2xl font-black text-rose-900 mt-1">{filteredRncsCount}</h4>
+                                        </div>
+                                        <div className="w-10 h-10 bg-rose-500/10 text-rose-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <ShieldAlert size={20} />
+                                        </div>
+                                    </div>
+
+                                    {/* Suporte SAC */}
+                                    <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-100/80 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow transition-all group">
+                                        <div>
+                                            <span className="text-[10px] font-black text-amber-600/80 uppercase tracking-widest">Atendimentos SAC</span>
+                                            <h4 className="text-2xl font-black text-amber-900 mt-1">{filteredSacsCount}</h4>
+                                        </div>
+                                        <div className="w-10 h-10 bg-amber-500/10 text-amber-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <MessageSquare size={20} />
+                                        </div>
+                                    </div>
+
+                                    {/* Visitas de Campo */}
+                                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/30 border border-emerald-100/80 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow transition-all group">
+                                        <div>
+                                            <span className="text-[10px] font-black text-emerald-600/80 uppercase tracking-widest">Visitas de Campo</span>
+                                            <h4 className="text-2xl font-black text-emerald-900 mt-1">
+                                                {visitsMetrics.completed} <span className="text-sm font-bold text-emerald-500/80">/ {visitsMetrics.planned}</span>
+                                            </h4>
+                                        </div>
+                                        <div className="w-10 h-10 bg-emerald-500/10 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <MapPin size={20} />
+                                        </div>
+                                    </div>
+
+                                    {/* Testes Técnicos */}
+                                    <div className="bg-gradient-to-br from-cyan-50 to-cyan-100/30 border border-cyan-100/80 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow transition-all group col-span-2 md:col-span-1">
+                                        <div>
+                                            <span className="text-[10px] font-black text-cyan-600/80 uppercase tracking-widest">Testes Técnicos</span>
+                                            <h4 className="text-2xl font-black text-cyan-900 mt-1">{filteredTestsCount}</h4>
+                                        </div>
+                                        <div className="w-10 h-10 bg-cyan-500/10 text-cyan-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <ListChecks size={20} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 ${isMobile ? 'gap-3' : 'gap-6'}`}>
+                                    <DashboardCard title="Cadastro" icon={Plus} isCompact onClick={() => setActiveTopic('CADASTRO')} />
+                                    <DashboardCard title="Contatos / WhatsApp" icon={Plus} isCompact onClick={() => setActiveTopic('CONTATOS')} />
+                                    <DashboardCard title="Máquinas" icon={Plus} isCompact onClick={() => setActiveTopic('MAQUINAS')} />
+                                    <DashboardCard title="Histórico de Atividades" icon={Plus} isCompact onClick={() => { setActiveTopic('ATIVIDADES'); setFilterCategory(''); setFilterType('ALL'); }} />
+                                    <DashboardCard title="Viagens / Deslocamentos" icon={Plus} isCompact onClick={() => setActiveTopic('VIAGENS')} />
+                                    <DashboardCard title="Relatórios" icon={Plus} isCompact onClick={() => setActiveTopic('RELATORIOS')} />
+                                    <DashboardCard title="Itens do Cliente" icon={Plus} isCompact onClick={() => setActiveTopic('PRODUTOS')} />
+                                    <DashboardCard title="Notas & Restrições" icon={Plus} isCompact onClick={() => setActiveTopic('NOTAS')} />
+                                </div>
                             </div>
                         ) : (
                             <div className="animate-in slide-in-from-right-4 duration-300">
@@ -867,6 +1132,82 @@ return (
                                         techFollowups={techFollowups}
                                         clientFollowups={clientFollowups}
                                     />
+                                )}
+                                {activeTopic === 'NOTAS' && (
+                                    <div className="bg-white rounded-[24px] border border-slate-200 p-6 shadow-sm animate-in fade-in duration-300">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                                                    <ListChecks className="text-brand-600" size={24} /> Notas & Restrições Operacionais
+                                                </h2>
+                                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                    Restrições de recebimento, recados logísticos e observações diárias
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Formulário Premium para Inserção de Notas */}
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            const input = e.target.elements.noteText;
+                                            const val = input.value.trim();
+                                            if (!val) return;
+                                            handleAddNote(val);
+                                            input.value = '';
+                                        }} className="flex gap-3 mb-6">
+                                            <input
+                                                type="text"
+                                                name="noteText"
+                                                placeholder="Digite uma observação, exemplo: 'Recebimento de mercadoria somente terças até as 14 horas'..."
+                                                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+                                            />
+                                            <button
+                                                type="submit"
+                                                className="px-6 py-3 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all shadow active:scale-95 shrink-0"
+                                            >
+                                                Adicionar
+                                            </button>
+                                        </form>
+
+                                        {/* Lista de Notas */}
+                                        <div className="space-y-4">
+                                            {!(activeClientObj?.operational_notes && activeClientObj.operational_notes.length > 0) ? (
+                                                <div className="border border-slate-200 border-dashed rounded-2xl py-12 flex flex-col items-center justify-center text-center gap-3">
+                                                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                                                        <ListChecks size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-slate-600 font-black text-sm">Nenhuma nota cadastrada</h4>
+                                                        <p className="text-slate-400 text-xs mt-0.5">Adicione observações diárias ou restrições operacionais no formulário acima.</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {activeClientObj.operational_notes.map((note) => (
+                                                        <div
+                                                            key={note.id}
+                                                            className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex justify-between items-start hover:border-slate-200 transition-all group"
+                                                        >
+                                                            <div className="flex-1 min-w-0 pr-4">
+                                                                <p className="text-slate-700 text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{note.text}</p>
+                                                                <span className="text-[10px] font-bold text-slate-400 block mt-2">
+                                                                    Cadastrado em: {new Date(note.created_at).toLocaleDateString('pt-BR')} às {new Date(note.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteNote(note.id)}
+                                                                className="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-all shrink-0"
+                                                                title="Excluir nota"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         )}
