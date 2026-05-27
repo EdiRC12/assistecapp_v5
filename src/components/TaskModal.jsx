@@ -3,7 +3,7 @@ import {
     X, History, Layers, Building2, Building, Search, Loader2, Check,
     AlertCircle, Sparkles, Unlock, Eye, Users, MapPin, Printer,
     Trash2, Paperclip, Download, Plus, Map as MapIcon, ClipboardList, MessageSquare,
-    Calendar, FileText, Send, Ban, Save, Clock, Plane
+    Calendar, FileText, Send, Ban, Save, Clock, Plane, FlaskConical
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -147,11 +147,16 @@ const TaskModal = ({
 
     const fileInputRef = useRef(null);
 
-    // Initial config for the selected category
     const currentConfig = useMemo(() =>
         customCategories.find(c => c.id === category) || customCategories[0],
         [category, customCategories]
     );
+
+    // Buscar o objeto do teste selecionado para detalhes dinâmicos
+    const selectedTestObj = useMemo(() => {
+        if (!parentTestId) return null;
+        return (techTests || []).find(t => t.id === parentTestId);
+    }, [parentTestId, techTests]);
 
     // Memoize the last activity for the task from logs
     // Memoize the last activity for the task from tracking fields
@@ -1208,14 +1213,86 @@ const TaskModal = ({
                                             <option value="">-- Sem vínculo com teste --</option>
                                             {(techTests || [])
                                                 .filter(t => !client || t.client_name?.toLowerCase() === client?.toLowerCase())
-                                                .map(t => (
-                                                    <option key={t.id} value={t.id}>
-                                                        Teste #{t.test_number} - {t.subject || 'Sem assunto'}
-                                                    </option>
-                                                ))
+                                                .map(t => {
+                                                    const testLabel = [
+                                                        t.test_number,
+                                                        t.op_number ? `OP: ${t.op_number}` : null,
+                                                        t.product_name ? `Item: ${t.product_name}` : null,
+                                                        t.title ? `${t.title}` : 'Sem Assunto'
+                                                    ].filter(Boolean).join(' • ');
+                                                    const truncatedLabel = testLabel.length > 100 ? testLabel.slice(0, 97) + '...' : testLabel;
+                                                    return (
+                                                        <option key={t.id} value={t.id}>
+                                                            {truncatedLabel}
+                                                        </option>
+                                                    );
+                                                })
                                             }
                                         </select>
                                     </div>
+
+                                    {/* Card Premium de Detalhes Dinâmicos do Teste Selecionado */}
+                                    {selectedTestObj && (
+                                        <div className="mt-3 bg-slate-950/40 border border-slate-700/50 rounded-xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-center gap-2">
+                                                    <FlaskConical size={16} className="text-indigo-400 shrink-0" />
+                                                    <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                                        {selectedTestObj.test_number || 'Sem Número'}
+                                                    </span>
+                                                </div>
+                                                {selectedTestObj.status && (
+                                                    <span 
+                                                        className="px-2 py-0.5 rounded text-[9px] font-black text-white uppercase tracking-wider shadow-sm shrink-0"
+                                                        style={{ backgroundColor: selectedTestObj.status_color || '#64748b' }}
+                                                    >
+                                                        {selectedTestObj.status}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wide leading-tight">
+                                                    {selectedTestObj.title || 'Sem título/objetivo cadastrado'}
+                                                </h4>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/60">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                                                        <Layers size={10} className="text-slate-500" /> Item / Produto
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-200 uppercase truncate">
+                                                        {selectedTestObj.product_name || 'Não Informado'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                                                        <ClipboardList size={10} className="text-slate-500" /> Pedido / OP
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-200 uppercase truncate">
+                                                        {(selectedTestObj.test_order || '-') + ' / ' + (selectedTestObj.op_number || '-')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {(selectedTestObj.description || selectedTestObj.situation || selectedTestObj.extra_data?.Objetivo || selectedTestObj.extra_data?.OBJETIVO || selectedTestObj.extra_data?.['Objetivo do teste']) && (
+                                                <div className="pt-2 border-t border-slate-800/60">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                                                        <FileText size={10} className="text-slate-500" /> Objetivo & Situação
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-300 font-medium italic bg-slate-950/20 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed whitespace-pre-wrap">
+                                                        {selectedTestObj.description || 
+                                                         selectedTestObj.situation || 
+                                                         selectedTestObj.extra_data?.Objetivo || 
+                                                         selectedTestObj.extra_data?.OBJETIVO || 
+                                                         selectedTestObj.extra_data?.['Objetivo do teste'] || 
+                                                         'Sem observações adicionais.'}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Custom Fields based on category */}
