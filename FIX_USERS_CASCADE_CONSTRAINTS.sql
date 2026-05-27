@@ -1,6 +1,14 @@
 -- SCRIPT DE CORREÇÃO DE CONSTRAINTS PARA SINCRONIZAÇÃO DE USUÁRIOS
 -- Execute este script completo no SQL Editor do Supabase para habilitar a atualização de IDs em cascata.
--- Isso permite que usuários antigos se registrem no Supabase Auth nativo sem erros de integridade.
+-- Nota: Limpa previamente dados históricos órfãos de usuários excluídos para evitar erros de validação.
+
+-- 0. LIMPEZA PREVENTIVA DE DADOS ÓRFÃOS (Define referências inexistentes como NULL)
+UPDATE public.clients SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM public.users);
+UPDATE public.tasks SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM public.users);
+UPDATE public.tasks SET last_modified_by = NULL WHERE last_modified_by IS NOT NULL AND last_modified_by NOT IN (SELECT id FROM public.users);
+UPDATE public.task_reports SET user_id = NULL WHERE user_id IS NOT NULL AND user_id NOT IN (SELECT id FROM public.users);
+UPDATE public.task_reports SET last_edited_by = NULL WHERE last_edited_by IS NOT NULL AND last_edited_by NOT IN (SELECT id FROM public.users);
+UPDATE public.vehicles SET created_by = NULL WHERE created_by IS NOT NULL AND created_by NOT IN (SELECT id FROM public.users);
 
 -- 1. AJUSTES NA TABELA TASKS
 ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_user_id_fkey;
