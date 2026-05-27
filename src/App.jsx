@@ -90,6 +90,7 @@ const App = () => {
     // Initial Preparation
     const [globalClients, setGlobalClients] = useState([]);
     const [isOnlineListOpen, setIsOnlineListOpen] = useState(false);
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
     const [mapFilter, setMapFilter] = useState({
         status: 'ACTIVE', month: 'ALL', year: 'ALL', userId: 'ALL'
     });
@@ -259,30 +260,56 @@ const App = () => {
         return () => clearInterval(heartbeatInterval);
     }, [currentUser]);
 
-    // --- Persistent Login Logic (Device-Based) ---
-    useEffect(() => {
-        const checkDeviceSession = () => {
-            try {
-                const savedSession = localStorage.getItem('assistec_device_session');
-                if (savedSession) {
-                    const sessionData = JSON.parse(savedSession);
-                    const now = new Date().getTime();
-                    
-                    // Verify if session is still valid (not expired)
-                    if (sessionData.user && sessionData.expiry > now) {
-                        setCurrentUser(sessionData.user);
-                    } else {
-                        // Clear expired session
-                        localStorage.removeItem('assistec_device_session');
-                    }
-                }
-            } catch (e) {
-                console.error("Erro ao recuperar sessão do dispositivo:", e);
-                localStorage.removeItem('assistec_device_session');
+    const loadUserProfile = async (userId) => {
+        try {
+            const { data: profile, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            
+            if (error) throw error;
+            if (profile) {
+                setCurrentUser(profile);
             }
-        };
+        } catch (err) {
+            console.error("Erro ao carregar perfil do usuário:", err);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setCurrentUser({
+                    id: user.id,
+                    email: user.email,
+                    username: user.user_metadata?.username || user.email.split('@')[0],
+                    role: 'USER'
+                });
+            }
+        }
+    };
 
-        checkDeviceSession();
+    // --- Persistent Login Logic (Supabase Auth) ---
+    useEffect(() => {
+        // 1. Verificar sessão ativa ao carregar
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                loadUserProfile(session.user.id);
+            }
+        });
+
+        // 2. Escutar mudanças no estado de auth
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session?.user) {
+                loadUserProfile(session.user.id);
+                if (event === 'PASSWORD_RECOVERY') {
+                    setIsResettingPassword(true);
+                }
+            } else {
+                setCurrentUser(null);
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
     }, []);
 
     // Missing UI States for Modals
@@ -870,6 +897,7 @@ const App = () => {
     // handleOpenReport, handleOpenJourneyReport e handleViewTechnicalReport já declarados acima (versões completas)
 
     const handleLogout = async () => {
+        await supabase.auth.signOut();
         localStorage.removeItem('assistec_device_session');
         setCurrentUser(null);
     };
@@ -1272,6 +1300,95 @@ const App = () => {
                         buttonRef={currentUser?.layout_mode === 'HORIZONTAL' ? dailyHubButtonRefHorizontal : dailyHubButtonRef}
                     />
                 </>
+            )}
+            {isResettingPassword && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[9999]">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-brand-600 p-6 text-center relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-30 transform rotate-12 scale-150 pointer-events-none"></div>
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center text-white mb-3 backdrop-blur-sm shadow-md">
+                                    <Lock size={24} strokeWidth={2.5} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white">Redefinir Senha</h3>
+                                <p className="text-brand-100 text-xs mt-1">Crie uma nova senha segura para sua conta</p>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const newPassword = e.target.newPassword.value;
+                                const confirmPassword = e.target.confirmPassword.value;
+                                
+                                if (!newPassword || !confirmPassword) {
+                                    notifyWarning('Atenção', 'Por favor, preencha todos os campos.');
+                                    return;
+                                }
+                                if (newPassword !== confirmPassword) {
+                                    notifyError('Erro', 'As senhas não coincidem.');
+                                    return;
+                                }
+                                if (newPassword.length < 6) {
+                                    notifyWarning('Atenção', 'A senha deve ter pelo menos 6 caracteres.');
+                                    return;
+                                }
+                                
+                                try {
+                                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                                    if (error) throw error;
+                                    
+                                    notifySuccess('Sucesso', 'Senha redefinida com sucesso!');
+                                    setIsResettingPassword(false);
+                                    await supabase.auth.signOut();
+                                    setCurrentUser(null);
+                                } catch (err) {
+                                    console.error("Erro ao redefinir senha:", err);
+                                    notifyError('Erro ao redefinir', err.message);
+                                }
+                            }} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Nova Senha</label>
+                                    <input 
+                                        name="newPassword"
+                                        type="password" 
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                                        placeholder="Sua nova senha" 
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Confirmar Nova Senha</label>
+                                    <input 
+                                        name="confirmPassword"
+                                        type="password" 
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" 
+                                        placeholder="Confirme a nova senha" 
+                                        required
+                                    />
+                                </div>
+                                <div className="flex gap-3 pt-2">
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsResettingPassword(false);
+                                            supabase.auth.signOut();
+                                            setCurrentUser(null);
+                                        }}
+                                        className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-lg text-sm transition-all"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className="w-1/2 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg text-sm shadow-md transition-all"
+                                    >
+                                        Salvar Senha
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             )}
             <ToastContainer notifications={notifications} onRemove={removeNotification} />
         </AppLayout>
