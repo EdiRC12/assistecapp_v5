@@ -274,14 +274,33 @@ const App = () => {
             }
         } catch (err) {
             console.error("Erro ao carregar perfil do usuário:", err);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                setCurrentUser({
-                    id: user.id,
-                    email: user.email,
-                    username: user.user_metadata?.username || user.email.split('@')[0],
-                    role: 'USER'
-                });
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const tempProfile = {
+                        id: user.id,
+                        email: user.email,
+                        username: user.user_metadata?.username || user.email.split('@')[0],
+                        role: 'USER'
+                    };
+                    
+                    console.log("[Self-Healing] Tentando criar perfil público para resolver restrição de chave estrangeira...");
+                    const { data: newProfile, error: insertError } = await supabase
+                        .from('users')
+                        .insert([tempProfile])
+                        .select()
+                        .single();
+                    
+                    if (!insertError && newProfile) {
+                        console.log("[Self-Healing] Perfil público auto-criado com sucesso:", newProfile);
+                        setCurrentUser(newProfile);
+                    } else {
+                        console.warn("[Self-Healing] Não foi possível auto-criar no banco, usando em memória:", insertError);
+                        setCurrentUser(tempProfile);
+                    }
+                }
+            } catch (authErr) {
+                console.error("[Self-Healing] Falha ao recuperar dados do Supabase Auth:", authErr);
             }
         }
     };

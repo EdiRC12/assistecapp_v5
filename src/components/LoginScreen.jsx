@@ -77,7 +77,26 @@ const LoginScreen = ({ onLogin }) => {
                         username: data.user.user_metadata?.username || email.split('@')[0],
                         role: 'USER'
                     };
-                    onLogin(tempProfile);
+                    
+                    console.log("[Self-Healing Login] Criando perfil público em public.users...");
+                    try {
+                        const { data: newProfile, error: insertError } = await supabase
+                            .from('users')
+                            .insert([tempProfile])
+                            .select()
+                            .single();
+                        
+                        if (!insertError && newProfile) {
+                            console.log("[Self-Healing Login] Perfil auto-criado no banco com sucesso:", newProfile);
+                            onLogin(newProfile);
+                        } else {
+                            console.warn("[Self-Healing Login] Não foi possível salvar, usando em memória:", insertError);
+                            onLogin(tempProfile);
+                        }
+                    } catch (e) {
+                        console.error("[Self-Healing Login] Erro na inserção:", e);
+                        onLogin(tempProfile);
+                    }
                 } else {
                     onLogin(profile);
                 }
