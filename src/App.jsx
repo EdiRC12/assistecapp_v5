@@ -1103,6 +1103,7 @@ const App = () => {
                         }}
                         initialData={editingTask}
                         task={editingTask}
+                        techTests={techTests}
                         onSave={(data) => handleSaveTask(data, setIsModalOpen)}
                         onDelete={handleDeleteTask}
                         currentUser={currentUser}

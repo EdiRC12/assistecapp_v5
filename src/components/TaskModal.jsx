@@ -3,7 +3,7 @@ import {
     X, History, Layers, Building2, Building, Search, Loader2, Check,
     AlertCircle, Sparkles, Unlock, Eye, Users, MapPin, Printer,
     Trash2, Paperclip, Download, Plus, Map as MapIcon, ClipboardList, MessageSquare,
-    Calendar, FileText, Send, Ban, Save, Clock
+    Calendar, FileText, Send, Ban, Save, Clock, Plane
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -107,6 +107,9 @@ const TaskModal = ({
     const [reportRequired, setReportRequired] = useState(false);
     const [meetingActionId, setMeetingActionId] = useState(null);
     const [reopenerName, setReopenerName] = useState('');
+    const [parentTestId, setParentTestId] = useState(null);
+    const [parentTestNumber, setParentTestNumber] = useState('');
+    const [showClosureWizard, setShowClosureWizard] = useState(false);
 
     useEffect(() => {
         const fetchReopenerName = async () => {
@@ -312,6 +315,8 @@ const TaskModal = ({
                 setComments(initialData.comments || []);
                 setAssignedUsers(initialData.assigned_users || []);
                 setVisibility(initialData.visibility || 'PUBLIC');
+                setParentTestId(initialData.parent_test_id || null);
+                setParentTestNumber(initialData.parent_test_number || '');
 
                 if (config && initialData.stages) {
                     const merged = {};
@@ -348,6 +353,8 @@ const TaskModal = ({
                 } else {
                     setTravels([]);
                 }
+                setParentTestId(null);
+                setParentTestNumber('');
             }
         }
     }, [isOpen, initialData]);
@@ -908,14 +915,11 @@ const TaskModal = ({
         }
     }, [visitationRequired, client, clientsRegistry, tasks]);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
+    const executeActualSave = (bypassStagesCheck = false) => {
         let finalStages = { ...stages };
         let finalTravels = [...travels];
 
-        // Lógica de finalização automática de etapas e viagens
-        if (status === TaskStatus.DONE) {
+        if (status === TaskStatus.DONE && !bypassStagesCheck) {
             const openStages = Object.entries(stages).filter(([_, s]) =>
                 !['COMPLETED', 'FINALIZADO', 'SOLUCIONADO', 'DEVOLVIDO'].includes(s.status)
             );
@@ -928,11 +932,9 @@ const TaskModal = ({
                 message += `\nDeseja marcar tudo como FINALIZADO automaticamente para concluir a tarefa?`;
 
                 if (window.confirm(message)) {
-                    // Finalizar etapas
                     Object.keys(finalStages).forEach(key => {
                         finalStages[key] = { ...finalStages[key], status: 'FINALIZADO' };
                     });
-                    // Finalizar viagens
                     finalTravels = travels.map(t => ({ ...t, status: 'FINALIZADA' }));
                 }
             }
@@ -953,7 +955,8 @@ const TaskModal = ({
             rnc,
             parent_followup_id: initialData?.parent_followup_id,
             parent_sac_id: initialData?.parent_sac_id,
-            parent_test_id: initialData?.parent_test_id,
+            parent_test_id: parentTestId,
+            parent_test_number: parentTestNumber,
             parent_rnc_id: initialData?.parent_rnc_id,
             meeting_action_id: meetingActionId,
             location,
@@ -968,6 +971,17 @@ const TaskModal = ({
             outcome: status === TaskStatus.DONE ? outcome : null
         });
         onClose();
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+
+        if (status === TaskStatus.DONE && !showClosureWizard) {
+            setShowClosureWizard(true);
+            return;
+        }
+
+        executeActualSave();
     };
 
     if (!isOpen || !currentConfig) return null;
@@ -1174,6 +1188,33 @@ const TaskModal = ({
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-200 block mb-1">Vincular a Teste / Experimento Técnico (Opcional)</label>
+                                    <div className="relative">
+                                        <select
+                                            value={parentTestId || ''}
+                                            onChange={(e) => {
+                                                const selectedId = e.target.value;
+                                                setParentTestId(selectedId || null);
+                                                const test = (techTests || []).find(t => t.id === selectedId);
+                                                setParentTestNumber(test ? test.test_number : '');
+                                            }}
+                                            disabled={isLocked || !canEdit}
+                                            className="w-full bg-white text-black border border-slate-300 rounded-lg p-2.5 font-bold focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-200 disabled:cursor-not-allowed"
+                                        >
+                                            <option value="">-- Sem vínculo com teste --</option>
+                                            {(techTests || [])
+                                                .filter(t => !client || t.client_name?.toLowerCase() === client?.toLowerCase())
+                                                .map(t => (
+                                                    <option key={t.id} value={t.id}>
+                                                        Teste #{t.test_number} - {t.subject || 'Sem assunto'}
+                                                    </option>
+                                                ))
+                                            }
+                                        </select>
                                     </div>
                                 </div>
 
@@ -2019,6 +2060,63 @@ const TaskModal = ({
                     </div>
                 )
             }
+
+            {showClosureWizard && (
+                <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-brand-600 p-5 text-center text-white relative">
+                            <Sparkles className="absolute right-4 top-4 text-brand-300 animate-pulse" size={20} />
+                            <h3 className="text-base font-black uppercase tracking-wider">Assistente de Conclusão</h3>
+                            <p className="text-xs text-brand-100 mt-1">Verificação rápida de encerramento de atividade</p>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-2">
+                                <h4 className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Plane size={14} className="text-sky-400" /> 1. Viagem e Custos
+                                </h4>
+                                <p className="text-[11px] text-slate-400 font-medium">Lembre-se de lançar os KMs, custos e ocorrências de deslocamento na seção de Viagens desta tarefa antes de fechar.</p>
+                            </div>
+                            
+                            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 space-y-2">
+                                <h4 className="text-xs font-black text-slate-300 uppercase tracking-widest flex items-center gap-1.5">
+                                    <FileText size={14} className="text-emerald-400" /> 2. Relatório Técnico
+                                </h4>
+                                <p className="text-[11px] text-slate-400 font-medium">Deseja abrir o assistente de IA para gerar o Relatório Técnico final agora?</p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowClosureWizard(false);
+                                        setIsEditingReport(true);
+                                    }}
+                                    className="w-full mt-1.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1.5"
+                                >
+                                    <Sparkles size={12} /> Gerar Relatório com IA
+                                </button>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowClosureWizard(false)}
+                                    className="w-1/2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-xl text-xs transition-colors"
+                                >
+                                    Revisar Atividade
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowClosureWizard(false);
+                                        executeActualSave(true); // Bypass automatic done confirmation as we confirmed here
+                                    }}
+                                    className="w-1/2 bg-brand-600 hover:bg-brand-700 text-white font-black py-2 rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-brand-900/30"
+                                >
+                                    Concluir e Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     History, Search, Printer, ChevronRight, 
     Headphones, AlertOctagon, ClipboardList, 
     MessageCircle, Settings2, Plane, FileText,
-    Clock, CheckCircle2, AlertCircle, X, SearchCode
+    Clock, CheckCircle2, AlertCircle, X, SearchCode, Sparkles
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useIsMobile from '../hooks/useIsMobile';
@@ -34,6 +34,77 @@ const TraceabilityView = ({
     const [anchorRecord, setAnchorRecord] = useState(null);
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const missingActions = useMemo(() => {
+        if (!anchorRecord || events.length === 0) return [];
+        const actions = [];
+        
+        const hasTask = events.some(e => e.type === 'TASK');
+        const hasReport = events.some(e => e.type === 'REPORT');
+        const hasTravel = events.some(e => e.type === 'TRAVEL');
+
+        // Determinar o Cliente
+        const clientName = anchorRecord.client_name || anchorRecord.client || '';
+
+        if (!hasTask) {
+            actions.push({
+                id: 'create_task',
+                label: 'Criar Tarefa de Atendimento',
+                description: 'Crie uma tarefa vinculada a este processo para iniciar o fluxo de atividades.',
+                icon: 'task',
+                onClick: () => {
+                    const taskData = {
+                        client: clientName,
+                        title: anchorRecord.subject || anchorRecord.title || `Atendimento - ${clientName}`,
+                        description: anchorRecord.description || '',
+                        parent_sac_id: filterType === 'OT' ? anchorRecord.id : anchorRecord.parent_sac_id || null,
+                        parent_rnc_id: filterType === 'RNC' ? anchorRecord.id : anchorRecord.parent_rnc_id || null,
+                        parent_test_id: filterType === 'TEST' ? anchorRecord.id : anchorRecord.parent_test_id || null,
+                        visitation: { required: false }
+                    };
+                    onEditTask?.(taskData); 
+                }
+            });
+        }
+
+        if (hasTask && !hasTravel) {
+            actions.push({
+                id: 'add_travel',
+                label: 'Registrar Custos de Viagem',
+                description: 'Adicione custos de deslocamento, pedágios, KMs e ocorrências a este atendimento.',
+                icon: 'travel',
+                onClick: () => {
+                    const taskEvent = events.find(e => e.type === 'TASK');
+                    if (taskEvent?.rawData) {
+                        onEditTask?.({
+                            ...taskEvent.rawData,
+                            visitation: { required: true }
+                        });
+                    }
+                }
+            });
+        }
+
+        if (!hasReport && hasTask) {
+            actions.push({
+                id: 'create_report',
+                label: 'Gerar Relatório Técnico com IA',
+                description: 'Escreva as considerações técnicas finais usando a inteligência artificial da POLI.',
+                icon: 'report',
+                onClick: () => {
+                    const taskEvent = events.find(e => e.type === 'TASK');
+                    if (taskEvent?.rawData) {
+                        onEditTask?.({
+                            ...taskEvent.rawData,
+                            _openReportDirectly: true
+                        });
+                    }
+                }
+            });
+        }
+
+        return actions;
+    }, [events, anchorRecord, filterType]);
 
     // 1. Autocomplete Logic
     useEffect(() => {
@@ -502,6 +573,33 @@ const TraceabilityView = ({
                     </div>
                 )}
             </div>
+
+            {/* Quick Action Suggestions Hub */}
+            {!loading && anchorRecord && missingActions.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 p-6 rounded-[32px] shadow-sm animate-in slide-in-from-top-4 duration-300 print:hidden">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Sparkles size={18} className="text-brand-600 animate-pulse" />
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Ações Rápidas Recomendadas</h4>
+                    </div>
+                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                        {missingActions.map((act) => (
+                            <button
+                                key={act.id}
+                                onClick={act.onClick}
+                                className="text-left bg-white border border-slate-100 p-4 rounded-2xl hover:border-brand-500 hover:shadow-md transition-all active:scale-95 group flex gap-3.5 items-start"
+                            >
+                                <div className="p-2 bg-brand-50 text-brand-600 rounded-xl shrink-0 group-hover:bg-brand-600 group-hover:text-white transition-all">
+                                    {act.icon === 'task' ? <ClipboardList size={16} /> : act.icon === 'travel' ? <Plane size={16} /> : <FileText size={16} />}
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black text-slate-800 uppercase group-hover:text-brand-600 transition-colors">{act.label}</div>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed mt-1">{act.description}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Timeline Results */}
             <div className={`flex-1 flex flex-col min-h-0 bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden p-6 md:p-8 printable-area ${loading ? 'opacity-50' : ''}`}>
