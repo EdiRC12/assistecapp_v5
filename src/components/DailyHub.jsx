@@ -7,6 +7,38 @@ import {
 } from 'lucide-react';
 import { Priority, PriorityColors, TaskStatus, StatusLabels } from '../constants/taskConstants';
 
+const getOverdueDateDisplay = (item, todayAtMidnight) => {
+    if (item.itemType === 'NOTE') {
+        return item.note_date;
+    }
+    
+    // Check main due date first
+    const mainDueDate = item.due_date || item.dueDate;
+    if (mainDueDate) return mainDueDate;
+    
+    // Find the first overdue stage date
+    if (item.stages) {
+        const overdueStage = Object.values(item.stages).find(s =>
+            s && s.active && s.date &&
+            !['COMPLETED', 'SOLUCIONADO', 'FINALIZADO'].includes(s.status) &&
+            new Date(s.date.includes('T') ? s.date : `${s.date}T00:00:00`).getTime() < todayAtMidnight
+        );
+        if (overdueStage) return overdueStage.date;
+    }
+    
+    // Find the first overdue travel date
+    if (item.travels && Array.isArray(item.travels)) {
+        const overdueTravel = item.travels.find(tr =>
+            tr.isDateDefined && tr.date &&
+            tr.status !== 'FINALIZADA' &&
+            new Date(tr.date.includes('T') ? tr.date : `${tr.date}T00:00:00`).getTime() < todayAtMidnight
+        );
+        if (overdueTravel) return overdueTravel.date;
+    }
+    
+    return null;
+};
+
 const DailyHub = ({
     isOpen,
     onClose,
@@ -137,10 +169,10 @@ const DailyHub = ({
         
         // 1. Tarefas Atrasadas (Lógica completa sincronizada com App.jsx)
         const tasksOverdue = tasks.filter(task => {
-            if (task.columnId === 'DONE' || task.columnId === 'DEVOLVIDO' || task.status === 'DONE' || task.status === 'CANCELED') return false;
+            if (task.status === TaskStatus.DONE || task.status === TaskStatus.CANCELED) return false;
 
             // a. Verificar data de vencimento direta
-            const rawDueDate = task.due_date || task.dueDate || task.date;
+            const rawDueDate = task.due_date || task.dueDate;
             if (rawDueDate) {
                 const dateStr = rawDueDate.includes('T') ? rawDueDate : `${rawDueDate}T00:00:00`;
                 if (new Date(dateStr).getTime() < todayAtMidnight) return true;
@@ -160,6 +192,7 @@ const DailyHub = ({
             if (task.travels && Array.isArray(task.travels)) {
                 const hasOverdueTravel = task.travels.some(tr =>
                     tr.isDateDefined && tr.date &&
+                    tr.status !== 'FINALIZADA' &&
                     new Date(tr.date.includes('T') ? tr.date : `${tr.date}T00:00:00`).getTime() < todayAtMidnight
                 );
                 if (hasOverdueTravel) return true;
@@ -187,8 +220,8 @@ const DailyHub = ({
         }).map(n => ({ ...n, itemType: 'NOTE' }));
 
         return [...tasksOverdue, ...notesOverdue].sort((a, b) => {
-            const dateA = new Date(a.date || a.note_date || 0);
-            const dateB = new Date(b.date || b.note_date || 0);
+            const dateA = new Date(getOverdueDateDisplay(a, todayAtMidnight) || 0);
+            const dateB = new Date(getOverdueDateDisplay(b, todayAtMidnight) || 0);
             return dateA - dateB;
         });
     }, [tasks, notes]);
@@ -232,6 +265,9 @@ const DailyHub = ({
     };
 
     if (!isOpen) return null;
+
+    const now = new Date();
+    const todayAtMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
     const content = (
         <>
@@ -479,13 +515,55 @@ const DailyHub = ({
                                         {item.itemType === 'TASK' ? 'Tarefa Atrasada' : <><StickyNote size={8} /> Lembrete Vencido</>}
                                     </span>
                                     <span className="text-[9px] font-bold text-red-400">
-                                        {new Date(item.due_date || item.dueDate || item.note_date || item.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                        {(() => {
+                                            const displayDate = getOverdueDateDisplay(item, todayAtMidnight);
+                                            if (!displayDate) return 'A concluir';
+                                            try {
+                                                const dateStr = displayDate.includes('T') ? displayDate : `${displayDate}T12:00:00`;
+                                                return new Date(dateStr).toLocaleDateString('pt-BR');
+                                            } catch (e) {
+                                                return 'Atrasada';
+                                            }
+                                        })()}
                                     </span>
                                 </div>
                                 <h4 className="text-xs font-bold text-slate-800 line-clamp-2">
                                     {item.itemType === 'TASK' && item.client && <span className="opacity-50 font-medium mr-1">{item.client} /</span>}
                                     {item.title || item.content}
                                 </h4>
+                                {item.itemType === 'TASK' && (() => {
+                                    const mainDueDate = item.due_date || item.dueDate;
+                                    if (mainDueDate) return null;
+                                    
+                                    // Se atrasado devido a etapas
+                                    const hasOverdueStage = item.stages && Object.values(item.stages).some(s =>
+                                        s && s.active && s.date &&
+                                        !['COMPLETED', 'SOLUCIONADO', 'FINALIZADO'].includes(s.status) &&
+                                        new Date(s.date.includes('T') ? s.date : `${s.date}T00:00:00`).getTime() < todayAtMidnight
+                                    );
+                                    if (hasOverdueStage) {
+                                        return (
+                                            <p className="text-[9px] text-rose-500 font-bold mt-1 flex items-center gap-1">
+                                                <ListChecks size={10} /> Etapa em atraso
+                                            </p>
+                                        );
+                                    }
+                                    
+                                    // Se atrasado devido a viagens
+                                    const hasOverdueTravel = item.travels && Array.isArray(item.travels) && item.travels.some(tr =>
+                                        tr.isDateDefined && tr.date &&
+                                        tr.status !== 'FINALIZADA' &&
+                                        new Date(tr.date.includes('T') ? tr.date : `${tr.date}T00:00:00`).getTime() < todayAtMidnight
+                                    );
+                                    if (hasOverdueTravel) {
+                                        return (
+                                            <p className="text-[9px] text-sky-500 font-bold mt-1 flex items-center gap-1">
+                                                <Plane size={10} /> Viagem pendente em atraso
+                                            </p>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                                 {item.itemType === 'NOTE' && item.note_time && (
                                     <p className="text-[9px] text-amber-600 font-bold mt-1 flex items-center gap-1">
                                         <Clock size={10} /> Horário era: {item.note_time.substring(0, 5)}h
