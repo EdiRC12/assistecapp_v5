@@ -669,7 +669,7 @@ const SettingsModal = ({
                                     <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4">
                                         <div className="text-center">
                                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Versão</p>
-                                            <p className="text-xs font-black text-slate-700">6.0.4.22</p>
+                                            <p className="text-xs font-black text-slate-700">6.0.4.23</p>
                                         </div>
                                         <div className="text-center">
                                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Build</p>
