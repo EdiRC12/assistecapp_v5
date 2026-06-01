@@ -97,6 +97,20 @@ const RecenterMap = ({ bounds }) => {
     return null;
 };
 
+// Component to handle map size invalidation on mobile tab change
+const UpdateMapSize = ({ mobileTab }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (mobileTab === 'MAP') {
+            const timer = setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [mobileTab, map]);
+    return null;
+};
+
 // Helper: Haversine distance in km
 const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371; // Earth radius in km
@@ -383,6 +397,25 @@ const SupportRoutePlanner = ({
                 .select('id, client, geo, location')
                 .not('geo', 'is', null);
             if (tasksError) throw tasksError;
+
+            // 4. Fetch COMPANY_SEDE config to sync sede across devices
+            const { data: configData, error: configError } = await supabase
+                .from('app_configs')
+                .select('config_value')
+                .eq('config_key', 'COMPANY_SEDE')
+                .single();
+            
+            if (!configError && configData?.config_value) {
+                try {
+                    const parsed = JSON.parse(configData.config_value);
+                    if (parsed && parsed.lat && parsed.lng) {
+                        setSede(parsed);
+                        localStorage.setItem('assistec_custom_sede', configData.config_value);
+                    }
+                } catch (e) {
+                    console.error("Error parsing COMPANY_SEDE", e);
+                }
+            }
 
             // Build an object of client normalized name -> valid coordinates & details from tasks
             const clientGeoMap = {};
@@ -1313,6 +1346,7 @@ const SupportRoutePlanner = ({
 
                     {/* Active bound recenter helper */}
                     <RecenterMap bounds={mapBounds} />
+                    <UpdateMapSize mobileTab={mobileTab} />
 
                     {/* Marker: Start Point */}
                     <Marker
@@ -1592,7 +1626,7 @@ const SupportRoutePlanner = ({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                     if (!tempSede.name.trim() || !tempSede.address.trim() || tempSede.lat === '' || tempSede.lng === '') {
                                         notifyError('Campos obrigatórios', 'Por favor, preencha todos os campos corretamente.');
                                         return;
@@ -1606,9 +1640,20 @@ const SupportRoutePlanner = ({
                                     setSede(savedSede);
                                     try {
                                         localStorage.setItem('assistec_custom_sede', JSON.stringify(savedSede));
-                                        notifySuccess('Sede salva!', 'Endereço e coordenadas oficiais salvos com sucesso.');
+                                        
+                                        // Save to database to sync across devices
+                                        const { error } = await supabase.from('app_configs').upsert({
+                                            config_key: 'COMPANY_SEDE',
+                                            config_value: JSON.stringify(savedSede),
+                                            description: 'Coordenadas da Sede da Empresa'
+                                        }, { onConflict: 'config_key' });
+                                        
+                                        if (error) throw error;
+                                        
+                                        notifySuccess('Sede salva na nuvem!', 'Endereço atualizado em todos os aparelhos.');
                                     } catch (e) {
                                         console.error('Error saving custom sede:', e);
+                                        notifyError('Erro ao sincronizar', 'Sede salva localmente, mas não foi enviada para a nuvem.');
                                     }
                                     setShowSedeModal(false);
                                     setSedeSearchResults([]);

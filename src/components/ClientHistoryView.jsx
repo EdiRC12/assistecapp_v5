@@ -1073,7 +1073,7 @@ return (
                                     <ChevronLeft size={isMobile ? 14 : 16} /> Voltar ao Painel
                                 </button>
 
-                                {activeTopic === 'CADASTRO' && <ClientRegistrationTab activeClientObj={activeClientObj} setIsClientManagerOpen={setIsClientManagerOpen} />}
+                                {activeTopic === 'CADASTRO' && <ClientRegistrationTab activeClientObj={activeClientObj} setIsClientManagerOpen={setIsClientManagerOpen} currentUser={currentUser} supabase={supabase} notifySuccess={notifySuccess} notifyError={notifyError} setSelectedClient={setSelectedClient} />}
                                 {activeTopic === 'CONTATOS' && (
                                     <ClientContactsTab
                                         clientContacts={clientContacts}

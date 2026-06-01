@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     LayoutDashboard, Calendar as CalendarIcon, MapPin, Briefcase, Plane,
     CheckSquare, FileText, Headphones, Sparkles, Settings2, LogOut,
     PanelLeft, PanelBottom, ChevronRight, ChevronLeft, X, Menu, Search,
     User as UserIcon, StickyNote, AlertTriangle, LogIn, Settings, Car,
-    CheckSquare as CheckSquareIcon, Users as UsersIcon, History, LifeBuoy
+    CheckSquare as CheckSquareIcon, Users as UsersIcon, History, LifeBuoy,
+    ChevronUp, ChevronDown
 } from 'lucide-react';
 import UserAvatar from '../UserAvatar';
 import DailyHub from '../DailyHub';
@@ -56,6 +57,7 @@ const AppLayout = ({
 }) => {
     const layoutMode = currentUser?.layout_mode || 'VERTICAL';
     const isMobile = useIsMobile();
+    const [isBottomMenuCollapsed, setIsBottomMenuCollapsed] = useState(false);
 
     const rawMenuItems = [
         { id: 'kanban', label: 'Tarefas', icon: LayoutDashboard, color: 'text-blue-500' },
@@ -289,73 +291,83 @@ const AppLayout = ({
                         </button>
                     ))}
                 </nav>
-                <div className={`p-2 border-t ${theme.border} mt-1 space-y-1`}>
-                    <button onClick={() => setIsProfileOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} hover:bg-black/5 transition-all active:scale-95`}>
-                        <UserAvatar user={currentUser} size={isSidebarCollapsed ? 28 : 22} />
-                        {!isSidebarCollapsed && (
-                            <div className="flex flex-col items-start leading-none overflow-hidden">
-                                <span className="font-bold truncate w-full text-left">{currentUser.username}</span>
-                                <span className="text-[10px] text-brand-600 font-bold">Editar Perfil</span>
-                            </div>
-                        )}
-                    </button>
-
-                    <div className={`pt-1 ${isSidebarCollapsed ? 'flex justify-center' : 'px-3'}`}>
-                        {isSidebarCollapsed ? (
-                            <div className="relative group cursor-pointer" title="Equipe Online">
-                                <span className="bg-brand-100 text-brand-600 px-1.5 py-0.5 rounded-full text-[10px] font-bold border border-brand-200">
-                                    {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).length}
-                                </span>
-                            </div>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={() => setIsOnlineListOpen(!isOnlineListOpen)}
-                                    className="w-full flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 mb-1 hover:text-slate-600 focus:outline-none group"
-                                >
-                                    <span className="flex items-center gap-2">
-                                        Equipe Online
-                                        {!isOnlineListOpen && (
-                                            <span className="bg-brand-100 text-brand-600 px-1.5 rounded-full text-[9px] min-w-[16px] h-4 flex items-center justify-center opacity-75 group-hover:opacity-100 transition-opacity">
-                                                {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).length}
-                                            </span>
-                                        )}
-                                    </span>
-                                    <ChevronRight size={14} className={`transform transition-transform ${isOnlineListOpen ? 'rotate-90' : ''}`} />
-                                </button>
-                                {isOnlineListOpen && (
-                                    <div className="flex flex-wrap gap-1 animate-in slide-in-from-top-2 duration-200">
-                                        {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).map(u => (
-                                            <UserAvatar key={u.id} user={u} size={28} showStatus={true} />
-                                        ))}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-
-                    <div className={`border-t ${theme.border} my-1`}></div>
-
-                    <button onClick={() => setIsVehicleManagerOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} opacity-70 hover:opacity-100 hover:bg-black/5 transition-all`} title="Frota de Veículos">
-                        <Car size={20} />{!isSidebarCollapsed && <span>Frota de Veículos</span>}
-                    </button>
-
-                    <button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} opacity-70 hover:opacity-100 hover:bg-black/5 transition-all`} title="Configurações">
-                        <Settings size={20} />{!isSidebarCollapsed && <span>Configurações</span>}
-                    </button>
-
-                    <button
-                        onClick={() => handleUpdateProfile({ layout_mode: layoutMode === 'HORIZONTAL' ? 'VERTICAL' : 'HORIZONTAL' })}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-xs font-medium ${theme.text} opacity-60 hover:opacity-100 hover:bg-black/5 transition-all`}
-                        title={layoutMode === 'HORIZONTAL' ? "Mudar para Vertical" : "Mudar para Horizontal"}
+                <div className={`p-2 border-t ${theme.border} mt-1 flex flex-col shrink-0 relative`}>
+                    <button 
+                        onClick={() => setIsBottomMenuCollapsed(!isBottomMenuCollapsed)}
+                        className={`absolute -top-3.5 right-2 bg-white border ${theme.border} p-1 rounded-full text-slate-400 hover:text-brand-600 transition-all z-10 shadow-sm cursor-pointer`}
+                        title={isBottomMenuCollapsed ? "Expandir Menu Inferior" : "Ocultar Menu Inferior"}
                     >
-                        {layoutMode === 'HORIZONTAL' ? <PanelLeft size={16} /> : <PanelBottom size={16} className="rotate-180" />}
-                        {!isSidebarCollapsed && <span>{layoutMode === 'HORIZONTAL' ? 'Menu Vertical' : 'Menu Horizontal'}</span>}
+                        {isBottomMenuCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
+                    
+                    <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${isBottomMenuCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'}`}>
+                        <button onClick={() => setIsProfileOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} hover:bg-black/5 transition-all active:scale-95`}>
+                            <UserAvatar user={currentUser} size={isSidebarCollapsed ? 28 : 22} />
+                            {!isSidebarCollapsed && (
+                                <div className="flex flex-col items-start leading-none overflow-hidden">
+                                    <span className="font-bold truncate w-full text-left">{currentUser.username}</span>
+                                    <span className="text-[10px] text-brand-600 font-bold">Editar Perfil</span>
+                                </div>
+                            )}
+                        </button>
 
-                    <button onClick={handleLogout} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all`} title="Sair">
-                        <LogOut size={20} />{!isSidebarCollapsed && <span>Sair</span>}
-                    </button>
+                        <div className={`pt-1 ${isSidebarCollapsed ? 'flex justify-center' : 'px-3'}`}>
+                            {isSidebarCollapsed ? (
+                                <div className="relative group cursor-pointer" title="Equipe Online">
+                                    <span className="bg-brand-100 text-brand-600 px-1.5 py-0.5 rounded-full text-[10px] font-bold border border-brand-200">
+                                        {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).length}
+                                    </span>
+                                </div>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => setIsOnlineListOpen(!isOnlineListOpen)}
+                                        className="w-full flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 mb-1 hover:text-slate-600 focus:outline-none group cursor-pointer"
+                                    >
+                                        <span className="flex items-center gap-2">
+                                            Equipe Online
+                                            {!isOnlineListOpen && (
+                                                <span className="bg-brand-100 text-brand-600 px-1.5 rounded-full text-[9px] min-w-[16px] h-4 flex items-center justify-center opacity-75 group-hover:opacity-100 transition-opacity">
+                                                    {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).length}
+                                                </span>
+                                            )}
+                                        </span>
+                                        <ChevronRight size={14} className={`transform transition-transform ${isOnlineListOpen ? 'rotate-90' : ''}`} />
+                                    </button>
+                                    {isOnlineListOpen && (
+                                        <div className="flex flex-wrap gap-1 animate-in slide-in-from-top-2 duration-200">
+                                            {users.filter(u => u.last_seen && (new Date() - new Date(u.last_seen) < 5 * 60 * 1000)).map(u => (
+                                                <UserAvatar key={u.id} user={u} size={28} showStatus={true} />
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className={`border-t ${theme.border} my-1`}></div>
+
+                        <button onClick={() => setIsVehicleManagerOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} opacity-70 hover:opacity-100 hover:bg-black/5 transition-all cursor-pointer`} title="Frota de Veículos">
+                            <Car size={20} />{!isSidebarCollapsed && <span>Frota de Veículos</span>}
+                        </button>
+
+                        <button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium ${theme.text} opacity-70 hover:opacity-100 hover:bg-black/5 transition-all cursor-pointer`} title="Configurações">
+                            <Settings size={20} />{!isSidebarCollapsed && <span>Configurações</span>}
+                        </button>
+
+                        <button
+                            onClick={() => handleUpdateProfile({ layout_mode: layoutMode === 'HORIZONTAL' ? 'VERTICAL' : 'HORIZONTAL' })}
+                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-xs font-medium ${theme.text} opacity-60 hover:opacity-100 hover:bg-black/5 transition-all cursor-pointer`}
+                            title={layoutMode === 'HORIZONTAL' ? "Mudar para Vertical" : "Mudar para Horizontal"}
+                        >
+                            {layoutMode === 'HORIZONTAL' ? <PanelLeft size={16} /> : <PanelBottom size={16} className="rotate-180" />}
+                            {!isSidebarCollapsed && <span>{layoutMode === 'HORIZONTAL' ? 'Menu Vertical' : 'Menu Horizontal'}</span>}
+                        </button>
+
+                        <button onClick={handleLogout} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all cursor-pointer`} title="Sair">
+                            <LogOut size={20} />{!isSidebarCollapsed && <span>Sair</span>}
+                        </button>
+                    </div>
                 </div>
             </aside>
 

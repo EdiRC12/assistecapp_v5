@@ -1,7 +1,8 @@
 import React from 'react';
-import { Package, Plus, Trash2, Boxes } from 'lucide-react';
+import { Package, Plus, Trash2, Boxes, Paperclip, Image as ImageIcon } from 'lucide-react';
 import DashboardCard from '../DashboardCard';
 import useIsMobile from '../../../hooks/useIsMobile';
+import ProductAttachmentsModal from '../ProductAttachmentsModal';
 
 const ClientProductsTab = ({
     clientProducts,
@@ -14,6 +15,16 @@ const ClientProductsTab = ({
     handleDeleteProduct
 }) => {
     const isMobile = useIsMobile();
+    const [localProducts, setLocalProducts] = React.useState([]);
+    const [selectedProduct, setSelectedProduct] = React.useState(null);
+
+    React.useEffect(() => {
+        setLocalProducts(clientProducts);
+    }, [clientProducts]);
+
+    const handleProductUpdated = (updatedProduct) => {
+        setLocalProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    };
 
     return (
         <DashboardCard title="Catálogo de Itens do Cliente" icon={Package}>
@@ -84,31 +95,51 @@ const ClientProductsTab = ({
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3 w-full">
-                        {clientProducts.map(prod => (
+                        {localProducts.map(prod => (
                             <div
                                 key={prod.id}
                                 className="group relative bg-white border border-slate-200 rounded-xl p-4 hover:border-brand-300 hover:shadow-lg transition-all flex items-center justify-between w-full gap-4"
                             >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className="p-2 bg-brand-50 text-brand-600 rounded-xl flex-shrink-0">
-                                        <Boxes size={18} />
-                                    </div>
-                                    <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="font-bold text-slate-800 text-[11px] sm:text-xs md:text-sm uppercase break-words leading-tight">
+                                <div className="flex items-center sm:items-start gap-4 flex-1 min-w-0">
+                                    {prod.cover_url ? (
+                                        <div className="w-20 h-20 sm:w-40 sm:h-32 rounded-xl overflow-hidden flex-shrink-0 border border-slate-200 shadow-md">
+                                            <img src={prod.cover_url} alt="Capa" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 bg-brand-50 text-brand-600 rounded-xl flex-shrink-0 mt-1">
+                                            <Boxes size={24} />
+                                        </div>
+                                    )}
+                                    <div className="flex flex-col min-w-0 flex-1 pt-1">
+                                        <span className="font-bold text-slate-800 text-xs sm:text-sm md:text-base uppercase break-words leading-snug flex flex-wrap items-center gap-2">
                                             {prod.product_name}
+                                            {prod.media_urls && prod.media_urls.length > 0 && (
+                                                <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-1 rounded-md flex items-center gap-1 font-bold shadow-sm whitespace-nowrap">
+                                                    <Paperclip size={12} /> {prod.media_urls.length}
+                                                </span>
+                                            )}
                                         </span>
                                         <span className="text-[9px] text-slate-400 font-medium mt-0.5">
                                             Adicionado em {new Date(prod.created_at).toLocaleDateString('pt-BR')}
                                         </span>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => handleDeleteProduct(prod.id)}
-                                    className="bg-red-50 text-red-400 p-2 rounded-lg hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 lg:opacity-0 opacity-100 flex-shrink-0"
-                                    title="Remover item deste cliente"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setSelectedProduct(prod)}
+                                        className="bg-slate-50 text-slate-400 p-2 rounded-lg hover:bg-brand-50 hover:text-brand-600 transition-all opacity-100 lg:opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                        title="Anexos e Capa"
+                                    >
+                                        <Paperclip size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteProduct(prod.id)}
+                                        className="bg-red-50 text-red-400 p-2 rounded-lg hover:bg-red-500 hover:text-white transition-all opacity-100 lg:opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                        title="Remover item deste cliente"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                         {clientProducts.length === 0 && !isAddingProduct && (
@@ -121,6 +152,13 @@ const ClientProductsTab = ({
                     </div>
                 )}
             </div>
+
+            <ProductAttachmentsModal 
+                isOpen={!!selectedProduct} 
+                onClose={() => setSelectedProduct(null)} 
+                product={selectedProduct} 
+                onProductUpdated={handleProductUpdated} 
+            />
         </DashboardCard>
     );
 };

@@ -1052,7 +1052,7 @@ const TaskModal = ({
                     {/* Header */}
                     <div className="flex justify-between px-6 py-4 border-b border-slate-700 bg-slate-800 rounded-t-xl shrink-0">
                         <div className="flex flex-col">
-                            <h2 className="text-xl font-semibold text-white">{initialData ? 'Editar' : 'Nova'} Tarefa</h2>
+                            <h2 className="text-xl font-semibold text-white">{initialData?.id ? 'Editar' : 'Nova'} Tarefa</h2>
                             {lastActivity && (
                                 <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5">
                                     <History size={10} className="text-brand-400" />
@@ -1212,7 +1212,16 @@ const TaskModal = ({
                                         >
                                             <option value="">-- Sem vínculo com teste --</option>
                                             {(techTests || [])
-                                                .filter(t => !client || t.client_name?.toLowerCase() === client?.toLowerCase())
+                                                .filter(t => {
+                                                    if (t.id === parentTestId) return true;
+                                                    if (!client) return true;
+                                                    const cleanText = (str) => (str || '')
+                                                        .normalize("NFD")
+                                                        .replace(/[\u0300-\u036f]/g, "")
+                                                        .toLowerCase()
+                                                        .trim();
+                                                    return cleanText(t.client_name) === cleanText(client);
+                                                })
                                                 .map(t => {
                                                     const testLabel = [
                                                         t.test_number,
@@ -1224,6 +1233,7 @@ const TaskModal = ({
                                                     return (
                                                         <option key={t.id} value={t.id}>
                                                             {truncatedLabel}
+                                                            {t.id === parentTestId && " (Vinculado)"}
                                                         </option>
                                                     );
                                                 })

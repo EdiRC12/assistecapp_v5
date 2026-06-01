@@ -153,9 +153,10 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
                 if (otherProps.travels) updatePayload.travels = otherProps.travels;
                 if (otherProps.attachments) updatePayload.attachments = otherProps.attachments;
 
-                // Cascade status to stages
+                // Cascade status to stages and travels
                 if (taskToSave.status === TaskStatus.CANCELED || taskToSave.status === TaskStatus.DONE) {
                     const newStageStatus = taskToSave.status === TaskStatus.DONE ? 'COMPLETED' : 'CANCELED';
+                    const newTravelStatus = taskToSave.status === TaskStatus.DONE ? 'FINALIZADA' : 'CANCELADA';
                     const sourceStages = updatePayload.stages || taskData.stages;
                     if (sourceStages) {
                         const cascadedStages = {};
@@ -163,6 +164,17 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
                             cascadedStages[k] = { ...sourceStages[k], status: newStageStatus };
                         });
                         updatePayload.stages = cascadedStages;
+                    }
+                    
+                    const sourceTravels = updatePayload.travels || taskData.travels || oldTask?.travels;
+                    if (sourceTravels && Array.isArray(sourceTravels)) {
+                        const cascadedTravels = sourceTravels.map(t => {
+                            if (t.status === 'PROGRAMADA' || !t.status) {
+                                return { ...t, status: newTravelStatus };
+                            }
+                            return t;
+                        });
+                        updatePayload.travels = cascadedTravels;
                     }
                 }
 
@@ -352,15 +364,23 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
         }
 
         let updatedStages = { ...task.stages };
+        let updatedTravels = task.travels ? [...task.travels] : [];
         if (newStatus === TaskStatus.DONE) {
             Object.keys(updatedStages).forEach(s => {
                 updatedStages[s] = { ...updatedStages[s], status: 'FINALIZADO' };
+            });
+            updatedTravels = updatedTravels.map(t => {
+                if (t.status === 'PROGRAMADA' || !t.status) {
+                    return { ...t, status: 'FINALIZADA' };
+                }
+                return t;
             });
         }
 
         const updates = {
             status: newStatus,
             stages: updatedStages,
+            travels: updatedTravels,
             updated_at: new Date().toISOString()
         };
 

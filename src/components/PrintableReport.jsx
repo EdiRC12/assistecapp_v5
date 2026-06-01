@@ -1,8 +1,11 @@
 import React, { forwardRef } from 'react';
 import logo from '../assets/logo_plastimarau.png';
 
-const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, signatureDate, status, manualActions, media = [], editHistory = [], printAuditHistory = false }, ref) => {
+const PrintableReport = forwardRef(({ task, content, currentUser, reportAuthor, taskTypes, signatureDate, status, manualActions, media = [], editHistory = [], printAuditHistory = false }, ref) => {
     const isFinalized = status === 'FINALIZADO';
+    
+    // Cascata de Autoria Segura:
+    const authorName = task.responsible_names || reportAuthor?.username || currentUser?.username || 'N/A';
     
     // Helper para formatar categoria
     const getCategoryName = (catId) => {
@@ -109,7 +112,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
 
                         <div className="flex flex-col gap-1">
                             <span className="text-[9px] uppercase font-black text-brand-600">Responsáveis Técnicos:</span>
-                            <span className="text-sm font-bold text-slate-800">{task.responsible_names || currentUser?.username || 'N/A'}</span>
+                            <span className="text-sm font-bold text-slate-800">{authorName}</span>
                         </div>
 
                         <div className="flex flex-col gap-1">
@@ -353,7 +356,7 @@ const PrintableReport = forwardRef(({ task, content, currentUser, taskTypes, sig
                             <td className="w-1/2 pr-8 border-none p-0 text-center align-bottom shadow-none">
                                 <div className="border-b-2 border-slate-300 h-12 mb-2 w-full shadow-none"></div>
                                 <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-1 shadow-none">Representante Técnico</p>
-                                <p className="text-[11px] font-black text-brand-700 shadow-none">{currentUser?.username || '____________________'}</p>
+                                <p className="text-[11px] font-black text-brand-700 shadow-none">{authorName !== 'N/A' ? authorName : '____________________'}</p>
                                 {signatureDate && <p className="text-[8px] text-slate-400 mt-0.5 shadow-none">{new Date(signatureDate).toLocaleString()}</p>}
                             </td>
                             <td className="w-1/2 pl-8 border-none p-0 text-center align-bottom shadow-none">

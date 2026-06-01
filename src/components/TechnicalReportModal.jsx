@@ -134,7 +134,8 @@ const TechnicalReportModal = ({ report, onClose, onEditReport, onEditTask, taskT
                             }}
                             content={currentReport.content || currentReport.ai_analysis || currentReport.raw_notes}
                             media={currentReport.media_urls || []}
-                            currentUser={currentUser || currentReport.users}
+                            currentUser={currentUser}
+                            reportAuthor={currentReport.users}
                             taskTypes={taskTypes}
                             status={currentReport.status}
                             signatureDate={currentReport.signature_date}

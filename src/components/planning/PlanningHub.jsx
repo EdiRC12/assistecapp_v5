@@ -68,8 +68,8 @@ const PlanningHub = ({
             {/* Hub Header & Tab Nav */}
             <div className={`shrink-0 bg-white border-b border-slate-200 transition-all ${isMobile ? 'px-2 py-2' : 'px-6 py-3'}`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                        <div className={`flex items-center gap-1 bg-slate-100 ${isMobile ? 'p-0.5' : 'p-1'} rounded-2xl w-fit`}>
+                    <div className="w-full">
+                        <div className={`flex ${isMobile ? 'flex-wrap' : 'items-center'} gap-1 bg-slate-100 ${isMobile ? 'p-1' : 'p-1'} rounded-2xl w-full lg:w-fit`}>
                             {TABS.map((tab, idx) => {
                                 const Icon = tab.icon;
                                 const isActive = activeTab === tab.id;
@@ -77,7 +77,7 @@ const PlanningHub = ({
                                     <React.Fragment key={tab.id}>
                                         <button
                                             onClick={() => setActiveTab(tab.id)}
-                                            className={`flex items-center gap-1.5 md:gap-2.5 ${isMobile ? 'px-3 py-2' : 'px-5 py-2.5'} rounded-xl transition-all font-black ${isMobile ? 'text-[10px]' : 'text-sm'} whitespace-nowrap ${isActive
+                                            className={`flex items-center justify-center gap-1.5 md:gap-2.5 ${isMobile ? 'px-3 py-2 flex-1' : 'px-5 py-2.5'} rounded-xl transition-all font-black ${isMobile ? 'text-[10px]' : 'text-sm'} whitespace-nowrap ${isActive
                                                 ? `${tab.activeBg} text-white shadow-lg ${isMobile ? '' : 'scale-105'}`
                                                 : 'text-slate-400 hover:text-slate-600 hover:bg-white/60'
                                                 }`}

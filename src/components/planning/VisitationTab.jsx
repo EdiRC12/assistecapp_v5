@@ -256,10 +256,10 @@ const VisitationTab = ({
                         const columnItems = filteredPlanning.filter(p => (p.status || 'AGUARDANDO AGENDAMENTO') === status);
                         
                         return (
-                            <div key={status} className={`transition-all duration-500 ease-in-out ${isCollapsed ? 'w-12 md:w-16 min-w-0' : 'flex-1 w-full min-w-[320px]'} bg-slate-50/50 rounded-[32px] p-4 border border-slate-100 flex flex-col gap-4 h-full`}>
+                            <div key={status} className={`transition-all duration-500 ease-in-out ${isCollapsed ? (isMobile ? 'h-14 w-full min-h-[56px] overflow-hidden' : 'w-12 md:w-16 min-w-0') : `flex-1 w-full ${isMobile ? '' : 'min-w-[320px]'}`} bg-slate-50/50 rounded-[32px] p-4 border border-slate-100 flex flex-col gap-4 ${isMobile && !isCollapsed ? 'min-h-[400px]' : 'h-full'}`}>
                                 {/* Column Header */}
-                                <div onClick={() => toggleColumn(status)} className={`flex items-center justify-between px-3 py-2 mb-2 cursor-pointer transition-all ${isCollapsed ? 'flex-col py-6 gap-6' : ''}`}>
-                                    <h3 className={`text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ${isCollapsed ? 'vertical-text' : ''}`}>
+                                <div onClick={() => toggleColumn(status)} className={`flex items-center justify-between px-3 py-2 mb-2 cursor-pointer transition-all ${isCollapsed && !isMobile ? 'flex-col py-6 gap-6' : ''}`}>
+                                    <h3 className={`text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ${isCollapsed && !isMobile ? 'vertical-text' : ''}`}>
                                         <div className={`w-2 h-2 rounded-full ${
                                             status === 'CONCLUÍDA' ? 'bg-emerald-400' : 
                                             status === 'ADICIONADA A AGENDA' ? 'bg-indigo-400' : 'bg-amber-400'
@@ -275,7 +275,7 @@ const VisitationTab = ({
                                 </div>
 
                                 {/* Column Content */}
-                                <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1 scroll-smooth max-h-[calc(100vh-340px)] min-h-[400px] ${isCollapsed ? 'hidden' : 'block'}`}>
+                                <div className={`flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1 scroll-smooth ${isMobile ? 'min-h-[300px]' : 'max-h-[calc(100vh-340px)] min-h-[400px]'} ${isCollapsed ? 'hidden' : 'block'}`}>
                                     {columnItems.length === 0 ? (
                                         <div className="bg-white/40 border border-dashed border-slate-200 rounded-3xl py-12 flex flex-col items-center justify-center text-center px-4">
                                             <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center mb-2">

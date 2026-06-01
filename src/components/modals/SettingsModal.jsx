@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Plus, Edit2, Trash2, ChevronUp, ChevronDown, Share2, Copy, Smartphone, Layers, CheckCircle, CheckCircle2, AlertTriangle, Activity } from 'lucide-react';
+import { X, Settings, Plus, Edit2, Trash2, ChevronUp, ChevronDown, Share2, Copy, Smartphone, Layers, CheckCircle, CheckCircle2, AlertTriangle, Activity, Shield, User } from 'lucide-react';
 import { THEMES, UI_TOKENS } from '../../constants/themeConstants';
 import { generateUUID } from '../../utils/helpers';
 import SystemAuditor from '../controls/SystemAuditor';
@@ -9,6 +9,9 @@ const SettingsModal = ({
     isOpen,
     onClose,
     currentUser,
+    users = [],
+    onUpdateUserRole,
+    onDeleteUser,
     customCategories,
     onSaveCategories,
     tasks,
@@ -65,11 +68,17 @@ const SettingsModal = ({
     }, [isOpen, currentUser, customCategories, aiConfig, testFlows, testStatusPresets, inventoryReasons, autoOpenHealth]);
 
     const isAdmin = currentUser?.role === 'admin' || 
+                    currentUser?.role === 'master' ||
                     currentUser?.is_admin === true ||
                     currentUser?.email?.toLowerCase().includes('evandro') ||
                     currentUser?.email?.toLowerCase().includes('assistec.com') ||
                     currentUser?.username?.toLowerCase().includes('evandro') ||
                     currentUser?.username?.toLowerCase().includes('silva');
+
+    const isMaster = currentUser?.role === 'master' || 
+                     currentUser?.email?.toLowerCase().includes('evandro') ||
+                     currentUser?.username?.toLowerCase().includes('evandro') ||
+                     currentUser?.username?.toLowerCase().includes('silva');
 
     const lastHealthCheck = localStorage.getItem('assistec_last_health_check');
 
@@ -166,13 +175,84 @@ const SettingsModal = ({
                             {isAdmin && (
                                 <button onClick={() => setActiveTab('AUDIT')} className={`flex-1 px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'AUDIT' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Auditoria</button>
                             )}
+                            {isMaster && (
+                                <button onClick={() => setActiveTab('TEAM')} className={`flex-1 px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'TEAM' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Equipe</button>
+                            )}
                             <button onClick={() => setActiveTab('SHARE')} className={`flex-1 px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'SHARE' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Compartilhar</button>
                             <button onClick={() => setActiveTab('ABOUT')} className={`flex-1 px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === 'ABOUT' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Sobre</button>
                         </div>
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                    {activeTab === 'SHARE' ? (
+                    {activeTab === 'TEAM' && isMaster ? (
+                        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+                            <div className={`${UI_TOKENS.CONTENT_CARD} p-6 flex flex-col bg-white`}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                                            <Shield size={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Gestão de Equipe</h3>
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Controle de acessos e cargos</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                                    {users.map(u => (
+                                        <div key={u.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                {u.avatar_url ? (
+                                                    <img src={u.avatar_url} alt={u.name} className="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-200" />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-sm" style={{ backgroundColor: u.color || '#3b82f6' }}>
+                                                        {u.username || u.name ? (u.username || u.name).charAt(0).toUpperCase() : <User size={16} />}
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-slate-800 text-sm truncate" title={u.username || u.name}>{u.username || u.name || 'Sem Nome'}</h4>
+                                                    <p className="text-[10px] text-slate-500 truncate" title={u.email}>{u.email}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="pt-3 border-t border-slate-200">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Cargo Atual</label>
+                                                    {u.id !== currentUser?.id && isAdmin && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (window.confirm(`ATENÇÃO: Você tem certeza que deseja excluir o usuário ${u.username || u.name || u.email}?`)) {
+                                                                    onDeleteUser && onDeleteUser(u.id);
+                                                                }
+                                                            }}
+                                                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors"
+                                                            title="Excluir Usuário"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <select
+                                                    value={u.role || 'user'}
+                                                    onChange={(e) => onUpdateUserRole && onUpdateUserRole(u.id, e.target.value)}
+                                                    className={`w-full text-xs font-bold px-3 py-2 rounded-lg border outline-none transition-colors cursor-pointer ${
+                                                        u.role === 'master' ? 'bg-rose-50 text-rose-700 border-rose-200 focus:ring-rose-500' :
+                                                        u.role === 'admin' ? 'bg-amber-50 text-amber-700 border-amber-200 focus:ring-amber-500' :
+                                                        'bg-slate-100 text-slate-700 border-slate-200 focus:ring-brand-500'
+                                                    }`}
+                                                >
+                                                    <option value="user">Usuário Comum</option>
+                                                    <option value="admin">Administrador</option>
+                                                    <option value="master">Master (Dono)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : activeTab === 'SHARE' ? (
                         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
                             <div className={`${UI_TOKENS.CONTENT_CARD} p-6 text-center`}>
                                 <div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-4">

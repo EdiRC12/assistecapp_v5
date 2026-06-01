@@ -576,6 +576,31 @@ const App = () => {
         }
     };
 
+    const handleUpdateUserRole = async (userId, newRole) => {
+        try {
+            const { error } = await supabase.from('users').update({ role: newRole }).eq('id', userId);
+            if (error) throw error;
+            setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+            notifySuccess('Permissão Atualizada', 'O cargo do usuário foi alterado com sucesso.');
+        } catch (error) {
+            console.error('Erro ao atualizar cargo:', error);
+            notifyError('Erro', 'Não foi possível atualizar o cargo do usuário.');
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!currentUser) return;
+        try {
+            const { error } = await supabase.from('users').delete().eq('id', userId);
+            if (error) throw error;
+            setUsers(users.filter(u => u.id !== userId));
+            notifySuccess('Usuário Excluído', 'A conta foi removida do sistema com sucesso.');
+        } catch (error) {
+            console.error('Erro ao excluir usuário:', error);
+            notifyError('Erro na Exclusão', 'Não foi possível excluir o usuário. Ele pode estar vinculado a outros dados.');
+        }
+    };
+
     // fetchNotes, handleSaveNote e handleDeleteNote já vêm do hook useNotes (linha 106)
 
 
@@ -1104,6 +1129,9 @@ const App = () => {
                             setAutoOpenHealthCheck(false);
                         }}
                         currentUser={currentUser}
+                        users={users}
+                        onUpdateUserRole={handleUpdateUserRole}
+                        onDeleteUser={handleDeleteUser}
                         customCategories={customCategories}
                         onSaveCategories={handleSaveCategories}
                         aiConfig={aiConfig}
