@@ -226,11 +226,9 @@ const InventoryView = ({
                                                     );
                                                 })()}
                                             </div>
-                                            {productName && (
-                                                <span className="text-[9px] font-medium text-indigo-600 uppercase tracking-tight">
-                                                    PROD: {productName}
-                                                </span>
-                                            )}
+                                            <span className={`text-[9px] font-medium uppercase tracking-tight ${productName ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                                PROD: {productName || 'NÃO INFORMADO'}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="p-4 text-center">

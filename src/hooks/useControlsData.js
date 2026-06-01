@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -8,17 +8,29 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
     const [inventory, setInventory] = useState([]);
     const [adjustmentLogs, setAdjustmentLogs] = useState([]);
     const [registeredClients, setRegisteredClients] = useState([]);
+    const prevFilterRef = useRef('');
     
     // Pagination States
-    const [page, setPage] = useState(0);
+    const [page, setPage] = useState({ tests: 0, inventory: 0, costs: 0, adjustment_logs: 0 });
     const [hasMore, setHasMore] = useState(true);
     const PAGE_SIZE = 50;
 
-    const fetchData = async (loadMore = false) => {
+    const fetchData = async (loadMore = false, forceRefresh = false) => {
         if (!activeTab) return;
-        setLoading(true);
         
-        const currentPage = loadMore ? page + 1 : 0;
+        const currentFilter = `${selectedMonth}-${selectedYear}-${stockStatusFilter}`;
+        const filterChanged = prevFilterRef.current !== currentFilter;
+        
+        // Previne que a simples troca de aba resete os arrays e perca os testes antigos já carregados
+        if (!loadMore && !forceRefresh && !filterChanged && tests.length > 0) {
+            return;
+        }
+        
+        setLoading(true);
+        prevFilterRef.current = currentFilter;
+        
+        const currentTab = activeTab === 'costs' ? 'tests' : activeTab;
+        const currentPage = (loadMore && !filterChanged) ? (page[currentTab] || 0) + 1 : 0;
         const from = currentPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
@@ -37,10 +49,20 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
             }
 
             if (['tests', 'inventory', 'costs', 'inventory_check', 'adjustment_logs'].includes(activeTab)) {
-                let testsQuery = supabase.from('tech_tests')
-                    .select('id, created_at, updated_at, user_id, client_name, title, description, status, status_color, extra_data, metadata, converted_task_id, produced_quantity, quantity_billed, quantity_discarded, op_cost, unit_cost, gross_total_cost, unit, consumed_stock_id, test_order, op_number, product_name, nf_number, delivery_date, situation, flow_stage, stock_destination, volumes, test_number')
-                    .order('created_at', { ascending: false })
-                    .range(from, to);
+                let testsQuery = null;
+                
+                // Carregar TODOS os testes (até 5000) apenas quando necessário (filtro mudou, refresh forçado ou array vazio)
+                // Evita baixar milhares de registros de novo se a pessoa só clicar em "Carregar mais" no Estoque
+                if (!loadMore || filterChanged || forceRefresh || tests.length === 0) {
+                    testsQuery = supabase.from('tech_tests')
+                        .select('id, created_at, updated_at, user_id, client_name, title, description, status, status_color, extra_data, metadata, converted_task_id, produced_quantity, quantity_billed, quantity_discarded, op_cost, unit_cost, gross_total_cost, unit, consumed_stock_id, test_order, op_number, product_name, nf_number, delivery_date, situation, flow_stage, stock_destination, volumes, test_number')
+                        .order('created_at', { ascending: false })
+                        .limit(5000);
+                        
+                    if (startDate && endDate) {
+                        testsQuery = testsQuery.gte('created_at', startDate).lte('created_at', endDate);
+                    }
+                }
 
                 let invQuery = supabase.from('ee_inventory')
                     .select('id, created_at, updated_at, user_id, name, description, quantity, unit, location, stock_bin, test_id, client_name, op, pedido, qty_produced, qty_billed, production_cost, status, inventory_adjustment, last_inventory_at, justification_reason, justified_at, volumes, is_checked')
@@ -64,7 +86,6 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
                     .range(from, to);
 
                 if (startDate && endDate) {
-                    testsQuery = testsQuery.gte('created_at', startDate).lte('created_at', endDate);
                     logQuery = logQuery.gte('created_at', startDate).lte('created_at', endDate);
                 }
 
@@ -75,22 +96,22 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
                 }
 
                 const [testsRes, invRes, logsRes] = await Promise.all([
-                    testsQuery,
+                    testsQuery ? testsQuery : Promise.resolve({ data: null }),
                     invQuery,
                     logQuery
                 ]);
 
                 // Update Data
-                if (loadMore) {
-                    if (activeTab === 'tests' || activeTab === 'costs') setTests(prev => [...prev, ...(testsRes.data || [])]);
+                if (loadMore && !filterChanged) {
+                    if (testsRes.data) setTests(testsRes.data); // Se veio (ex: forçou refresh com loadMore=true), sobrescreve tudo
                     if (activeTab === 'inventory') setInventory(prev => [...prev, ...(invRes.data || [])]);
                     if (activeTab === 'adjustment_logs') setAdjustmentLogs(prev => [...prev, ...(logsRes.data || [])]);
-                    setPage(currentPage);
+                    setPage(prev => ({ ...prev, [currentTab]: currentPage }));
                 } else {
-                    setTests(testsRes.data || []);
+                    if (testsRes.data) setTests(testsRes.data);
                     setInventory(invRes.data || []);
                     setAdjustmentLogs(logsRes.data || []);
-                    setPage(0);
+                    setPage({ tests: 0, inventory: 0, costs: 0, adjustment_logs: 0 });
                 }
 
                 // Check if has more
@@ -100,7 +121,6 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
                 setHasMore(currentDataCount === PAGE_SIZE);
 
             }
-
 
         } catch (error) {
             console.error('Error fetching controls data:', error);

@@ -672,7 +672,7 @@ const ControlsView = ({
             setIsInventorySessionActive(false);
             
             // Recarregar dados para garantir que a memória foi sincronizada
-            await fetchData();
+            await fetchData(false, true);
             
             notifySuccess("Inventário Finalizado", (justifications && Object.keys(justifications).length > 0)
                 ? "Divergências registradas com sucesso."
@@ -850,7 +850,7 @@ const ControlsView = ({
             console.log('[handleSaveNewRecord] Sucesso no banco!');
             setShowAddForm(false);
             setNewItem({});
-            fetchData();
+            fetchData(false, true);
 
             // Sincronismo Automático se for um Teste com Quantidade
             if (table === 'tech_tests' && (payload.produced_quantity > 0)) {
@@ -1031,7 +1031,7 @@ const ControlsView = ({
             }
 
             // Recarrega dados após sincronismo silencioso
-            fetchData();
+            fetchData(false, true);
         } catch (err) {
             console.error('[syncTestToInventory] Erro no sincronismo automático:', err);
         }
@@ -1139,7 +1139,7 @@ const ControlsView = ({
             setTests(prev => prev.map(t => t.id === id ? { ...t, ...updatePayload } : t));
             setSelectedTest(temporaryTest);
             notifySuccess('Sucesso!', 'Alterações salvas e estoque atualizado!');
-            fetchData();
+            fetchData(false, true);
         } catch (error) {
             console.error('Erro ao salvar detalhes:', error);
             notifyError('Erro ao salvar', error.message || error);
@@ -1173,7 +1173,7 @@ const ControlsView = ({
                         </button>
                     )}
                     <button
-                        onClick={() => fetchData()}
+                        onClick={() => fetchData(false, true)}
                         disabled={loading}
                         className={`${isMobile ? 'p-1.5' : 'p-2.5'} text-slate-500 hover:text-indigo-600 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-200`}
                         title="Atualizar dados"
