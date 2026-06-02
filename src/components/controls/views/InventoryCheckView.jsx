@@ -150,7 +150,7 @@ const InventoryCheckView = ({
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-hidden print:overflow-visible flex flex-col min-h-0 print:h-auto">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar print:overflow-visible flex flex-col min-h-0 print:h-auto">
                             <table className="w-full border-collapse text-left">
                                 <thead className="sticky top-0 bg-white z-10 shadow-sm">
                                     <tr className="border-b border-slate-100">
