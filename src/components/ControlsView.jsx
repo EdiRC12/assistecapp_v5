@@ -804,7 +804,7 @@ const ControlsView = ({
                 ...cleanPayload
             } = newItem;
 
-            const payload = { ...cleanPayload, user_id: currentUser.id };
+            let payload = { ...cleanPayload, user_id: currentUser.id };
 
             // Sanitização Estrita de Campos Numéricos (Evita erro 22P02 do PostgreSQL)
             const numericFields = [
@@ -816,6 +816,25 @@ const ControlsView = ({
                     payload[field] = null;
                 }
             });
+
+            // Whitelist de colunas do ee_inventory.
+            // Impede que campos exclusivos de tech_tests (gross_total_cost, op_cost, etc.)
+            // sejam enviados ao ee_inventory e causem erro de coluna inexistente.
+            if (table === 'ee_inventory') {
+                const eeInventoryColumns = [
+                    'user_id', 'name', 'description', 'quantity', 'unit', 'location',
+                    'stock_bin', 'test_id', 'client_name', 'op', 'pedido',
+                    'qty_produced', 'qty_billed', 'quantity_discarded',
+                    'production_cost', 'status', 'volumes',
+                    'inventory_adjustment', 'last_inventory_at',
+                    'justification_reason', 'justified_at', 'is_checked'
+                ];
+                const filteredPayload = { user_id: payload.user_id };
+                eeInventoryColumns.forEach(col => {
+                    if (payload[col] !== undefined) filteredPayload[col] = payload[col];
+                });
+                payload = filteredPayload;
+            }
 
             if (activeTab === 'tests') {
                 payload.status = payload.status || 'AGUARDANDO';
