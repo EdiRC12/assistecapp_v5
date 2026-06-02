@@ -173,7 +173,12 @@ const InventoryView = ({
                     <tbody className="divide-y divide-slate-50">
                          {filteredInventory.map(item => {
                             const relatedTest = tests?.find(t => t.id === item.test_id);
-                            const productName = relatedTest?.product_name || '';
+                            // Para itens de teste: usa product_name do teste vinculado.
+                            // Para itens diretos (sem test_id): extrai o name do item como descrição do produto.
+                            const productName = relatedTest?.product_name ||
+                                (!item.test_id
+                                    ? (item.name || '').replace(/^ITEM:\s*/i, '').trim()
+                                    : '');
                             const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
 
                             return (

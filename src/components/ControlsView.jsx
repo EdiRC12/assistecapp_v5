@@ -833,6 +833,11 @@ const ControlsView = ({
                 eeInventoryColumns.forEach(col => {
                     if (payload[col] !== undefined) filteredPayload[col] = payload[col];
                 });
+                // Garante que o nome sempre apareça no padrão "ITEM: [descrição]"
+                if (filteredPayload.name) {
+                    const rawName = String(filteredPayload.name).trim();
+                    filteredPayload.name = rawName.toUpperCase().startsWith('ITEM:') ? rawName : `ITEM: ${rawName}`;
+                }
                 payload = filteredPayload;
             }
 
