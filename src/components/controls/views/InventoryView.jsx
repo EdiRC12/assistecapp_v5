@@ -97,7 +97,8 @@ const InventoryView = ({
     onLoadMore,
     loading,
     isMaximized,
-    setIsMaximized
+    setIsMaximized,
+    onResyncAll
 }) => {
     const filteredInventory = inventory.filter(item => {
         const binTarget = activeInventoryBin?.trim().toUpperCase();
@@ -365,6 +366,17 @@ const InventoryView = ({
                 )}
 
                 <div className="flex-1 flex justify-end gap-3">
+                    {onResyncAll && (
+                        <button
+                            onClick={onResyncAll}
+                            disabled={loading}
+                            title="Recalcula saldos, volumes e status de todos os itens com base nos dados atuais dos testes. Use para corrigir divergências em lote."
+                            className="bg-amber-500 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-2 shadow-lg shadow-amber-100 active:scale-95 group disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                        >
+                            <RefreshCw size={14} className={`group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
+                            {loading ? 'Sincronizando...' : 'Ressincronizar Estoque'}
+                        </button>
+                    )}
                     <button
                         onClick={() => {
                             setReportContext('INVENTORY');

@@ -942,7 +942,8 @@ const ControlsView = ({
     };
 
     // --- SINCRONIZADOR CENTRAL DE ESTOQUE ---
-    const syncTestToInventory = async (testData) => {
+    const syncTestToInventory = async (testData, options = {}) => {
+        const { skipRefresh = false } = options;
         if (!testData || !testData.id) return;
 
         try {
@@ -967,25 +968,45 @@ const ControlsView = ({
                 .filter(t => String(t.consumed_stock_id) === String(existingStock?.id))
                 .reduce((sum, t) => sum + (t.produced_quantity || 0), 0);
 
-            const calcBalance = (qtyProduced - qtyBilled - (fullTest.quantity_discarded || 0)) - totalConsumedByOthers;
+            // rawBalance: saldo contábil puro (produzido - faturado - descartado - consumidos por outros)
+            // Usado para determinar status (BILLED/ACTIVE). NÃO inclui inventory_adjustment.
+            const rawBalance = (qtyProduced - qtyBilled - (fullTest.quantity_discarded || 0)) - totalConsumedByOthers;
+            // finalBalance: saldo físico real em estoque (rawBalance + ajuste de inventário físico)
+            // Usado para gravar a quantity física no ee_inventory.
             const adjustment = existingStock?.inventory_adjustment || 0;
-            const finalBalance = parseFloat((calcBalance + adjustment).toFixed(2));
+            const finalBalance = parseFloat((rawBalance + adjustment).toFixed(2));
 
             // Determinação do Depósito
             const targetBin = fullTest.stock_destination || 'ESTOQUE 0';
 
             // Cálculo de volumes faturados e saldo de volumes em estoque
             const shipments = fullTest.extra_data?.shipments || [];
-            const volsBilled = shipments.length > 0 
-                ? shipments.reduce((sum, s) => sum + (parseInt(s.volumes) || 0), 0)
-                : (parseInt(fullTest.extra_data?.volumes_faturados) || 0);
-            const remainingVolumes = Math.max(0, (parseInt(fullTest.volumes) || 0) - volsBilled);
+            const totalVolumes = parseInt(fullTest.volumes) || 0;
+            let volsBilled = 0;
+            if (shipments.length > 0) {
+                // Preferência: somar volumes declarados em cada remessa
+                volsBilled = shipments.reduce((sum, s) => sum + (parseInt(s.volumes) || 0), 0);
+            } else if (parseInt(fullTest.extra_data?.volumes_faturados) > 0) {
+                // Legado: campo antigo de volumes faturados
+                volsBilled = parseInt(fullTest.extra_data.volumes_faturados);
+            } else if (qtyBilled > 0 && qtyProduced > 0 && totalVolumes > 0) {
+                // Fallback proporcional: sem dados de remessa, estima proporcionalmente
+                // Se faturamento total >= produção, todos os volumes foram faturados
+                if (qtyBilled >= qtyProduced) {
+                    volsBilled = totalVolumes;
+                } else {
+                    volsBilled = Math.round(totalVolumes * (qtyBilled / qtyProduced));
+                }
+            }
+            const remainingVolumes = Math.max(0, totalVolumes - volsBilled);
 
             // Determinação do Status de Estoque
+            // IMPORTANTE: usar rawBalance (contábil), não finalBalance.
+            // O inventory_adjustment é ajuste físico de inventário e NÃO deve mascarar um item totalmente faturado.
             let stockStatus = 'ACTIVE';
             if (fullTest.stock_destination === 'DISCARDED' || fullTest.status === 'DESCARTADO') {
                 stockStatus = 'DISCARDED';
-            } else if (finalBalance <= 0) {
+            } else if (rawBalance <= 0) {
                 stockStatus = 'BILLED';
             }
 
@@ -1030,10 +1051,67 @@ const ControlsView = ({
                 }
             }
 
-            // Recarrega dados após sincronismo silencioso
-            fetchData(false, true);
+            // Recarrega dados após sincronismo silencioso (a menos que esteja em modo batch)
+            if (!skipRefresh) {
+                fetchData(false, true);
+            }
         } catch (err) {
             console.error('[syncTestToInventory] Erro no sincronismo automático:', err);
+        }
+    };
+
+    // --- RESSINCRONIZAÇÃO GERAL DE ESTOQUE ---
+    // Percorre TODOS os testes com produção e recalcula o ee_inventory de cada um.
+    // Corrige dados históricos salvos com lógica antiga (ex: saldos errados após ajuste de inventário).
+    const handleResyncAllInventory = async () => {
+        const testsWithProduction = tests.filter(t => (t.produced_quantity || 0) > 0);
+        if (testsWithProduction.length === 0) {
+            notifyInfo('Sem itens', 'Nenhum teste com produção encontrado para ressincronizar.');
+            return;
+        }
+
+        if (!window.confirm(
+            `Ressincronizar o estoque de ${testsWithProduction.length} testes?\n\n` +
+            `Isso irá recalcular saldos (KG), volumes e status de TODOS os itens de estoque, ` +
+            `corrigindo divergências causadas por ajustes manuais de inventário.\n\n` +
+            `Itens com faturamento total serão marcados como FATURADO e zerados no saldo.`
+        )) return;
+
+        setLoading(true);
+        let synced = 0;
+        let errors = 0;
+
+        try {
+            for (const test of testsWithProduction) {
+                try {
+                    // skipRefresh=true: evita múltiplos fetchData durante o loop
+                    await syncTestToInventory({ id: test.id }, { skipRefresh: true });
+                    synced++;
+                } catch (err) {
+                    console.error(`[ResyncAll] Erro em teste ${test.id}:`, err);
+                    errors++;
+                }
+            }
+
+            // Único fetchData ao final do loop
+            await fetchData(false, true);
+
+            if (errors === 0) {
+                notifySuccess(
+                    'Estoque Ressincronizado',
+                    `${synced} itens recalculados com sucesso. Saldos, volumes e status foram corrigidos.`
+                );
+            } else {
+                notifyWarning(
+                    'Ressincronização Parcial',
+                    `${synced} itens atualizados. ${errors} falharam — verifique o console para detalhes.`
+                );
+            }
+        } catch (err) {
+            console.error('[ResyncAll] Erro crítico:', err);
+            notifyError('Erro na Ressincronização', err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -1349,6 +1427,8 @@ const ControlsView = ({
                                         onLoadMore={() => fetchData(true)}
                                         isMaximized={isMaximized}
                                         setIsMaximized={setIsMaximized}
+                                        onResyncAll={handleResyncAllInventory}
+                                        loading={loading}
                                     />
                                 ) : (
                                     <InventoryDashboard
