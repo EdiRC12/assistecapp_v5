@@ -82,20 +82,20 @@ const AppLayout = ({
 
     return (
         <div
-            className={`flex h-screen font-sans transition-all duration-500 ${currentUser?.theme_style === 'MIDNIGHT' ? 'theme-midnight' : currentUser?.theme_style === 'CUSTOM' ? 'theme-custom' : ''} ${layoutMode === 'HORIZONTAL' ? 'flex-col' : 'flex-row'}`}
+            className={`flex h-screen print:h-auto print:block font-sans transition-all duration-500 ${currentUser?.theme_style === 'MIDNIGHT' ? 'theme-midnight' : currentUser?.theme_style === 'CUSTOM' ? 'theme-custom' : ''} ${layoutMode === 'HORIZONTAL' ? 'flex-col' : 'flex-row'}`}
             style={{ backgroundColor: theme.bg }}
         >
             {/* Mobile Sidebar Backdrop */}
             {isMobileMenuOpen && (
                 <div
-                    className={`fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm animate-in fade-in ${UI_TOKENS.TRANSITION_ALL}`}
+                    className={`fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm animate-in fade-in print:hidden ${UI_TOKENS.TRANSITION_ALL}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
             )}
 
             {/* HORIZONTAL NAVBAR (Desktop) */}
             {layoutMode === 'HORIZONTAL' && (
-                <nav className={`hidden md:flex items-center justify-between px-6 py-3 border-b ${theme.border} ${theme.sidebar} shadow-sm z-50 shrink-0`}>
+                <nav className={`hidden md:flex items-center justify-between px-6 py-3 border-b ${theme.border} ${theme.sidebar} shadow-sm z-50 shrink-0 print:hidden`}>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 text-brand-600">
                             <CheckSquareIcon size={24} />
@@ -185,7 +185,7 @@ const AppLayout = ({
             <aside className={`
                 ${layoutMode === 'HORIZONTAL' ? 'md:hidden' : 'md:flex'}
                 ${isSidebarCollapsed ? 'w-20' : 'w-64'}
-                ${theme.sidebar} border-r ${theme.border}
+                ${theme.sidebar} border-r ${theme.border} print:hidden
                 flex flex-col shrink-0 ${UI_TOKENS.TRANSITION_ALL} ${UI_TOKENS.SHADOW_XL} overflow-y-auto custom-scrollbar
                 fixed inset-y-0 left-0 z-50 md:relative
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -372,10 +372,10 @@ const AppLayout = ({
             </aside>
 
             {/* Main Content Area */}
-            <main className={`flex-1 flex flex-col p-0 overflow-hidden relative ${isMobile ? 'pb-[80px]' : ''}`}>
+            <main className={`flex-1 flex flex-col p-0 overflow-hidden print:overflow-visible print:block relative ${isMobile ? 'pb-[80px]' : ''}`}>
                 {/* Mobile Compact Header */}
                 {isMobile && (
-                    <header className="p-4 flex items-center justify-between shrink-0 bg-white border-b border-slate-100 z-10">
+                    <header className="p-4 flex items-center justify-between shrink-0 bg-white border-b border-slate-100 z-10 print:hidden">
                         <button
                             onClick={() => setIsMobileMenuOpen(true)}
                             className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl border border-slate-100"
