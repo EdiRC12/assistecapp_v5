@@ -20,7 +20,7 @@ const InventoryCheckView = ({
     loading
 }) => {
     return (
-        <div className="flex-1 flex flex-col gap-6 overflow-hidden animate-in slide-in-from-right-4 duration-500">
+        <div className="flex-1 flex flex-col gap-6 overflow-hidden print:overflow-visible print:h-auto animate-in slide-in-from-right-4 duration-500">
             {!isInventorySessionActive ? (
                 /* --- REPOUSO VIEW --- */
                 <div className="flex-1 flex flex-col items-center justify-center p-12 bg-white rounded-[40px] border border-slate-100 shadow-xl gap-8">
@@ -150,7 +150,7 @@ const InventoryCheckView = ({
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar print:overflow-visible flex flex-col min-h-0 print:h-auto">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar print:overflow-visible print:block flex flex-col min-h-0 print:h-auto">
                             <table className="w-full border-collapse text-left">
                                 <thead className="sticky top-0 bg-white z-10 shadow-sm">
                                     <tr className="border-b border-slate-100">
