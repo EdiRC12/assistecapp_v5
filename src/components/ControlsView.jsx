@@ -235,14 +235,17 @@ const ControlsView = ({
         setIsAnalyzing(false);
     };
 
+    const filteredTests = useMemo(() => {
+        return tests.filter(t => {
+            const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
+            const matchSearch = !searchTerm || t.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) || t.title?.toLowerCase().includes(searchTerm.toLowerCase());
+            return matchStatus && matchSearch;
+        });
+    }, [tests, statusFilter, searchTerm]);
 
     const filteredReportData = useMemo(() => {
         if (reportContext === 'TESTS') {
-            return tests.filter(t => {
-                const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
-                const matchSearch = !searchTerm || t.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) || t.title?.toLowerCase().includes(searchTerm.toLowerCase());
-                return matchStatus && matchSearch;
-            });
+            return filteredTests;
         } else if (reportContext === 'INVENTORY') {
             return inventory.filter(item => {
                 const binTarget = activeInventoryBin?.trim().toUpperCase();
@@ -270,7 +273,8 @@ const ControlsView = ({
             const testIdsWithAuditItems = new Set();
 
             // 1. Add all tests that have costs, production OR logistic tasks
-            tests.forEach(t => {
+            filteredTests.forEach(t => {
+
                 const taskCosts = (tasks || [])
                     .filter(tk => tk.parent_test_id === t.id)
                     .reduce((acc, curr) => {
@@ -1254,7 +1258,7 @@ const ControlsView = ({
     return (
         <div className="bg-[#f8fafc] h-full flex flex-col overflow-hidden relative">
             {/* Main Header */}
-            <header className={`bg-white border-b border-slate-200 ${isMobile ? 'px-3 py-2' : 'px-6 py-4'} flex items-center justify-between shrink-0`}>
+            <header className={`print:hidden bg-white border-b border-slate-200 ${isMobile ? 'px-3 py-2' : 'px-6 py-4'} flex items-center justify-between shrink-0`}>
                 <div className="flex items-center gap-2 md:gap-4">
                     <div className={`bg-indigo-600 ${isMobile ? 'p-1.5' : 'p-2.5'} rounded-xl shadow-lg shadow-indigo-100`}>
                         <FlaskConical className={`text-white ${isMobile ? 'w-4 h-4' : 'w-6 h-6'}`} />
@@ -1329,53 +1333,55 @@ const ControlsView = ({
                     </div>
                 ) : (
                     <div className="flex flex-col h-full overflow-hidden print:overflow-visible">
-                        <ControlsTabs
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
-                        />
+                        <div className="print:hidden shrink-0 flex flex-col">
+                            <ControlsTabs
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                            />
 
-                        <ControlsActionBar
-                            activeTab={activeTab}
-                            searchTerm={searchTerm}
-                            setSearchTerm={setSearchTerm}
-                            statusFilter={statusFilter}
-                            setStatusFilter={setStatusFilter}
-                            selectedMonth={selectedMonth}
-                            setSelectedMonth={setSelectedMonth}
-                            selectedYear={selectedYear}
-                            setSelectedYear={setSelectedYear}
-                            stockStatusFilter={stockStatusFilter}
-                            setStockStatusFilter={setStockStatusFilter}
-                            testStatusPresets={testStatusPresets}
-                            handleExcelUpload={async (e) => {
-                                try {
-                                    const count = await handleExcelUpload(e);
-                                    notifySuccess('Sucesso!', `${count} registros importados!`);
-                                } catch (err) {
-                                    notifyError('Erro ao importar', err.message);
-                                }
-                            }}
-                            setShowAddForm={setShowAddForm}
-                            setShowReportModal={setShowReportModal}
-                            setNewItem={setNewItem}
-                            setReportContext={setReportContext}
-                            setAiAnalysis={setAiAnalysis}
-                            MONTHS={MONTHS}
-                            DEFAULT_TEST_PARAMS={DEFAULT_TEST_PARAMS}
-                            reportTotals={reportTotals}
-                            activeInventoryBin={activeInventoryBin}
-                            setActiveInventoryBin={setActiveInventoryBin}
-                            isInventorySessionActive={isInventorySessionActive}
-                            setIsInventorySessionActive={setIsInventorySessionActive}
-                            setPendingJustifications={setPendingJustifications}
-                            filteredReportData={filteredReportData}
-                            inventory={inventory}
-                            viewMode={localViewMode}
-                            setViewMode={setLocalViewMode}
-                            setActiveSection={setActivePoliSection}
-                            isMaximized={isMaximized}
-                            setIsMaximized={setIsMaximized}
-                        />
+                            <ControlsActionBar
+                                activeTab={activeTab}
+                                searchTerm={searchTerm}
+                                setSearchTerm={setSearchTerm}
+                                statusFilter={statusFilter}
+                                setStatusFilter={setStatusFilter}
+                                selectedMonth={selectedMonth}
+                                setSelectedMonth={setSelectedMonth}
+                                selectedYear={selectedYear}
+                                setSelectedYear={setSelectedYear}
+                                stockStatusFilter={stockStatusFilter}
+                                setStockStatusFilter={setStockStatusFilter}
+                                testStatusPresets={testStatusPresets}
+                                handleExcelUpload={async (e) => {
+                                    try {
+                                        const count = await handleExcelUpload(e);
+                                        notifySuccess('Sucesso!', `${count} registros importados!`);
+                                    } catch (err) {
+                                        notifyError('Erro ao importar', err.message);
+                                    }
+                                }}
+                                setShowAddForm={setShowAddForm}
+                                setShowReportModal={setShowReportModal}
+                                setNewItem={setNewItem}
+                                setReportContext={setReportContext}
+                                setAiAnalysis={setAiAnalysis}
+                                MONTHS={MONTHS}
+                                DEFAULT_TEST_PARAMS={DEFAULT_TEST_PARAMS}
+                                reportTotals={reportTotals}
+                                activeInventoryBin={activeInventoryBin}
+                                setActiveInventoryBin={setActiveInventoryBin}
+                                isInventorySessionActive={isInventorySessionActive}
+                                setIsInventorySessionActive={setIsInventorySessionActive}
+                                setPendingJustifications={setPendingJustifications}
+                                filteredReportData={filteredReportData}
+                                inventory={inventory}
+                                viewMode={localViewMode}
+                                setViewMode={setLocalViewMode}
+                                setActiveSection={setActivePoliSection}
+                                isMaximized={isMaximized}
+                                setIsMaximized={setIsMaximized}
+                            />
+                        </div>
 
                         <div className="flex-1 overflow-hidden print:overflow-visible print:block print:h-auto flex flex-col px-6 py-6 print:p-0 bg-slate-50/30 min-h-0">
                             {activeTab === 'tests' && (
@@ -1443,6 +1449,10 @@ const ControlsView = ({
                                         handleDelete={handleDelete}
                                         setSelectedInventoryItem={setSelectedInventoryItem}
                                         setTempInventoryItem={setTempInventoryItem}
+                                        onEditManualItem={(item) => {
+                                            setNewItem(item);
+                                            setShowAddForm(true);
+                                        }}
                                         setReportContext={setReportContext}
                                         setShowReportModal={setShowReportModal}
                                         setAiAnalysis={setAiAnalysis}
@@ -1466,7 +1476,7 @@ const ControlsView = ({
 
                             {activeTab === 'costs' && (
                                 <CostsAuditView
-                                    tests={tests}
+                                    tests={filteredTests}
                                     tasks={tasks}
                                     inventory={inventory}
                                     handleDelete={handleDelete}

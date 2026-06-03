@@ -26,6 +26,13 @@ const NewRecordModal = ({
 }) => {
     const [localShowStock, setLocalShowStock] = useState(false);
     const [localStockSearch, setLocalStockSearch] = useState('');
+    const [isEditingUnlocked, setIsEditingUnlocked] = useState(true);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsEditingUnlocked(!newItem?.id);
+        }
+    }, [isOpen, newItem?.id]);
     if (!isOpen) return null;
 
     if (activeTab === 'tests') {
@@ -366,25 +373,34 @@ const NewRecordModal = ({
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-brand-600 text-white rounded-2xl"><Plus size={24} /></div>
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none mb-1">Novo Registro</h2>
+                                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
+                                    {newItem.id ? 'Editar Registro' : 'Novo Registro'}
+                                </h2>
                                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Módulo: Estoque</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="text-slate-300 hover:text-slate-800 transition-colors"><X size={24} /></button>
+                        <div className="flex items-center gap-3">
+                            {newItem.id && !isEditingUnlocked && (
+                                <button type="button" onClick={() => setIsEditingUnlocked(true)} className="text-[10px] font-black text-brand-600 bg-brand-50 px-3 py-1.5 rounded-full hover:bg-brand-100 transition-colors uppercase tracking-widest">
+                                    Reabrir para Edição
+                                </button>
+                            )}
+                            <button onClick={onClose} className="text-slate-300 hover:text-slate-800 transition-colors"><X size={24} /></button>
+                        </div>
                     </div>
                     <form onSubmit={onSave} className="p-8 flex flex-col gap-6">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Item / Amostra</label>
-                            <input required type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase" placeholder="NOME DO MATERIAL..." value={newItem.name || ''} onChange={e => setNewItem({ ...newItem, name: e.target.value.toUpperCase() })} />
+                            <input disabled={!isEditingUnlocked} required type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase disabled:opacity-60 disabled:bg-slate-100" placeholder="NOME DO MATERIAL..." value={newItem.name || ''} onChange={e => setNewItem({ ...newItem, name: e.target.value.toUpperCase() })} />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantidade</label>
-                                <input type="number" step="0.1" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all" placeholder="0.0" value={newItem.quantity ?? ''} onChange={e => setNewItem({ ...newItem, quantity: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                                <input disabled={!isEditingUnlocked} type="number" step="0.1" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100" placeholder="0.0" value={newItem.quantity ?? ''} onChange={e => setNewItem({ ...newItem, quantity: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Volumes</label>
-                                <input type="number" step="1" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all" placeholder="0" value={newItem.volumes ?? ''} onChange={e => setNewItem({ ...newItem, volumes: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                                <input disabled={!isEditingUnlocked} type="number" step="1" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100" placeholder="0" value={newItem.volumes ?? ''} onChange={e => setNewItem({ ...newItem, volumes: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -394,8 +410,9 @@ const NewRecordModal = ({
                                     <button
                                         key={u}
                                         type="button"
+                                        disabled={!isEditingUnlocked}
                                         onClick={() => setNewItem({ ...newItem, unit: u })}
-                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${newItem.unit === u || (!newItem.unit && u === 'KG') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${!isEditingUnlocked ? 'opacity-60 cursor-not-allowed' : ''} ${newItem.unit === u || (!newItem.unit && u === 'KG') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
                                         {u}
                                     </button>
@@ -422,22 +439,24 @@ const NewRecordModal = ({
                                 value={newItem.client_name || ''}
                                 options={registeredClients.map(c => ({ id: c.name, label: c.name }))}
                                 onChange={(val) => setNewItem({ ...newItem, client_name: val })}
+                                disabled={!isEditingUnlocked}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ordem de Produção (OP)</label>
-                                <input type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase" placeholder="NÚMERO DA OP..." value={newItem.op || ''} onChange={e => setNewItem({ ...newItem, op: e.target.value.toUpperCase() })} />
+                                <input disabled={!isEditingUnlocked} type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase disabled:opacity-60 disabled:bg-slate-100" placeholder="NÚMERO DA OP..." value={newItem.op || ''} onChange={e => setNewItem({ ...newItem, op: e.target.value.toUpperCase() })} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pedido</label>
-                                <input type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase" placeholder="NÚMERO DO PEDIDO..." value={newItem.pedido || ''} onChange={e => setNewItem({ ...newItem, pedido: e.target.value.toUpperCase() })} />
+                                <input disabled={!isEditingUnlocked} type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase disabled:opacity-60 disabled:bg-slate-100" placeholder="NÚMERO DO PEDIDO..." value={newItem.pedido || ''} onChange={e => setNewItem({ ...newItem, pedido: e.target.value.toUpperCase() })} />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Depósito (Bin)</label>
                             <select
-                                className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-500"
+                                disabled={!isEditingUnlocked}
+                                className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:bg-slate-100"
                                 value={newItem.stock_bin || 'ESTOQUE 0'}
                                 onChange={e => setNewItem({ ...newItem, stock_bin: e.target.value })}
                             >
@@ -449,9 +468,9 @@ const NewRecordModal = ({
                         </div>
                         <div className="flex gap-3 pt-4">
                             <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all">Cancelar</button>
-                            <button type="submit" disabled={isSaving} className="flex-1 py-4 bg-slate-900 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2">
+                            <button type="submit" disabled={isSaving || !isEditingUnlocked} className="flex-1 py-4 bg-slate-900 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale">
                                 {isSaving ? <RefreshCw className="animate-spin" size={16} /> : null}
-                                Salvar Registro
+                                {newItem.id ? 'Salvar Edição' : 'Salvar Registro'}
                             </button>
                         </div>
                     </form>

@@ -271,24 +271,7 @@ const TestsView = ({
                     </tbody>
                 </table>
             </div>
-            {hasMore && (
-                <div className="p-4 flex justify-center bg-slate-50/50 border-t border-slate-100">
-                    <button
-                        onClick={onLoadMore}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-8 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-full hover:shadow-lg hover:shadow-brand-200 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
-                    >
-                        {loading ? (
-                            <>
-                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                Carregando...
-                            </>
-                        ) : (
-                            'Carregar Mais Registros'
-                        )}
-                    </button>
-                </div>
-            )}
+
             <div className="p-4 bg-slate-100 border-t border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between shadow-inner">
                 <div className="flex items-center gap-6">
                     <span>{filteredTests.length} Registros Encontrados</span>

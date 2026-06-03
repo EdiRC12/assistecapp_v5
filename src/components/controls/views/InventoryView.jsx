@@ -73,7 +73,7 @@ const getInventoryMetrics = (item, relatedTest) => {
             volumesLabel: 'Vols',
             volumesColor: 'text-slate-700',
             quantity: item.quantity || 0,
-            quantityLabel: item.unit || 'KG',
+            quantityLabel: (item.unit?.toUpperCase() === 'UN' ? 'KG' : item.unit) || 'KG',
             quantityColor: 'text-slate-900'
         };
     }
@@ -87,6 +87,7 @@ const InventoryView = ({
     searchTerm,
     setSelectedInventoryItem,
     setTempInventoryItem,
+    onEditManualItem,
     setReportContext,
     setShowReportModal,
     setAiAnalysis,
@@ -185,8 +186,12 @@ const InventoryView = ({
                                 <tr
                                     key={item.id}
                                     onClick={() => {
-                                        setSelectedInventoryItem(item);
-                                        setTempInventoryItem(item);
+                                        if (!item.test_id && onEditManualItem) {
+                                            onEditManualItem(item);
+                                        } else {
+                                            setSelectedInventoryItem(item);
+                                            setTempInventoryItem(item);
+                                        }
                                     }}
                                     className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
                                 >
@@ -265,10 +270,10 @@ const InventoryView = ({
                                                  <div className="flex flex-col items-end">
                                                      <div className="flex items-center gap-1">
                                                          <span className={`text-[13px] font-black ${metrics.quantityColor}`}>
-                                                             {metrics.quantity.toFixed(2)}
+                                                             {metrics.quantity.toFixed(item.unit === 'SACOS' ? 3 : 2)}
                                                          </span>
                                                          <span className="text-[8px] font-bold text-slate-400 uppercase">
-                                                             {item.unit || 'KG'}
+                                                             {item.unit?.toUpperCase() === 'UN' ? 'KG' : (item.unit || 'KG')}
                                                          </span>
                                                      </div>
                                                      {(item.status === 'BILLED' || item.status === 'DISCARDED') && (

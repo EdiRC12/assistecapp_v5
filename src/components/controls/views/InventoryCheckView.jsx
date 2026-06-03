@@ -166,7 +166,7 @@ const InventoryCheckView = ({
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {(inventory || [])
-                                        .filter(i => i.status !== 'DISCARDED' && (i.quantity > 0 || i.qty_produced > 0))
+                                        .filter(i => i.status !== 'DISCARDED' && (i.quantity || 0) > 0.001)
                                         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
                                         .map(item => (
                                             <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${item.is_checked ? 'bg-emerald-50/30' : ''} align-middle break-inside-avoid print:break-inside-avoid`}>
@@ -212,7 +212,7 @@ const InventoryCheckView = ({
                                                                 className="w-20 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[12px] font-black text-amber-700 outline-none focus:ring-2 focus:ring-amber-500 text-right animate-in zoom-in-95"
                                                             />
                                                         ) : (
-                                                            <span className="text-[14px] font-black text-slate-900">{(item.quantity || 0).toFixed(2)} <span className="text-[10px] text-slate-400">{item.unit}</span></span>
+                                                            <span className="text-[14px] font-black text-slate-900">{(item.quantity || 0).toFixed(item.unit === 'SACOS' ? 3 : 2)} <span className="text-[10px] text-slate-400">{item.unit?.toUpperCase() === 'UN' ? 'KG' : (item.unit || 'KG')}</span></span>
                                                         )}
                                                     </div>
                                                 </td>

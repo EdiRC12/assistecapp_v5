@@ -119,15 +119,18 @@ const ControlsActionBar = ({
                                     <Upload size={16} className="group-hover:-translate-y-1 transition-transform" /> Importar
                                     <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelUpload} />
                                 </label>
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="bg-white border border-slate-200 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest text-slate-500 outline-none focus:ring-2 focus:ring-brand-500 appearance-none min-w-[120px] text-center focus:border-brand-300"
-                                >
-                                    <option value="ALL">TODOS STATUS</option>
-                                    {testStatusPresets.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
-                                </select>
                             </>
+                        )}
+
+                        {(activeTab === 'tests' || activeTab === 'costs') && (
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="bg-white border border-slate-200 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest text-slate-500 outline-none focus:ring-2 focus:ring-brand-500 appearance-none min-w-[120px] text-center focus:border-brand-300"
+                            >
+                                <option value="ALL">TODOS STATUS</option>
+                                {testStatusPresets.map(p => <option key={p.label} value={p.label}>{p.label}</option>)}
+                            </select>
                         )}
 
                         {/* View Switcher (List/Dashboard) */}
