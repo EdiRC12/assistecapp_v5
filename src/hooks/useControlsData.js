@@ -64,10 +64,19 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
                     }
                 }
 
-                let invQuery = supabase.from('ee_inventory')
-                    .select('id, created_at, updated_at, user_id, name, description, quantity, unit, location, stock_bin, test_id, client_name, op, pedido, qty_produced, qty_billed, production_cost, status, inventory_adjustment, last_inventory_at, justification_reason, justified_at, volumes, is_checked')
-                    .order('created_at', { ascending: false })
-                    .range(from, to);
+                let invQuery = null;
+                if (!loadMore || filterChanged || forceRefresh || inventory.length === 0) {
+                    invQuery = supabase.from('ee_inventory')
+                        .select('id, created_at, updated_at, user_id, name, description, quantity, unit, location, stock_bin, test_id, client_name, op, pedido, qty_produced, qty_billed, production_cost, status, inventory_adjustment, last_inventory_at, justification_reason, justified_at, volumes, is_checked')
+                        .order('created_at', { ascending: false })
+                        .limit(5000);
+
+                    if (activeTab === 'inventory') {
+                        if (startDate && endDate) {
+                            invQuery = invQuery.gte('created_at', startDate).lte('created_at', endDate);
+                        }
+                    }
+                }
 
                 let logQuery = supabase.from('inventory_adjustments_log')
                     .select(`
@@ -89,35 +98,27 @@ export const useControlsData = (currentUser, activeTab, selectedMonth, selectedY
                     logQuery = logQuery.gte('created_at', startDate).lte('created_at', endDate);
                 }
 
-                if (activeTab === 'inventory') {
-                    if (startDate && endDate) {
-                        invQuery = invQuery.gte('created_at', startDate).lte('created_at', endDate);
-                    }
-                }
-
                 const [testsRes, invRes, logsRes] = await Promise.all([
                     testsQuery ? testsQuery : Promise.resolve({ data: null }),
-                    invQuery,
+                    invQuery ? invQuery : Promise.resolve({ data: null }),
                     logQuery
                 ]);
 
                 // Update Data
                 if (loadMore && !filterChanged) {
-                    if (testsRes.data) setTests(testsRes.data); // Se veio (ex: forçou refresh com loadMore=true), sobrescreve tudo
-                    if (activeTab === 'inventory') setInventory(prev => [...prev, ...(invRes.data || [])]);
+                    if (testsRes.data) setTests(testsRes.data); 
+                    if (invRes.data) setInventory(invRes.data); 
                     if (activeTab === 'adjustment_logs') setAdjustmentLogs(prev => [...prev, ...(logsRes.data || [])]);
                     setPage(prev => ({ ...prev, [currentTab]: currentPage }));
                 } else {
                     if (testsRes.data) setTests(testsRes.data);
-                    setInventory(invRes.data || []);
+                    if (invRes.data) setInventory(invRes.data);
                     setAdjustmentLogs(logsRes.data || []);
                     setPage({ tests: 0, inventory: 0, costs: 0, adjustment_logs: 0 });
                 }
 
                 // Check if has more
-                const currentDataCount = activeTab === 'inventory' ? (invRes.data?.length || 0) : 
-                                       activeTab === 'adjustment_logs' ? (logsRes.data?.length || 0) : 
-                                       (testsRes.data?.length || 0);
+                const currentDataCount = activeTab === 'adjustment_logs' ? (logsRes.data?.length || 0) : 0;
                 setHasMore(currentDataCount === PAGE_SIZE);
 
             }

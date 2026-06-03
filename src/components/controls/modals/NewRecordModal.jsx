@@ -22,7 +22,8 @@ const NewRecordModal = ({
     testStatusPresets = [],
     inventory = [],
     tests = [],
-    isMeetingView
+    isMeetingView,
+    onDelete
 }) => {
     const [localShowStock, setLocalShowStock] = useState(false);
     const [localStockSearch, setLocalStockSearch] = useState('');
@@ -467,6 +468,20 @@ const NewRecordModal = ({
                             </select>
                         </div>
                         <div className="flex gap-3 pt-4">
+                            {newItem.id && isEditingUnlocked && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (window.confirm('Tem certeza que deseja excluir este registro do estoque?')) {
+                                            onDelete(newItem.id);
+                                            onClose();
+                                        }
+                                    }}
+                                    className="flex-1 py-4 text-sm font-black text-red-500 bg-red-50 uppercase tracking-widest hover:bg-red-100 rounded-2xl transition-all border border-red-100"
+                                >
+                                    Excluir
+                                </button>
+                            )}
                             <button type="button" onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-400 uppercase tracking-widest hover:bg-slate-50 rounded-2xl transition-all">Cancelar</button>
                             <button type="submit" disabled={isSaving || !isEditingUnlocked} className="flex-1 py-4 bg-slate-900 text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale">
                                 {isSaving ? <RefreshCw className="animate-spin" size={16} /> : null}

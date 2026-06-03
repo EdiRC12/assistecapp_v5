@@ -480,22 +480,31 @@ export const handlePrintInventoryList = ({
 
     const tableRowsHtml = filteredInventory.map(i => {
         const relatedTest = tests?.find(t => t.id === i.test_id);
-        const productName = relatedTest?.product_name || '';
+        const productName = relatedTest?.product_name ||
+            (!i.test_id
+                ? (i.name || '').replace(/^ITEM:\s*/i, '').trim()
+                : '');
         const opNumber = i.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
+        const itemUnit = String(i.unit || 'KG').toUpperCase();
+        const isSacos = itemUnit === 'SACOS';
+        const displayUnit = itemUnit === 'UN' ? 'KG' : itemUnit;
+
+        const itemName = i.name?.replace('RESÍDUO:', 'ITEM:').includes('ITEM:') ? i.name.replace('RESÍDUO:', 'ITEM:') : `ITEM: ${i.name}`;
 
         return `
             <tr style="border-bottom: 1px solid #f1f5f9;">
                 <td style="padding: 10px; font-size: 9px; font-weight: 700; color: #64748b;">${new Date(i.created_at).toLocaleDateString('pt-BR')}</td>
                 <td style="padding: 10px; font-size: 10px; font-weight: 900; color: #0f172a;">
-                    ${i.name}<br>
-                    <span style="font-size: 8px; color: #94a3b8; font-weight: 700;">${i.client_name || 'Geral'}</span>
-                    ${productName ? `<br><span style="font-size: 8px; color: #4f46e5; font-weight: 700;">PROD: ${productName}</span>` : ''}
+                    ${itemName}<br>
+                    <span style="font-size: 8px; color: #94a3b8; font-weight: 700;">${i.client_name || 'Estoque Geral'}</span>
+                    ${productName ? `<br><span style="font-size: 8px; color: #4f46e5; font-weight: 700;">PROD: ${relatedTest?.test_number ? `${relatedTest.test_number} - ` : ''}${productName}</span>` : ''}
                 </td>
                 <td style="padding: 10px; text-align: center; font-size: 9px; font-weight: 700; color: #334155;">${opNumber || '-'}</td>
                 <td style="padding: 10px; text-align: center; font-size: 9px; font-weight: 900; color: #64748b;">${i.stock_bin || '-'}</td>
                 <td style="padding: 10px; text-align: center; font-size: 10px; font-weight: 900; color: #0f172a;">${i.volumes || 0}</td>
-                <td style="padding: 10px; text-align: right; font-size: 10px; font-weight: 900; color: #0f172a;">${Number(i.quantity || 0).toFixed(1)} ${i.unit || 'KG'}</td>
-                <td style="padding: 10px; text-align: center;"><span style="font-size: 8px; font-weight: 900; padding: 3px 8px; border-radius: 6px; background: ${i.status === 'AVAILABLE' || i.status === 'ACTIVE' ? '#ecfdf5' : '#f1f5f9'}; color: ${i.status === 'AVAILABLE' || i.status === 'ACTIVE' ? '#059669' : '#64748b'};">${i.status}</span></td>
+                <td style="padding: 10px; text-align: right; font-size: 10px; font-weight: 900; color: #0f172a;">${Number(i.quantity || 0).toFixed(isSacos ? 3 : 2)} <span style="font-size: 8px; color: #64748b;">${displayUnit}</span></td>
+                <td style="padding: 10px; text-align: center;"><span style="font-size: 8px; font-weight: 900; padding: 3px 8px; border-radius: 6px; background: ${i.status === 'AVAILABLE' || i.status === 'ACTIVE' ? '#ecfdf5' : '#f1f5f9'}; color: ${i.status === 'AVAILABLE' || i.status === 'ACTIVE' ? '#059669' : '#64748b'}; text-transform: uppercase;">${i.status}</span></td>
             </tr>
         `;
     }).join('');

@@ -585,9 +585,11 @@ const ReportModal = ({
                                             <tr className="bg-slate-50 border-b border-slate-100">
                                                 {reportContext === 'INVENTORY' ? (
                                                     <>
-                                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Data Cadastro</th>
+                                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Data</th>
                                                         <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item / Cliente</th>
+                                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">OP</th>
                                                         <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Depósito</th>
+                                                        <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Vols</th>
                                                         <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo (KG)</th>
                                                         <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                                                     </>
@@ -630,30 +632,38 @@ const ReportModal = ({
                                 {reportContext === 'INVENTORY' ? (
                                     pageData.map(item => {
                                         const relatedTest = tests?.find(t => t.id === item.test_id);
-                                        const productName = relatedTest?.product_name || '';
+                                        const productName = relatedTest?.product_name ||
+                                            (!item.test_id
+                                                ? (item.name || '').replace(/^ITEM:\s*/i, '').trim()
+                                                : '');
                                         const opNumber = item.op || relatedTest?.op_number || relatedTest?.extra_data?.OP || '';
+
+                                        const itemUnit = String(item.unit || 'KG').toUpperCase();
+                                        const isSacos = itemUnit === 'SACOS';
+                                        const displayUnit = itemUnit === 'UN' ? 'KG' : itemUnit;
 
                                         return (
                                             <tr key={item.id} className="text-[10px]">
                                                 <td className="p-4 font-bold text-slate-400 whitespace-nowrap">{new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
                                                 <td className="p-4 font-black text-slate-700 uppercase leading-tight">
-                                                    {item.name} <br />
-                                                    <span className="text-[8px] text-slate-400">{item.client_name}</span>
+                                                    {item.name?.replace('RESÍDUO:', 'ITEM:').includes('ITEM:') ? item.name.replace('RESÍDUO:', 'ITEM:') : `ITEM: ${item.name}`} <br />
+                                                    <span className="text-[8px] text-slate-400">{item.client_name || 'Estoque Geral'}</span>
                                                     {productName && (
                                                         <>
                                                             <br />
-                                                            <span className="text-[8px] text-indigo-600 font-bold">PROD: {productName}</span>
-                                                        </>
-                                                    )}
-                                                    {opNumber && (
-                                                        <>
-                                                            <br />
-                                                            <span className="text-[8px] text-emerald-600 font-black">OP: {opNumber}</span>
+                                                            <span className="text-[8px] text-indigo-600 font-bold">PROD: {relatedTest?.test_number ? `${relatedTest.test_number} - ` : ''}{productName}</span>
                                                         </>
                                                     )}
                                                 </td>
+                                                <td className="p-4 font-black text-slate-500 uppercase text-center">{opNumber || '-'}</td>
                                                 <td className="p-4 font-black text-slate-500 uppercase text-center">{item.stock_bin}</td>
-                                                <td className="p-4 text-right font-black text-slate-900">{(item.quantity || 0).toFixed(2)} {item.unit || 'KG'}</td>
+                                                <td className="p-4 font-black text-slate-500 uppercase text-center">{item.volumes || 1}</td>
+                                                <td className="p-4 text-right font-black text-slate-900">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        {(item.quantity || 0).toFixed(isSacos ? 3 : 2)}
+                                                        <span className="text-[8px] text-slate-400">{displayUnit}</span>
+                                                    </div>
+                                                </td>
                                                 <td className="p-4">
                                                     <div className="flex justify-center">
                                                         <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${item.status === 'AVAILABLE' || item.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>

@@ -1555,6 +1555,7 @@ const ControlsView = ({
                 inventory={inventory}
                 tests={tests}
                 isMeetingView={isMeetingView}
+                onDelete={(id) => handleDelete(activeTab === 'tests' ? 'tech_tests' : 'ee_inventory', id)}
             />
 
             {pendingJustifications && (
