@@ -69,7 +69,7 @@ textarea.bg-white {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 18mm 15mm;
+    margin: 10mm 15mm;
   }
 
   html, body, #root {

@@ -1377,7 +1377,7 @@ const ControlsView = ({
                             setIsMaximized={setIsMaximized}
                         />
 
-                        <div className="flex-1 overflow-hidden print:overflow-visible print:block print:h-auto flex flex-col px-6 py-6 bg-slate-50/30 min-h-0">
+                        <div className="flex-1 overflow-hidden print:overflow-visible print:block print:h-auto flex flex-col px-6 py-6 print:p-0 bg-slate-50/30 min-h-0">
                             {activeTab === 'tests' && (
                                 localViewMode === 'LIST' ? (
                                     <TestsView
