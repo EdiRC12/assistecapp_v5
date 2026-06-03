@@ -397,7 +397,7 @@ const NewRecordModal = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantidade</label>
-                                <input disabled={!isEditingUnlocked} type="number" step="0.1" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100" placeholder="0.0" value={newItem.quantity ?? ''} onChange={e => setNewItem({ ...newItem, quantity: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
+                                <input disabled={!isEditingUnlocked} type="number" step="0.001" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all disabled:opacity-60 disabled:bg-slate-100" placeholder="0.000" value={newItem.quantity ?? ''} onChange={e => setNewItem({ ...newItem, quantity: e.target.value === '' ? undefined : parseFloat(e.target.value) })} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Volumes</label>
