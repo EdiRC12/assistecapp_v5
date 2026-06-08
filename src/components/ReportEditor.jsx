@@ -65,7 +65,9 @@ const ReportEditor = ({
     const [tempDescription, setTempDescription] = useState('');
     const [useAI, setUseAI] = useState(false);
     const [showPrintPreview, setShowPrintPreview] = useState(false);
+    const [printInternalNotes, setPrintInternalNotes] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [internalNotes, setInternalNotes] = useState(report?.internal_notes || '');
 
     // Novos campos comerciais/pós-venda
     const [solicitanteVisita, setSolicitanteVisita] = useState(report?.solicitante || '');
@@ -204,6 +206,7 @@ const ReportEditor = ({
                 setReportLocation(draft.reportLocation || '');
                 if (draft.contacts) setContacts(draft.contacts);
                 setManualActions(draft.manualActions || []);
+                setInternalNotes(draft.internalNotes || '');
             }
         } else if (report?.media_urls && Array.isArray(report.media_urls)) {
             // Load existing media from saved report
@@ -221,7 +224,7 @@ const ReportEditor = ({
             }));
             localStorage.setItem(draftKey, JSON.stringify({
                 rawNotes, content, title, mediaList: mediaToSave,
-                solicitanteVisita, contacts, reportLocation, manualActions
+                solicitanteVisita, contacts, reportLocation, manualActions, internalNotes
             }));
         }, 1000);
         return () => clearTimeout(timeout);
@@ -246,6 +249,7 @@ const ReportEditor = ({
             setTitle(newDefaultTitle);
             setRawNotes('');
             setContent('');
+            setInternalNotes('');
             setMediaList([]);
             // Resetar novos campos comerciais
             setSolicitanteVisita('');
@@ -263,6 +267,7 @@ const ReportEditor = ({
             setTitle(report.title || newDefaultTitle);
             setRawNotes(report.raw_notes || '');
             setContent(report.content || '');
+            setInternalNotes(report.internal_notes || '');
             setReportLocation(report.location || '');
             setSolicitanteVisita(report.solicitante || '');
             setReportType(report.report_type || (report.status === 'FINALIZADO' ? 'FINAL' : 'PARCIAL'));
@@ -679,6 +684,7 @@ const ReportEditor = ({
                 client_name: task.client, // Adicionado para garantir rastreabilidade na lista
                 title,
                 raw_notes: rawNotes,
+                internal_notes: internalNotes,
                 content,
                 media_urls: validMedia,
                 suggested_actions: suggestedActions,
@@ -1321,6 +1327,23 @@ const ReportEditor = ({
                     </React.Suspense>
                 </div>
 
+                {/* Observações Internas (Não Exibidas no PDF por Padrão) */}
+                <div className="space-y-2 mt-4 pt-4 border-t border-slate-100">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-amber-600 uppercase tracking-wider">
+                        <AlertCircle size={14} /> Observações Internas (Confidencial)
+                    </label>
+                    <textarea
+                        value={internalNotes}
+                        onChange={(e) => setInternalNotes(e.target.value)}
+                        disabled={isFinalized}
+                        placeholder="Anotações internas, análises confidenciais, acordos comerciais, etc. (Não será impresso para o cliente)."
+                        className="w-full bg-amber-50/50 border-2 border-amber-200 rounded-xl p-4 text-sm min-h-[120px] focus:outline-none focus:border-amber-400 disabled:bg-slate-50 font-medium text-slate-800 shadow-inner"
+                    />
+                    <p className="text-[9px] font-bold text-amber-600/70 italic px-1">
+                        * Somente para uso da equipe. Para exibir no PDF, ative o botão na tela de impressão.
+                    </p>
+                </div>
+
                 <div className="space-y-4 pt-6 border-t-2 border-slate-100">
                     {!isFinalized ? (
                         <div className="flex flex-col md:flex-row gap-3">
@@ -1376,9 +1399,18 @@ const ReportEditor = ({
                                     </h3>
                                     <p className="text-xs text-slate-500">Confira o relatório antes de imprimir.</p>
                                 </div>
-                                <button onClick={() => setShowPrintPreview(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                                    <X size={20} className="text-slate-400 hover:text-red-500" />
-                                </button>
+                                <div className="flex items-center gap-6">
+                                    <label className="flex items-center gap-2 cursor-pointer group" title="Exibe as observações internas no PDF">
+                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${printInternalNotes ? 'bg-amber-500' : 'bg-slate-300'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${printInternalNotes ? 'translate-x-4' : 'translate-x-0'}`} />
+                                        </div>
+                                        <input type="checkbox" className="hidden" checked={printInternalNotes} onChange={(e) => setPrintInternalNotes(e.target.checked)} />
+                                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">Imprimir Internas</span>
+                                    </label>
+                                    <button onClick={() => setShowPrintPreview(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors border border-transparent hover:border-slate-200">
+                                        <X size={20} className="text-slate-400 hover:text-red-500" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-slate-200/50">
@@ -1400,6 +1432,8 @@ const ReportEditor = ({
                                         signatureDate={isFinalized ? report?.signature_date : null}
                                         status={reportType === 'FINAL' ? 'FINALIZADO' : 'EM_ABERTO'}
                                         manualActions={manualActions}
+                                        internalNotes={internalNotes}
+                                        printInternalNotes={printInternalNotes}
                                     />
                                 </div>
                             </div>

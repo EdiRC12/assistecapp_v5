@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import logo from '../assets/logo_plastimarau.png';
 
-const PrintableReport = forwardRef(({ task, content, currentUser, reportAuthor, taskTypes, signatureDate, status, manualActions, media = [], editHistory = [], printAuditHistory = false }, ref) => {
+const PrintableReport = forwardRef(({ task, content, currentUser, reportAuthor, taskTypes, signatureDate, status, manualActions, media = [], editHistory = [], printAuditHistory = false, internalNotes = '', printInternalNotes = false }, ref) => {
     const isFinalized = status === 'FINALIZADO';
     
     // Cascata de Autoria Segura:
@@ -345,6 +345,25 @@ const PrintableReport = forwardRef(({ task, content, currentUser, reportAuthor, 
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Observações Internas / Confidenciais */}
+            {printInternalNotes && internalNotes && (
+                <div className="mb-10 page-break-inside-avoid border-2 border-amber-200 bg-amber-50 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="bg-amber-200/50 px-6 py-3 border-b border-amber-200 flex justify-between items-center">
+                        <h2 className="text-[10px] font-black uppercase text-amber-800 tracking-widest flex items-center gap-2">
+                            Observações Internas (Uso Exclusivo Interno)
+                        </h2>
+                        <span className="text-[9px] font-bold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-300">
+                            CONFIDENCIAL
+                        </span>
+                    </div>
+                    <div className="p-6">
+                        <p className="text-sm font-medium text-slate-800 whitespace-pre-wrap leading-relaxed">
+                            {internalNotes}
+                        </p>
+                    </div>
                 </div>
             )}
 
