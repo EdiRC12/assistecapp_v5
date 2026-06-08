@@ -64,7 +64,7 @@ const PlanningHub = ({
     const activeTabInfo = TABS.find(t => t.id === activeTab) || TABS[0];
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 bg-[#f8fafc]">
+        <div className="h-full flex-1 flex flex-col min-h-0 bg-[#f8fafc]">
             {/* Hub Header & Tab Nav */}
             <div className={`shrink-0 bg-white border-b border-slate-200 transition-all ${isMobile ? 'px-2 py-2' : 'px-6 py-3'}`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -228,7 +228,7 @@ const PendingActionsTab = ({
     const totalDone = actions.filter(a => a.status === 'CONCLUÍDO').length;
 
     return (
-        <div className={`flex-1 flex flex-col p-4 md:p-6 overflow-auto custom-scrollbar relative`}>
+        <div className={`h-full flex-1 flex flex-col p-4 md:p-6 overflow-auto custom-scrollbar relative`}>
             {/* Header Actions */}
             <div className="flex justify-between items-center mb-3">
                 <div>

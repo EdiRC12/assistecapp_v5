@@ -583,7 +583,7 @@ const MeetingHub = ({
             <div className="flex-1 flex overflow-hidden">
                 {/* Visualizações Reusadas */}
                 <div className="flex-1 overflow-hidden p-4 relative backdrop-blur-sm bg-slate-50/50">
-                    <div className="h-full rounded-3xl overflow-hidden shadow-2xl border border-white/50 bg-white relative">
+                    <div className="h-full flex flex-col rounded-3xl overflow-hidden shadow-2xl border border-white/50 bg-white relative">
                         {activeTab === 'TRAVELS' && (
                             <TravelsView 
                                 tasks={tasks} 
@@ -644,6 +644,7 @@ const MeetingHub = ({
                         )}
                         {activeTab === 'AGENDA' && (
                             <PlanningHub 
+                                supabase={supabase}
                                 currentUser={currentUser}
                                 allClients={allClients}
                                 tasks={tasks}
