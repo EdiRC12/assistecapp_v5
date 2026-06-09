@@ -56,7 +56,8 @@ const icons = {
     fuel: createPremiumPin('#16a34a', 'fuel'),      // Green for Gas Stations
     other: createPremiumPin('#ca8a04', 'other'),    // Yellow for Others
     start: createPremiumPin('#ea580c', 'home'),     // Orange house for Sede
-    gps: createPremiumPin('#ea580c', 'compass')     // Orange compass for GPS
+    gps: createPremiumPin('#ea580c', 'compass'),    // Orange compass for GPS
+    client: createPremiumPin('#64748b', 'client', 'client-reference-marker') // Grey for Clients Reference
 };
 
 // Numbered badge icon creator for stops
@@ -140,6 +141,16 @@ const SupportRoutePlanner = ({
     const [allClients, setAllClients] = useState([]);
     const [supportPlaces, setSupportPlaces] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selectedState, setSelectedState] = useState('');
+    const [showAllClientsOnMap, setShowAllClientsOnMap] = useState(false);
+
+    // Available States for filtering
+    const availableStates = useMemo(() => {
+        const states = allClients
+            .map(c => c.state?.trim().toUpperCase())
+            .filter(Boolean);
+        return [...new Set(states)].sort();
+    }, [allClients]);
 
     // Starting Point State
     const [startType, setStartType] = useState('SEDE'); // 'SEDE' or 'GPS'
@@ -789,14 +800,34 @@ const SupportRoutePlanner = ({
         setActiveSearchIndex(null);
     };
 
+    const handleAddClientToRoute = (client) => {
+        const emptyIdx = destinations.findIndex(d => d === null);
+        const indexToUse = emptyIdx !== -1 ? emptyIdx : destinations.length;
+        
+        const newDestinations = [...destinations];
+        const newSearchQueries = [...searchQueries];
+        
+        newDestinations[indexToUse] = client;
+        newSearchQueries[indexToUse] = client.name;
+        
+        setDestinations(newDestinations);
+        setSearchQueries(newSearchQueries);
+        
+        if (notifySuccess) {
+            notifySuccess("Destino Adicionado", `"${client.name}" adicionado ao roteiro.`);
+        }
+    };
+
     // Generate dynamic autocomplete options for a specific query
     const getAutocompleteOptions = (query) => {
         if (!query.trim()) return [];
         const cleanQuery = query.toLowerCase().trim();
-        return allClients.filter(c => 
-            c.name.toLowerCase().includes(cleanQuery) || 
-            (c.location && c.location.toLowerCase().includes(cleanQuery))
-        ).slice(0, 10);
+        return allClients.filter(c => {
+            const matchesState = !selectedState || c.state?.trim().toUpperCase() === selectedState;
+            const matchesSearch = c.name.toLowerCase().includes(cleanQuery) || 
+                                 (c.location && c.location.toLowerCase().includes(cleanQuery));
+            return matchesState && matchesSearch;
+        }).slice(0, 10);
     };
 
     // Clean address format for WhatsApp export
@@ -872,6 +903,12 @@ const SupportRoutePlanner = ({
 
     return (
         <div className="flex-1 flex flex-col md:flex-row min-h-0 bg-slate-50 relative overflow-hidden">
+            <style>{`
+                .client-reference-marker {
+                    filter: brightness(1.28) contrast(0.88);
+                    opacity: 0.9;
+                }
+            `}</style>
             
             {/* Mobile Tab Swapper */}
             {isMobile && (
@@ -1018,6 +1055,41 @@ const SupportRoutePlanner = ({
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             2. Sequência de Clientes
                         </label>
+                        
+                        {/* State & Map Vis Filter Selector */}
+                        <div className="flex flex-col gap-2 bg-slate-50 border border-slate-200/80 rounded-xl p-3 select-none mb-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Visualizar Clientes:</span>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showAllClientsOnMap}
+                                        onChange={(e) => setShowAllClientsOnMap(e.target.checked)}
+                                        className="rounded text-brand-600 focus:ring-brand-500 border-slate-350 w-3 h-3 cursor-pointer accent-brand-600"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-700">Ver Todos no Mapa</span>
+                                </label>
+                            </div>
+                            
+                            {showAllClientsOnMap && (
+                                <div className="flex items-center gap-2 border-t border-slate-150 pt-2 animate-in fade-in duration-100">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Filtrar por Estado:</span>
+                                    <select
+                                        value={selectedState}
+                                        onChange={(e) => {
+                                            setSelectedState(e.target.value);
+                                        }}
+                                        className="flex-1 bg-white border border-slate-200 rounded-lg py-1 px-2 text-xs font-bold text-slate-700 outline-none focus:border-brand-500"
+                                    >
+                                        <option value="">TODOS</option>
+                                        {availableStates.map(st => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="space-y-3 relative">
                             {destinations.map((dest, idx) => (
                                 <div 
@@ -1392,6 +1464,42 @@ const SupportRoutePlanner = ({
                             dashArray={routeDistance === 0 ? "5, 10" : undefined} // dashed line if straight lines fallback
                         />
                     )}
+
+                    {/* Markers: Reference Clients Pins */}
+                    {showAllClientsOnMap && allClients
+                        .filter(c => c.lat !== null && c.lng !== null)
+                        .filter(c => !selectedState || c.state?.trim().toUpperCase() === selectedState)
+                        .map((client) => (
+                            <Marker
+                                key={`ref_client_${client.id}`}
+                                position={[client.lat, client.lng]}
+                                icon={icons.client}
+                            >
+                                <Popup>
+                                    <div className="text-xs select-none max-w-[200px] p-1">
+                                        <div className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                            <Building2 size={11} className="text-slate-400" />
+                                            <span>Cliente de Referência</span>
+                                        </div>
+                                        <h4 className="font-extrabold text-sm text-slate-900 leading-tight">
+                                            {client.name}
+                                        </h4>
+                                        {client.location && (
+                                            <p className="text-slate-400 text-[10px] mt-0.5 leading-snug truncate uppercase">
+                                                {client.location}
+                                            </p>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAddClientToRoute(client)}
+                                            className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-1.5 px-3 rounded-lg text-[10px] transition-all shadow-sm cursor-pointer text-center uppercase tracking-wider"
+                                        >
+                                            Adicionar ao Roteiro
+                                        </button>
+                                    </div>
+                                </Popup>
+                            </Marker>
+                        ))}
 
                     {/* Markers: Intelligent Support Points (Filtered by Proximity Radius) */}
                     {filteredSupportPlaces.map((place) => (
