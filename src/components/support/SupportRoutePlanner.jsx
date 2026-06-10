@@ -50,6 +50,52 @@ const createPremiumPin = (color, iconType, className = '') => {
     });
 };
 
+const createClientIcon = (color, tier) => {
+    let innerSvg = '';
+    if (tier === 'OURO') {
+        innerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+    } else if (tier === 'PRATA') {
+        innerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 9.7a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1-1Z"/></svg>`;
+    } else {
+        innerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></svg>`;
+    }
+
+    return L.divIcon({
+        html: `
+            <div style="
+                position: relative; 
+                width: 24px; 
+                height: 24px; 
+                background-color: ${color}; 
+                border: 2px solid #ffffff; 
+                border-radius: 50%; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                color: #ffffff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            ">
+                ${innerSvg}
+                <div style="
+                    position: absolute;
+                    bottom: -4px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 0;
+                    height: 0;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    border-top: 4px solid #ffffff;
+                "></div>
+            </div>
+        `,
+        className: `client-marker-${tier.toLowerCase()}`,
+        iconSize: [24, 28],
+        iconAnchor: [12, 28],
+        popupAnchor: [0, -26]
+    });
+};
+
 const icons = {
     hotel: createPremiumPin('#2563eb', 'hotel'),       // Blue for Hotels
     restaurant: createPremiumPin('#dc2626', 'restaurant'),  // Red for Restaurants
@@ -58,9 +104,9 @@ const icons = {
     start: createPremiumPin('#ea580c', 'home'),     // Orange house for Sede
     gps: createPremiumPin('#ea580c', 'compass'),    // Orange compass for GPS
     client: createPremiumPin('#64748b', 'client', 'client-reference-marker'), // Grey for Clients Reference
-    clientGold: createPremiumPin('#d97706', 'client', 'client-reference-marker-gold'), // Gold/Amber-600
-    clientSilver: createPremiumPin('#64748b', 'client', 'client-reference-marker-silver'), // Silver/Slate-500
-    clientBronze: createPremiumPin('#9a3412', 'client', 'client-reference-marker-bronze') // Bronze/Orange-800
+    clientGold: createClientIcon('#eab308', 'OURO'), // Gold/Amber-500
+    clientSilver: createClientIcon('#94a3b8', 'PRATA'), // Silver/Slate-400
+    clientBronze: createClientIcon('#cd7f32', 'BRONZE') // Bronze/Metallic Bronze-Copper
 };
 
 // Numbered badge icon creator for stops
