@@ -180,6 +180,95 @@ const SupportRoutePlanner = ({
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const panelRef = useRef(null);
+    const isGeocodingBatchRunning = useRef(false);
+
+    // Batch geocode clients that don't have coordinates (run once per client, throttled to 1.1s to respect OSM terms)
+    useEffect(() => {
+        if (!showAllClientsOnMap || allClients.length === 0 || isGeocodingBatchRunning.current) return;
+
+        const clientsWithoutGeo = allClients.filter(c => !c.lat || !c.lng);
+        if (clientsWithoutGeo.length === 0) return;
+
+        let active = true;
+        isGeocodingBatchRunning.current = true;
+
+        const geocodeBatch = async () => {
+            for (const client of clientsWithoutGeo) {
+                if (!active) break;
+
+                const queryStr = client.address || `${client.street || ''}, ${client.number || ''} ${client.neighborhood || ''} ${client.city || ''} ${client.state || ''}`;
+                if (!queryStr.trim()) continue;
+
+                try {
+                    console.log(`[Batch Geocode] Geocodificando cliente: "${client.name}" com busca: "${queryStr}"`);
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryStr)}&limit=1&countrycodes=br`,
+                        { headers: { 'User-Agent': 'AssistecApp/1.0' } }
+                    );
+                    const data = await res.json();
+                    let lat = null;
+                    let lng = null;
+
+                    if (data && data[0]) {
+                        lat = Number(data[0].lat);
+                        lng = Number(data[0].lon);
+                    }
+
+                    if ((!lat || !lng) && client.city) {
+                        const fallbackRes = await fetch(
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${client.city}, ${client.state || ''}`)}&limit=1&countrycodes=br`,
+                            { headers: { 'User-Agent': 'AssistecApp/1.0' } }
+                        );
+                        const fallbackData = await fallbackRes.json();
+                        if (fallbackData && fallbackData[0]) {
+                            lat = Number(fallbackData[0].lat);
+                            lng = Number(fallbackData[0].lon);
+                        }
+                    }
+
+                    if (lat && lng) {
+                        const historyLog = [{
+                            date: new Date().toISOString(),
+                            user: currentUser?.username || 'Sistema (Auto)',
+                            method: 'GEOCODE_BATCH',
+                            new_geo: { lat, lng },
+                            message: 'Geocodificação em lote inicial bem-sucedida'
+                        }];
+
+                        const { error } = await supabase
+                            .from('clients')
+                            .update({
+                                latitude: lat,
+                                longitude: lng,
+                                address_edit_history: historyLog
+                            })
+                            .eq('id', client.id);
+
+                        if (!error) {
+                            setAllClients(prev => prev.map(c => 
+                                c.id === client.id 
+                                    ? { ...c, lat, lng, hasGeo: true } 
+                                    : c
+                            ));
+                            console.log(`[Batch Geocode] Cliente "${client.name}" geolocalizado e atualizado no banco!`);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Batch Geocode error:", e);
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 1100));
+            }
+            isGeocodingBatchRunning.current = false;
+        };
+
+        geocodeBatch();
+
+        return () => {
+            active = false;
+            isGeocodingBatchRunning.current = false;
+        };
+    }, [showAllClientsOnMap]);
 
     // Route Templates and Task Integration States
     const [savedRoutes, setSavedRoutes] = useState([]);
@@ -453,8 +542,8 @@ const SupportRoutePlanner = ({
                     // Look up coordinates from geo map
                     const geoInfo = clientGeoMap[clientKey];
                     
-                    const lat = geoInfo ? geoInfo.lat : null;
-                    const lng = geoInfo ? geoInfo.lng : null;
+                    const lat = (c.latitude !== null && c.latitude !== undefined) ? Number(c.latitude) : (geoInfo ? geoInfo.lat : null);
+                    const lng = (c.longitude !== null && c.longitude !== undefined) ? Number(c.longitude) : (geoInfo ? geoInfo.lng : null);
                     
                     // Compile location label
                     let locationStr = '';

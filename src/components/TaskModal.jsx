@@ -614,10 +614,27 @@ const TaskModal = ({
 
                     if (shouldUpdate) {
                         (async () => {
+                            const foundClient = clientsRegistry.find(c => c.name.toLowerCase() === client.toLowerCase());
+                            const existingHistory = foundClient && Array.isArray(foundClient.address_edit_history) ? foundClient.address_edit_history : [];
+                            const newLog = {
+                                date: new Date().toISOString(),
+                                user: currentUser?.username || 'Usuário',
+                                method: 'GEOCODE_CORRECTION',
+                                old_address: foundClient ? foundClient.address : '',
+                                new_address: correctedAddress,
+                                old_geo: (foundClient && foundClient.latitude && foundClient.longitude) ? { lat: foundClient.latitude, lng: foundClient.longitude } : null,
+                                new_geo: { lat, lng }
+                            };
+                            const updatedHistory = [...existingHistory, newLog];
+
                             const { error } = await supabase.from('clients').update({
                                 address: correctedAddress,
                                 street: null, number: null, neighborhood: null, city: null, state: null,
-                                address_verified: true, address_verified_at: new Date().toISOString()
+                                latitude: lat,
+                                longitude: lng,
+                                address_verified: true,
+                                address_verified_at: new Date().toISOString(),
+                                address_edit_history: updatedHistory
                             }).eq('name', client);
 
                             if (!error) {
@@ -680,6 +697,18 @@ const TaskModal = ({
                     );
 
                     if (shouldUpdate && foundClient) {
+                        const existingHistory = Array.isArray(foundClient.address_edit_history) ? foundClient.address_edit_history : [];
+                        const newLog = {
+                            date: new Date().toISOString(),
+                            user: currentUser?.username || 'Usuário',
+                            method: 'MAP_DRAG',
+                            old_address: foundClient.address,
+                            new_address: finalAddress,
+                            old_geo: (foundClient.latitude && foundClient.longitude) ? { lat: foundClient.latitude, lng: foundClient.longitude } : null,
+                            new_geo: { lat: geo.lat, lng: geo.lng }
+                        };
+                        const updatedHistory = [...existingHistory, newLog];
+
                         const { error } = await supabase.from('clients').update({
                             address: finalAddress,
                             street: street || null,
@@ -687,8 +716,11 @@ const TaskModal = ({
                             neighborhood: neighborhood || null,
                             city: city || null,
                             state: state || null,
+                            latitude: geo.lat,
+                            longitude: geo.lng,
                             address_verified: true,
-                            address_verified_at: new Date().toISOString()
+                            address_verified_at: new Date().toISOString(),
+                            address_edit_history: updatedHistory
                         }).eq('id', foundClient.id);
 
                         if (!error) {
