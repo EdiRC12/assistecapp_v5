@@ -57,7 +57,10 @@ const icons = {
     other: createPremiumPin('#ca8a04', 'other'),    // Yellow for Others
     start: createPremiumPin('#ea580c', 'home'),     // Orange house for Sede
     gps: createPremiumPin('#ea580c', 'compass'),    // Orange compass for GPS
-    client: createPremiumPin('#64748b', 'client', 'client-reference-marker') // Grey for Clients Reference
+    client: createPremiumPin('#64748b', 'client', 'client-reference-marker'), // Grey for Clients Reference
+    clientGold: createPremiumPin('#d97706', 'client', 'client-reference-marker-gold'), // Gold/Amber-600
+    clientSilver: createPremiumPin('#64748b', 'client', 'client-reference-marker-silver'), // Silver/Slate-500
+    clientBronze: createPremiumPin('#9a3412', 'client', 'client-reference-marker-bronze') // Bronze/Orange-800
 };
 
 // Numbered badge icon creator for stops
@@ -142,6 +145,7 @@ const SupportRoutePlanner = ({
     const [supportPlaces, setSupportPlaces] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedState, setSelectedState] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
     const [showAllClientsOnMap, setShowAllClientsOnMap] = useState(false);
 
     // Available States for filtering
@@ -567,6 +571,7 @@ const SupportRoutePlanner = ({
                         city: c.city || '',
                         state: c.state || '',
                         main_phone: c.main_phone || c.phone || '',
+                        classification: c.classification || 'BRONZE',
                         hasGeo: !!(lat && lng)
                     });
                 }
@@ -586,6 +591,7 @@ const SupportRoutePlanner = ({
                             lng: Number(t.geo.lng),
                             location: (t.location || '').trim().toUpperCase(),
                             address: '',
+                            classification: 'BRONZE',
                             hasGeo: true
                         });
                     }
@@ -1161,21 +1167,38 @@ const SupportRoutePlanner = ({
                             </div>
                             
                             {showAllClientsOnMap && (
-                                <div className="flex items-center gap-2 border-t border-slate-150 pt-2 animate-in fade-in duration-100">
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Filtrar por Estado:</span>
-                                    <select
-                                        value={selectedState}
-                                        onChange={(e) => {
-                                            setSelectedState(e.target.value);
-                                        }}
-                                        className="flex-1 bg-white border border-slate-200 rounded-lg py-1 px-2 text-xs font-bold text-slate-700 outline-none focus:border-brand-500"
-                                    >
-                                        <option value="">TODOS</option>
-                                        {availableStates.map(st => (
-                                            <option key={st} value={st}>{st}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <>
+                                    <div className="flex items-center gap-2 border-t border-slate-150 pt-2 animate-in fade-in duration-100">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Filtrar por Estado:</span>
+                                        <select
+                                            value={selectedState}
+                                            onChange={(e) => {
+                                                setSelectedState(e.target.value);
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg py-1 px-2 text-xs font-bold text-slate-700 outline-none focus:border-brand-500"
+                                        >
+                                            <option value="">TODOS</option>
+                                            {availableStates.map(st => (
+                                                <option key={st} value={st}>{st}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-2 border-t border-slate-150 pt-2 animate-in fade-in duration-100">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Filtrar Categoria:</span>
+                                        <select
+                                            value={selectedCategory}
+                                            onChange={(e) => {
+                                                setSelectedCategory(e.target.value);
+                                            }}
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg py-1 px-2 text-xs font-bold text-slate-700 outline-none focus:border-brand-500"
+                                        >
+                                            <option value="">TODAS</option>
+                                            <option value="OURO">⭐ OURO</option>
+                                            <option value="PRATA">🥈 PRATA</option>
+                                            <option value="BRONZE">🥉 BRONZE</option>
+                                        </select>
+                                    </div>
+                                </>
                             )}
                         </div>
 
@@ -1558,37 +1581,57 @@ const SupportRoutePlanner = ({
                     {showAllClientsOnMap && allClients
                         .filter(c => c.lat !== null && c.lng !== null)
                         .filter(c => !selectedState || c.state?.trim().toUpperCase() === selectedState)
-                        .map((client) => (
-                            <Marker
-                                key={`ref_client_${client.id}`}
-                                position={[client.lat, client.lng]}
-                                icon={icons.client}
-                            >
-                                <Popup>
-                                    <div className="text-xs select-none max-w-[200px] p-1">
-                                        <div className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
-                                            <Building2 size={11} className="text-slate-400" />
-                                            <span>Cliente de Referência</span>
+                        .filter(c => !selectedCategory || c.classification === selectedCategory)
+                        .map((client) => {
+                            const iconToUse = client.classification === 'OURO' 
+                                ? icons.clientGold 
+                                : client.classification === 'PRATA' 
+                                ? icons.clientSilver 
+                                : icons.clientBronze;
+                            
+                            return (
+                                <Marker
+                                    key={`ref_client_${client.id}`}
+                                    position={[client.lat, client.lng]}
+                                    icon={iconToUse}
+                                >
+                                    <Popup>
+                                        <div className="text-xs select-none max-w-[200px] p-1">
+                                            <div className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                                <Building2 size={11} className="text-slate-400" />
+                                                <span>Cliente de Referência</span>
+                                            </div>
+                                            <h4 className="font-extrabold text-sm text-slate-900 leading-tight">
+                                                {client.name}
+                                            </h4>
+                                            <div className="flex items-center gap-1.5 mt-1 mb-1">
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${
+                                                    client.classification === 'OURO' 
+                                                        ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                                        : client.classification === 'PRATA'
+                                                        ? 'bg-slate-200 text-slate-800 border border-slate-300'
+                                                        : 'bg-orange-100 text-orange-800 border border-orange-200'
+                                                }`}>
+                                                    {client.classification || 'BRONZE'}
+                                                </span>
+                                            </div>
+                                            {client.location && (
+                                                <p className="text-slate-400 text-[10px] mt-0.5 leading-snug truncate uppercase">
+                                                    {client.location}
+                                                </p>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleAddClientToRoute(client)}
+                                                className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-1.5 px-3 rounded-lg text-[10px] transition-all shadow-sm cursor-pointer text-center uppercase tracking-wider"
+                                            >
+                                                Adicionar ao Roteiro
+                                            </button>
                                         </div>
-                                        <h4 className="font-extrabold text-sm text-slate-900 leading-tight">
-                                            {client.name}
-                                        </h4>
-                                        {client.location && (
-                                            <p className="text-slate-400 text-[10px] mt-0.5 leading-snug truncate uppercase">
-                                                {client.location}
-                                            </p>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleAddClientToRoute(client)}
-                                            className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-1.5 px-3 rounded-lg text-[10px] transition-all shadow-sm cursor-pointer text-center uppercase tracking-wider"
-                                        >
-                                            Adicionar ao Roteiro
-                                        </button>
-                                    </div>
-                                </Popup>
-                            </Marker>
-                        ))}
+                                    </Popup>
+                                </Marker>
+                            );
+                        })}
 
                     {/* Markers: Intelligent Support Points (Filtered by Proximity Radius) */}
                     {filteredSupportPlaces.map((place) => (
