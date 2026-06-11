@@ -9,6 +9,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../supabaseClient';
+import { normalizeState } from '../utils/addressUtils';
 import ReportEditor from './ReportEditor';
 import ProductAutocomplete from './controls/ProductAutocomplete';
 import { convertFileToBase64, generateId } from '../utils/helpers';
@@ -675,7 +676,7 @@ const TaskModal = ({
                 const number = addr.house_number || '';
                 const neighborhood = addr.neighbourhood || addr.suburb || '';
                 const city = addr.city || addr.town || addr.village || '';
-                const state = addr.state_code || addr.state || '';
+                const state = normalizeState(addr.state_code || addr.state || '');
 
                 let formatted = street;
                 if (number) formatted += `, ${number}`;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Edit2, Trash2, Search, MapPin, Phone, Save, Briefcase, ChevronLeft, ShieldCheck, MessageSquare, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { normalizeState } from '../utils/addressUtils';
 
 const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySuccess, notifyError }) => {
     const [clients, setClients] = useState([]);
@@ -75,7 +76,7 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                 number: formData.number,
                 neighborhood: formData.neighborhood,
                 city: formData.city,
-                state: formData.state,
+                state: normalizeState(formData.state),
                 user_id: currentUser.id,
                 address: addressStr,
                 classification: formData.classification || 'BRONZE',
@@ -316,7 +317,7 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-black text-slate-400 uppercase mb-1.5">UF</label>
-                                                <input type="text" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase().slice(0, 2) })} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="UF" />
+                                                <input type="text" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500" placeholder="UF" />
                                             </div>
                                         </div>
                                     </div>
