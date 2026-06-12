@@ -538,7 +538,7 @@ const SupportRoutePlanner = ({
             // 3. Fetch clients with coordinates from tasks table
             const { data: tasksData, error: tasksError } = await supabase
                 .from('tasks')
-                .select('id, client, geo, location')
+                .select('id, client, geo, location, updated_at, created_at')
                 .not('geo', 'is', null);
             if (tasksError) throw tasksError;
 
@@ -562,8 +562,15 @@ const SupportRoutePlanner = ({
             }
 
             // Build an object of client normalized name -> valid coordinates & details from tasks
+            // Sort tasks by date (oldest first) so that the newest task overrides older ones in the loop
+            const sortedTasks = [...(tasksData || [])].sort((a, b) => {
+                const dateA = new Date(a.updated_at || a.created_at || 0);
+                const dateB = new Date(b.updated_at || b.created_at || 0);
+                return dateA - dateB;
+            });
+
             const clientGeoMap = {};
-            (tasksData || []).forEach(t => {
+            sortedTasks.forEach(t => {
                 if (t.client && t.geo?.lat && t.geo?.lng) {
                     const clientKey = t.client.trim().toLowerCase();
                     clientGeoMap[clientKey] = {

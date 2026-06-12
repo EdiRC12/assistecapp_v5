@@ -301,6 +301,30 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
                     if (fetchTechTests) fetchTechTests();
                 }
             }
+            // Sync coordinates with the client registry if changed
+            if (taskData.client && taskData.geo?.lat && taskData.geo?.lng) {
+                try {
+                    const { data: clientData } = await supabase
+                        .from('clients')
+                        .select('id, latitude, longitude')
+                        .eq('name', taskData.client)
+                        .single();
+                    
+                    if (clientData && (clientData.latitude !== taskData.geo.lat || clientData.longitude !== taskData.geo.lng)) {
+                        await supabase
+                            .from('clients')
+                            .update({
+                                latitude: taskData.geo.lat,
+                                longitude: taskData.geo.lng,
+                                address_verified: true,
+                                address_verified_at: new Date().toISOString()
+                            })
+                            .eq('id', clientData.id);
+                    }
+                } catch (err) {
+                    console.error("Erro ao sincronizar coordenadas do cliente:", err);
+                }
+            }
 
             if (notifySuccess) {
                 notifySuccess('Sucesso', taskId ? 'Tarefa atualizada com sucesso.' : 'Tarefa criada com sucesso.');

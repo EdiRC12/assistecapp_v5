@@ -925,9 +925,11 @@ const TaskModal = ({
                     ? `${foundClient.street}, ${foundClient.number || ''} - ${foundClient.neighborhood || ''}, ${foundClient.city || ''}/${foundClient.state || ''}`
                     : foundClient.address;
                 
-                // Se a tabela clients tivesse lat/lng nativos, pegaríamos aqui
-                if (foundClient.lat && foundClient.lng) {
-                    clientGeo = { lat: foundClient.lat, lng: foundClient.lng };
+                // Se a tabela clients tiver lat/lng nativos, pegamos aqui
+                if (foundClient.latitude !== null && foundClient.latitude !== undefined && foundClient.longitude !== null && foundClient.longitude !== undefined) {
+                    clientGeo = { lat: Number(foundClient.latitude), lng: Number(foundClient.longitude) };
+                } else if (foundClient.lat && foundClient.lng) {
+                    clientGeo = { lat: Number(foundClient.lat), lng: Number(foundClient.lng) };
                 }
             }
 
