@@ -7,6 +7,7 @@ import useIsMobile from '../../hooks/useIsMobile';
 import VisitationTab from './VisitationTab';
 import PendingActionsTab from './PendingActionsTab';
 import SupportRoutePlanner from '../support/SupportRoutePlanner';
+import TravelCalendarTab from './TravelCalendarTab';
 
 const TABS = [
     {
@@ -19,6 +20,17 @@ const TABS = [
         activeText: 'text-emerald-600',
         activeBg: 'bg-emerald-600',
         ring: 'ring-emerald-500',
+    },
+    {
+        id: 'CRONOGRAMA',
+        label: 'CRONOGRAMA',
+        fullLabel: 'Calendário de Viagens',
+        desc: 'Agenda e reservas regionais no calendário',
+        color: 'indigo',
+        icon: Calendar,
+        activeText: 'text-indigo-600',
+        activeBg: 'bg-indigo-600',
+        ring: 'ring-indigo-500',
     },
     {
         id: 'VISITATION',
@@ -130,6 +142,15 @@ const PlanningHub = ({
                         notifyError={notifyError}
                         onNewTask={onNewTask}
                         tasks={tasks}
+                    />
+                ) : activeTab === 'CRONOGRAMA' ? (
+                    <TravelCalendarTab
+                        currentUser={currentUser}
+                        allClients={allClients}
+                        tasks={tasks}
+                        onNewTask={onNewTask}
+                        notifySuccess={notifySuccess}
+                        notifyError={notifyError}
                     />
                 ) : (
                     <PendingActionsTab 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Edit2, Trash2, Search, MapPin, Phone, Save, Briefcase, ChevronLeft, ShieldCheck, MessageSquare, Users } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, Search, MapPin, Phone, Save, Briefcase, ChevronLeft, ShieldCheck, MessageSquare, Users, Calendar } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { normalizeState } from '../utils/addressUtils';
 
@@ -8,6 +8,11 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isEditing, setIsEditing] = useState(false);
+    
+    // Meta visitation states
+    const [metaEditingClient, setMetaEditingClient] = useState(null);
+    const [metaFreq, setMetaFreq] = useState(6);
+    const [metaLead, setMetaLead] = useState(2);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -19,7 +24,9 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
         neighborhood: '',
         city: '',
         state: '',
-        classification: 'BRONZE'
+        classification: 'BRONZE',
+        visit_frequency_months: null,
+        visit_lead_time_months: null
     });
 
     useEffect(() => {
@@ -80,7 +87,9 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                 user_id: currentUser.id,
                 address: addressStr,
                 classification: formData.classification || 'BRONZE',
-                classification_date: classificationDate
+                classification_date: classificationDate,
+                visit_frequency_months: formData.visit_frequency_months !== null && formData.visit_frequency_months !== undefined ? (parseInt(formData.visit_frequency_months) || null) : null,
+                visit_lead_time_months: formData.visit_lead_time_months !== null && formData.visit_lead_time_months !== undefined ? (parseInt(formData.visit_lead_time_months) || null) : null
             };
 
             let error;
@@ -149,13 +158,15 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
             neighborhood: client.neighborhood || '',
             city: client.city || '',
             state: client.state || '',
-            classification: client.classification || 'BRONZE'
+            classification: client.classification || 'BRONZE',
+            visit_frequency_months: client.visit_frequency_months !== undefined && client.visit_frequency_months !== null ? client.visit_frequency_months : 6,
+            visit_lead_time_months: client.visit_lead_time_months !== undefined && client.visit_lead_time_months !== null ? client.visit_lead_time_months : 2
         });
         setIsEditing(true);
     };
 
     const resetForm = () => {
-        setFormData({ id: null, name: '', main_phone: '', street: '', number: '', neighborhood: '', city: '', state: '', classification: 'BRONZE' });
+        setFormData({ id: null, name: '', main_phone: '', street: '', number: '', neighborhood: '', city: '', state: '', classification: 'BRONZE', visit_frequency_months: null, visit_lead_time_months: null });
         setIsEditing(false);
     };
 
@@ -223,7 +234,8 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                                 <div key={client.id} className={`p-4 rounded-xl border transition-all text-left group ${formData.id === client.id ? 'border-brand-500 bg-brand-50' : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-slate-700 text-sm">{client.name}</h3>
-                                        <div className="flex gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-1">
+                                            <button onClick={(e) => { e.stopPropagation(); setMetaEditingClient(client); setMetaFreq(client.visit_frequency_months || 6); setMetaLead(client.visit_lead_time_months || 2); }} className="p-1.5 hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 rounded-lg animate-pulse" title="Metas de Visita"><Calendar size={14} /></button>
                                             <button onClick={(e) => { e.stopPropagation(); startEdit(client); }} className="p-1.5 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-lg" title="Editar"><Edit2 size={14} /></button>
                                             <button onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }} className="p-1.5 hover:bg-red-100 text-slate-400 hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>
                                         </div>
@@ -340,6 +352,62 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                     </div>
                 </div>
             </div>
+
+            {/* Visit Meta Modal */}
+            {metaEditingClient && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Metas de Visita</h3>
+                                <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5 truncate max-w-[240px]">{metaEditingClient.name}</p>
+                            </div>
+                            <button onClick={() => setMetaEditingClient(null)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Frequência Limite (Meses)</label>
+                                <input type="number" min="1" max="60" value={metaFreq} onChange={(e) => setMetaFreq(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Antecedência de Alerta (Meses)</label>
+                                <input type="number" min="0" max="12" value={metaLead} onChange={(e) => setMetaLead(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                            <div className="flex gap-2.5 pt-4 border-t border-slate-100">
+                                <button type="button" onClick={() => setMetaEditingClient(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
+                                <button 
+                                    type="button" 
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        try {
+                                            const { error } = await supabase
+                                                .from('clients')
+                                                .update({
+                                                    visit_frequency_months: parseInt(metaFreq) || 6,
+                                                    visit_lead_time_months: parseInt(metaLead) || 2
+                                                })
+                                                .eq('id', metaEditingClient.id);
+                                            if (error) throw error;
+                                            notifySuccess('Sucesso', 'Metas de visitas salvas!');
+                                            setMetaEditingClient(null);
+                                            fetchClients();
+                                        } catch (e) {
+                                            notifyError('Erro', e.message);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    className="flex-[2] py-2 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-xl shadow-md hover:bg-indigo-700 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                    Salvar Metas
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

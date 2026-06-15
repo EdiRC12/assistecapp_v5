@@ -453,19 +453,41 @@ const NewRecordModal = ({
                                 <input disabled={!isEditingUnlocked} type="text" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none transition-all uppercase disabled:opacity-60 disabled:bg-slate-100" placeholder="NÚMERO DO PEDIDO..." value={newItem.pedido || ''} onChange={e => setNewItem({ ...newItem, pedido: e.target.value.toUpperCase() })} />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Depósito (Bin)</label>
-                            <select
-                                disabled={!isEditingUnlocked}
-                                className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:bg-slate-100"
-                                value={newItem.stock_bin || 'ESTOQUE 0'}
-                                onChange={e => setNewItem({ ...newItem, stock_bin: e.target.value })}
-                            >
-                                <option value="ESTOQUE 0">ESTOQUE 0 (A RESERVAR)</option>
-                                <option value="ESTOQUE 01">ESTOQUE 01 (ACABADO)</option>
-                                <option value="ESTOQUE 14">ESTOQUE 14 (QUARENTENA)</option>
-                                <option value="ESTOQUE 65">ESTOQUE 65 (ENGENHARIA)</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Depósito (Bin)</label>
+                                <select
+                                    disabled={!isEditingUnlocked}
+                                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:bg-slate-100"
+                                    value={newItem.stock_bin || 'ESTOQUE 0'}
+                                    onChange={e => setNewItem({ ...newItem, stock_bin: e.target.value })}
+                                >
+                                    <option value="ESTOQUE 0">ESTOQUE 0 (A RESERVAR)</option>
+                                    <option value="ESTOQUE 01">ESTOQUE 01 (ACABADO)</option>
+                                    <option value="ESTOQUE 14">ESTOQUE 14 (QUARENTENA)</option>
+                                    <option value="ESTOQUE 65">ESTOQUE 65 (ENGENHARIA)</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                                <select
+                                    disabled={!isEditingUnlocked}
+                                    className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-sm font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 disabled:bg-slate-100"
+                                    value={newItem.status || 'ACTIVE'}
+                                    onChange={e => {
+                                        const nextStatus = e.target.value;
+                                        const updateObj = { ...newItem, status: nextStatus };
+                                        if (nextStatus === 'DISCARDED') {
+                                            updateObj.quantity = 0;
+                                            updateObj.volumes = 0;
+                                        }
+                                        setNewItem(updateObj);
+                                    }}
+                                >
+                                    <option value="ACTIVE">ATIVO</option>
+                                    <option value="DISCARDED">DESCARTADO</option>
+                                </select>
+                            </div>
                         </div>
                         <div className="flex gap-3 pt-4">
                             {newItem.id && isEditingUnlocked && (

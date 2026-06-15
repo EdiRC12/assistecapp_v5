@@ -25,6 +25,7 @@ import ClientReportsTab from './client/tabs/ClientReportsTab';
 import ClientTripsTab from './client/tabs/ClientTripsTab';
 import ClientActivitiesTab from './client/tabs/ClientActivitiesTab';
 import ClientProductsTab from './client/tabs/ClientProductsTab';
+import ClientVisitsMetaTab from './client/tabs/ClientVisitsMetaTab';
 
 // Helper para normalização robusta de nomes de clientes
 const normalizeText = (text) => {
@@ -1062,6 +1063,7 @@ return (
                                     <DashboardCard title="Relatórios" icon={Plus} isCompact onClick={() => setActiveTopic('RELATORIOS')} />
                                     <DashboardCard title="Itens do Cliente" icon={Plus} isCompact onClick={() => setActiveTopic('PRODUTOS')} />
                                     <DashboardCard title="Notas & Restrições" icon={Plus} isCompact onClick={() => setActiveTopic('NOTAS')} />
+                                    <DashboardCard title="Metas de Visitas" icon={Plus} isCompact onClick={() => setActiveTopic('METAS')} />
                                 </div>
                             </div>
                         ) : (
@@ -1074,6 +1076,7 @@ return (
                                 </button>
 
                                 {activeTopic === 'CADASTRO' && <ClientRegistrationTab activeClientObj={activeClientObj} setIsClientManagerOpen={setIsClientManagerOpen} currentUser={currentUser} supabase={supabase} notifySuccess={notifySuccess} notifyError={notifyError} setSelectedClient={setSelectedClient} />}
+                                {activeTopic === 'METAS' && <ClientVisitsMetaTab activeClientObj={activeClientObj} currentUser={currentUser} supabase={supabase} notifySuccess={notifySuccess} notifyError={notifyError} fetchClients={fetchClients} />}
                                 {activeTopic === 'CONTATOS' && (
                                     <ClientContactsTab
                                         clientContacts={clientContacts}

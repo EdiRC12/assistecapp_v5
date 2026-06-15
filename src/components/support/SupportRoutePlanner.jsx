@@ -100,7 +100,10 @@ const icons = {
     client: createPremiumPin('#64748b', 'client', 'client-reference-marker'), // Grey for Clients Reference
     clientGold: createClientIcon('#eab308', 'OURO'), // Gold/Amber-500
     clientSilver: createClientIcon('#94a3b8', 'PRATA'), // Silver/Slate-400
-    clientBronze: createClientIcon('#cd7f32', 'BRONZE') // Bronze/Metallic Bronze-Copper
+    clientBronze: createClientIcon('#cd7f32', 'BRONZE'), // Bronze/Metallic Bronze-Copper
+    clientGreen: createClientIcon('#10b981', 'EM_DIA'),
+    clientYellow: createClientIcon('#f59e0b', 'ALERTA'),
+    clientRed: createClientIcon('#ef4444', 'ATRASADO')
 };
 
 // Numbered badge icon creator for stops
@@ -179,6 +182,67 @@ const SupportRoutePlanner = ({
 }) => {
     const isMobile = useIsMobile();
     const [mobileTab, setMobileTab] = useState('ITINERARY'); // 'ITINERARY' or 'MAP'
+
+    // Helper to format date in DD/MM/YYYY format
+    const formatDate = (dateStr) => {
+        if (!dateStr) return 'N/A';
+        try {
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return dateStr;
+            return date.toLocaleDateString('pt-BR');
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
+    // Helper to get the last visit for a specific client
+    const getLastVisit = (clientName) => {
+        if (!clientName || !tasks) return null;
+        const normalizedClientName = clientName.trim().toLowerCase();
+        const visits = [];
+
+        tasks.forEach(task => {
+            const taskClient = task.client || task.title;
+            if (!taskClient || taskClient.trim().toLowerCase() !== normalizedClientName) return;
+
+            if (task.travels && task.travels.length > 0) {
+                task.travels.forEach((t) => {
+                    if (t.date) {
+                        visits.push({
+                            date: t.date,
+                            status: t.status || 'PROGRAMADA',
+                            team: [
+                                ...(Array.isArray(t.team) ? t.team : (t.team ? [t.team] : [])),
+                                ...(t.additional_participants ? t.additional_participants.split(',').map(s => s.trim()) : [])
+                            ].filter(Boolean)
+                        });
+                    }
+                });
+            } else if (task.visitation?.required) {
+                if (task.due_date) {
+                    visits.push({
+                        date: task.due_date,
+                        status: 'PROGRAMADA',
+                        team: [
+                            task.assigned_name || ''
+                        ].filter(Boolean)
+                    });
+                }
+            }
+        });
+
+        if (visits.length === 0) return null;
+
+        return visits.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateB - dateA;
+        })[0];
+    };
 
     // Core Lists
     const [allClients, setAllClients] = useState([]);
@@ -1630,11 +1694,52 @@ const SupportRoutePlanner = ({
                         .filter(c => !selectedState || c.state?.trim().toUpperCase() === selectedState)
                         .filter(c => !selectedCategory || c.classification === selectedCategory)
                         .map((client) => {
-                            const iconToUse = client.classification === 'OURO' 
-                                ? icons.clientGold 
-                                : client.classification === 'PRATA' 
-                                ? icons.clientSilver 
-                                : icons.clientBronze;
+                            const lastVisit = getLastVisit(client.name);
+                            const freq = client.visit_frequency_months;
+                            const lead = client.visit_lead_time_months || 2;
+                            
+                            let iconToUse;
+                            let healthStatusLabel;
+                            let healthStatusColor;
+
+                            if (!freq) {
+                                iconToUse = client.classification === 'OURO' 
+                                    ? icons.clientGold 
+                                    : client.classification === 'PRATA' 
+                                    ? icons.clientSilver 
+                                    : icons.clientBronze;
+                                healthStatusLabel = 'SEM CRONOGRAMA';
+                                healthStatusColor = 'text-slate-500 bg-slate-50 border-slate-200';
+                            } else {
+                                iconToUse = icons.clientRed; // Default if never visited
+                                healthStatusLabel = 'SEM VISITAS';
+                                healthStatusColor = 'text-red-600 bg-red-50 border-red-100';
+
+                                if (lastVisit && lastVisit.date) {
+                                    const today = new Date();
+                                    const lastDate = new Date(lastVisit.date);
+                                    
+                                    const dueDate = new Date(lastDate);
+                                    dueDate.setMonth(dueDate.getMonth() + freq);
+                                    
+                                    const warningDate = new Date(dueDate);
+                                    warningDate.setMonth(warningDate.getMonth() - lead);
+                                    
+                                    if (today > dueDate) {
+                                        iconToUse = icons.clientRed;
+                                        healthStatusLabel = 'ATRASADO';
+                                        healthStatusColor = 'text-red-600 bg-red-50 border-red-100';
+                                    } else if (today >= warningDate) {
+                                        iconToUse = icons.clientYellow;
+                                        healthStatusLabel = 'ALERTA';
+                                        healthStatusColor = 'text-amber-600 bg-amber-50 border-amber-100';
+                                    } else {
+                                        iconToUse = icons.clientGreen;
+                                        healthStatusLabel = 'EM DIA';
+                                        healthStatusColor = 'text-emerald-600 bg-emerald-50 border-emerald-100';
+                                    }
+                                }
+                            }
                             
                             return (
                                 <Marker
@@ -1661,12 +1766,48 @@ const SupportRoutePlanner = ({
                                                 }`}>
                                                     {client.classification || 'BRONZE'}
                                                 </span>
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider ${healthStatusColor}`}>
+                                                    {healthStatusLabel}
+                                                </span>
                                             </div>
                                             {client.location && (
                                                 <p className="text-slate-400 text-[10px] mt-0.5 leading-snug truncate uppercase">
                                                     {client.location}
                                                 </p>
                                             )}
+                                            {(() => {
+                                                const lastVisit = getLastVisit(client.name);
+                                                return (
+                                                    <div className="mt-2 pt-2 border-t border-slate-100">
+                                                        <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+                                                            Última Visita:
+                                                        </span>
+                                                        {lastVisit ? (
+                                                            <div className="bg-slate-50 border border-slate-150 rounded-lg p-1.5 text-[9px] font-bold text-slate-700 space-y-1">
+                                                                <div className="flex justify-between items-center gap-1">
+                                                                    <span className="text-slate-800">Data: {formatDate(lastVisit.date)}</span>
+                                                                    <span className={`px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-wider ${
+                                                                        lastVisit.status === 'CONCLUIDO' || lastVisit.status === 'REALIZADA' || lastVisit.status === 'FINALIZADA'
+                                                                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-250'
+                                                                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                                                    }`}>
+                                                                        {lastVisit.status}
+                                                                    </span>
+                                                                </div>
+                                                                {lastVisit.team && lastVisit.team.length > 0 && (
+                                                                    <div className="text-slate-500 text-[8px] leading-tight truncate" title={lastVisit.team.join(', ')}>
+                                                                        Equipe: {lastVisit.team.join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[9px] text-slate-400 italic block mt-0.5 font-semibold">
+                                                                Sem registro de viagens
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                             <button
                                                 type="button"
                                                 onClick={() => handleAddClientToRoute(client)}

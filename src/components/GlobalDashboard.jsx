@@ -160,6 +160,76 @@ const GlobalDashboard = ({
         return [...sacAlerts, ...testAlerts].slice(0, 6);
     }, [sacTickets, techTests]);
 
+    const ufHealthStats = useMemo(() => {
+        const today = new Date();
+        const ufMap = {};
+
+        // Helper to get last visit inside dashboard
+        const getLastVisitForClient = (clientName) => {
+            if (!clientName || !tasks) return null;
+            const normalizedClientName = clientName.trim().toLowerCase();
+            const visits = [];
+            tasks.forEach(task => {
+                const taskClient = task.client || task.title;
+                if (taskClient && taskClient.trim().toLowerCase() === normalizedClientName) {
+                    if (task.travels && task.travels.length > 0) {
+                        task.travels.forEach(tr => {
+                            if (tr.date) visits.push({ date: tr.date });
+                        });
+                    } else if (task.visitation?.required && task.due_date) {
+                        visits.push({ date: task.due_date });
+                    }
+                }
+            });
+            if (visits.length === 0) return null;
+            return visits.sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+        };
+
+        allClients.forEach(client => {
+            if (!client.visit_frequency_months) return; // Skip if no visit metas are defined
+
+            const uf = client.state?.trim().toUpperCase() || 'OUTROS';
+            if (!ufMap[uf]) {
+                ufMap[uf] = { total: 0, ok: 0, warning: 0, expired: 0, clientNames: [] };
+            }
+
+            ufMap[uf].total += 1;
+            ufMap[uf].clientNames.push(client.name);
+
+            const lastVisit = getLastVisitForClient(client.name);
+            const freq = client.visit_frequency_months;
+            const lead = client.visit_lead_time_months || 2;
+
+            if (!lastVisit) {
+                ufMap[uf].expired += 1; // Never visited is expired/urgent
+            } else {
+                const lastDate = new Date(lastVisit.date);
+                const dueDate = new Date(lastDate);
+                dueDate.setMonth(dueDate.getMonth() + freq);
+                const warningDate = new Date(dueDate);
+                warningDate.setMonth(warningDate.getMonth() - lead);
+
+                if (today > dueDate) {
+                    ufMap[uf].expired += 1;
+                } else if (today >= warningDate) {
+                    ufMap[uf].warning += 1;
+                } else {
+                    ufMap[uf].ok += 1;
+                }
+            }
+        });
+
+        // Convert to array and calculate score
+        return Object.entries(ufMap).map(([uf, data]) => {
+            const score = Math.round((data.ok / data.total) * 100) || 0;
+            return {
+                uf,
+                ...data,
+                score
+            };
+        }).sort((a,b) => b.score - a.score);
+    }, [allClients, tasks]);
+
     const kpiCards = [
         { label: 'Online', val: stats.onlineUsers, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', detail: stats.onlineUsersList.map(u => u.username).join(', ') },
         { label: 'Viagens', val: stats.activeTravels, icon: Plane, color: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-100' },
@@ -355,6 +425,88 @@ const GlobalDashboard = ({
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </section>
+            </div>
+
+            {/* ─── LINHA 2.5: Saúde e Cobertura das Regiões (Estados) ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 shrink-0">
+                {/* Saúde por UF */}
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:border-indigo-300 transition-colors">
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="bg-indigo-600 p-1 rounded-lg text-white">
+                            <MapPin size={14} />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight">Saúde de Visitas por Estado (UF)</h3>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Cobertura de metas de periodicidade</p>
+                        </div>
+                    </div>
+                    <div className="space-y-3.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                        {ufHealthStats.length === 0 ? (
+                            <p className="text-[10px] text-slate-400 italic">Nenhum cliente cadastrado para analisar.</p>
+                        ) : ufHealthStats.map(stat => (
+                            <div key={stat.uf} className="space-y-1">
+                                <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                                    <span className="flex items-center gap-1.5 uppercase font-black">
+                                        🌐 {stat.uf} <span className="text-[9px] text-slate-450 font-medium">({stat.total} Clientes)</span>
+                                    </span>
+                                    <span className={stat.score > 70 ? 'text-emerald-600' : stat.score > 30 ? 'text-amber-600' : 'text-rose-600'}>
+                                        {stat.score}% Cobertura
+                                    </span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                                    <div style={{ width: `${(stat.ok / stat.total) * 100}%` }} className="bg-emerald-500 h-full" title="Em Dia" />
+                                    <div style={{ width: `${(stat.warning / stat.total) * 100}%` }} className="bg-amber-50 h-full" title="Alerta" />
+                                    <div style={{ width: `${(stat.expired / stat.total) * 100}%` }} className="bg-rose-500 h-full" title="Atrasado" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* Resumo de Prioridades */}
+                <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:border-rose-300 transition-colors">
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="bg-rose-600 p-1 rounded-lg text-white">
+                            <AlertTriangle size={14} />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight">Estados Críticos (Falta de Visitas)</h3>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Atenção necessária imediata</p>
+                        </div>
+                    </div>
+                    <div className="space-y-3 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                        {ufHealthStats.filter(s => s.expired > 0 || s.warning > 0).length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-8 opacity-45">
+                                <CheckCircle2 size={24} className="text-emerald-500 mb-1" />
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Todas as regiões em dia!</p>
+                            </div>
+                        ) : ufHealthStats
+                            .filter(s => s.expired > 0 || s.warning > 0)
+                            .sort((a,b) => b.expired - a.expired)
+                            .map(stat => (
+                                <div key={stat.uf} className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                    <div>
+                                        <span className="text-xs font-black text-slate-800 uppercase">Estado: {stat.uf}</span>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                                            Clientes totais: {stat.total}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {stat.expired > 0 && (
+                                            <span className="px-2 py-0.5 bg-rose-50 border border-rose-100 text-rose-700 font-black rounded-lg text-[9px]">
+                                                {stat.expired} Atrasados
+                                            </span>
+                                        )}
+                                        {stat.warning > 0 && (
+                                            <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-700 font-black rounded-lg text-[9px]">
+                                                {stat.warning} Alertas
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                        ))}
                     </div>
                 </section>
             </div>
