@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, 
-    AlertTriangle, CheckCircle2, Clock, Trash2, Tag, CalendarRange, Search, Users
+    AlertTriangle, CheckCircle2, Clock, Trash2, Tag, CalendarRange, Search, Users, Edit2
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
@@ -19,6 +19,8 @@ const TravelCalendarTab = ({
     const [loadingReservations, setLoadingReservations] = useState(false);
     const [showReserveModal, setShowReserveModal] = useState(false);
     const [selectedWeekStart, setSelectedWeekStart] = useState('');
+    const [reserveEndDate, setReserveEndDate] = useState('');
+    const [editingReservationId, setEditingReservationId] = useState(null);
     const [reserveState, setReserveState] = useState('');
     const [reserveNotes, setReserveNotes] = useState('');
     const [draggedClient, setDraggedClient] = useState(null);
@@ -313,16 +315,27 @@ const TravelCalendarTab = ({
         setCurrentDate(new Date(year, month + 1, 1));
     };
 
-    // Open Reserve Modal for a specific week
-    const handleOpenReserve = (weekStartDate) => {
-        setSelectedWeekStart(weekStartDate);
-        const existing = reservations.find(r => r.week_start === weekStartDate);
-        if (existing) {
-            setReserveState(existing.state_code);
-            setReserveNotes(existing.notes || '');
+    // Open Reserve Modal for a specific date or existing reservation
+    const handleOpenReserve = (startDateStr, existingRes = null) => {
+        if (existingRes) {
+            setSelectedWeekStart(existingRes.week_start);
+            setReserveEndDate(existingRes.end_date || existingRes.week_start);
+            setReserveState(existingRes.state_code);
+            setReserveNotes(existingRes.notes || '');
+            setEditingReservationId(existingRes.id);
         } else {
+            setSelectedWeekStart(startDateStr);
+            // By default, suggest an end date up to Friday
+            const d = new Date(startDateStr + 'T12:00:00');
+            const dayOfWeek = d.getDay(); // 0 is Sunday
+            const endD = new Date(d);
+            const diffToFriday = 5 - dayOfWeek;
+            if (diffToFriday > 0) endD.setDate(d.getDate() + diffToFriday);
+            
+            setReserveEndDate(endD.toISOString().split('T')[0]);
             setReserveState('');
             setReserveNotes('');
+            setEditingReservationId(null);
         }
         setShowReserveModal(true);
     };
@@ -331,22 +344,26 @@ const TravelCalendarTab = ({
     const handleSaveReservation = async (e) => {
         e.preventDefault();
         if (!reserveState) return;
+        if (reserveEndDate < selectedWeekStart) {
+            notifyError('Erro', 'A data de fim não pode ser menor que a data de início.');
+            return;
+        }
 
         try {
-            const existing = reservations.find(r => r.week_start === selectedWeekStart);
             const payload = {
                 week_start: selectedWeekStart,
+                end_date: reserveEndDate,
                 state_code: reserveState,
                 notes: reserveNotes.toUpperCase(),
                 user_id: currentUser?.id,
                 created_at: new Date().toISOString()
             };
 
-            if (existing) {
+            if (editingReservationId) {
                 const { error } = await supabase
                     .from('travel_reservations')
                     .update(payload)
-                    .eq('id', existing.id);
+                    .eq('id', editingReservationId);
                 if (error) throw error;
                 notifySuccess('Sucesso', 'Reserva atualizada!');
             } else {
@@ -354,7 +371,7 @@ const TravelCalendarTab = ({
                     .from('travel_reservations')
                     .insert([payload]);
                 if (error) throw error;
-                notifySuccess('Sucesso', 'Semana reservada no calendário!');
+                notifySuccess('Sucesso', 'Reserva criada no calendário!');
             }
             setShowReserveModal(false);
             fetchReservations();
@@ -365,16 +382,14 @@ const TravelCalendarTab = ({
 
     // Delete week reservation
     const handleDeleteReservation = async () => {
-        const existing = reservations.find(r => r.week_start === selectedWeekStart);
-        if (!existing) return;
-
-        if (!confirm('Deseja realmente remover a reserva desta semana?')) return;
+        if (!editingReservationId) return;
+        if (!confirm('Deseja realmente remover esta reserva?')) return;
 
         try {
             const { error } = await supabase
                 .from('travel_reservations')
                 .delete()
-                .eq('id', existing.id);
+                .eq('id', editingReservationId);
             if (error) throw error;
             notifySuccess('Reserva removida.');
             setShowReserveModal(false);
@@ -644,8 +659,34 @@ const TravelCalendarTab = ({
                         const dayStr = item.date.toISOString().split('T')[0];
                         const weekStartStr = getWeekStartDateStr(item.date);
                         const isToday = new Date().toDateString() === item.date.toDateString();
-                        // Find week reservation
-                        const weekReservation = reservations.find(r => r.week_start === weekStartStr);
+                        // Find if this day falls into any reservation range
+                        const dayReservation = reservations.find(r => {
+                            const endD = r.end_date || r.week_start;
+                            return dayStr >= r.week_start && dayStr <= endD;
+                        });
+                        const isReservationStart = dayReservation && dayReservation.week_start === dayStr;
+                        const isReservationEnd = dayReservation && (dayReservation.end_date || dayReservation.week_start) === dayStr;
+
+                        let isSegmentStart = false;
+                        let segmentSpan = 1;
+
+                        if (dayReservation) {
+                            // A segment starts either on the actual reservation start date, 
+                            // OR on a Sunday (which is the first column of the row)
+                            isSegmentStart = (dayStr === dayReservation.week_start) || (item.date.getDay() === 0);
+
+                            if (isSegmentStart) {
+                                const endD = dayReservation.end_date || dayReservation.week_start;
+                                const [ey, em, ed] = endD.split('-');
+                                const endDateObj = new Date(ey, em - 1, ed);
+                                // Set both to midnight local time for fair comparison
+                                const itemDateObj = new Date(item.date.getFullYear(), item.date.getMonth(), item.date.getDate());
+                                const diffTime = endDateObj.getTime() - itemDateObj.getTime();
+                                const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                                const daysLeftInRow = 6 - itemDateObj.getDay();
+                                segmentSpan = Math.min(diffDays, daysLeftInRow) + 1;
+                            }
+                        }
 
                         // Find scheduled travels mapped from tasks for this day
                         const dayTravels = mappedTravels.filter(tr => tr.date === dayStr);
@@ -657,51 +698,65 @@ const TravelCalendarTab = ({
                             return pvDate === dayStr;
                         });
 
-                        // Only render the reservation highlight on Monday (Seg) cell of each row to avoid visual spam, or across all
-                        const isSeg = item.date.getDay() === 1; // 1 = Monday
-
                         return (
                             <div 
                                 key={idx}
                                 onDrop={(e) => handleDrop(e, item.date)}
                                 onDragOver={handleDragOver}
-                                className={`bg-white border-r border-b border-slate-100 p-2 flex flex-col min-h-0 relative group/day hover:bg-slate-50/30 transition-all ${
+                                className={`bg-white border-r border-b border-slate-100 p-2 flex flex-col min-h-[100px] relative group/day hover:bg-slate-50/30 transition-all ${
                                     item.isCurrentMonth ? 'text-slate-800' : 'text-slate-350 bg-slate-50/20'
                                 }`}
                             >
-                                {/* Week Reservation Banner */}
-                                {isSeg && weekReservation && (
+                                {/* Continuous Date Range Banner Background */}
+                                {dayReservation && (
                                     <div 
-                                        onClick={() => handleOpenReserve(weekStartStr)}
-                                        className="absolute -top-1.5 left-1 right-1 z-10 bg-indigo-600 text-white rounded-md text-[8px] font-black uppercase tracking-wider py-0.5 px-1.5 shadow-sm border border-indigo-700 flex items-center justify-between cursor-pointer hover:bg-indigo-700 transform transition-transform"
-                                        title={weekReservation.notes}
+                                        onClick={() => handleOpenReserve(dayStr, dayReservation)}
+                                        className={`absolute top-1 bottom-1 left-0 right-0 bg-indigo-50 border-y border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors ${
+                                            isReservationStart ? 'rounded-l-xl border-l ml-1' : ''
+                                        } ${
+                                            isReservationEnd ? 'rounded-r-xl border-r mr-1' : ''
+                                        }`}
+                                        title={dayReservation.notes}
+                                    />
+                                )}
+
+                                {/* Distributed label across cells */}
+                                {dayReservation && isSegmentStart && (
+                                    <div 
+                                        style={{ width: `calc(${segmentSpan * 100}%)` }} 
+                                        className="absolute top-1 bottom-1 left-0 flex flex-col items-center justify-center p-2 opacity-30 pointer-events-none overflow-visible z-[5]"
                                     >
-                                        <span className="truncate">✈️ RESERVA: {weekReservation.state_code}</span>
+                                        <span className="text-3xl font-black text-indigo-700 uppercase tracking-widest leading-none drop-shadow-sm">
+                                            {dayReservation.state_code}
+                                        </span>
+                                        {dayReservation.notes && (
+                                            <span className="text-[10px] font-bold text-indigo-800 uppercase text-center line-clamp-2 mt-1 leading-tight w-full px-4 drop-shadow-sm">
+                                                {dayReservation.notes}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
 
                                 {/* Day Number Header */}
-                                <div className="flex justify-between items-center mb-1 shrink-0">
+                                <div className="flex justify-between items-center mb-1 shrink-0 relative z-10">
                                     <span className={`text-[10px] font-black flex items-center justify-center w-5 h-5 rounded-full ${
-                                        isToday ? 'bg-indigo-600 text-white shadow-md' : ''
+                                        isToday ? 'bg-indigo-600 text-white shadow-md' : (dayReservation ? 'bg-white shadow-sm text-indigo-700' : '')
                                     }`}>
                                         {item.day}
                                     </span>
 
-                                    {/* Action button to reserve week (Only on Mondays) */}
-                                    {isSeg && (
-                                        <button 
-                                            onClick={() => handleOpenReserve(weekStartStr)}
-                                            className="opacity-0 group-hover/day:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-all cursor-pointer"
-                                            title="Bloquear/Reservar Semana"
-                                        >
-                                            <Tag size={10} />
-                                        </button>
-                                    )}
+                                    {/* Action button to reserve period (Visible on hover any day) */}
+                                    <button 
+                                        onClick={() => handleOpenReserve(dayStr, dayReservation)}
+                                        className="opacity-0 group-hover/day:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-all cursor-pointer bg-white/80"
+                                        title={dayReservation ? "Editar Período" : "Bloquear/Reservar Período"}
+                                    >
+                                        {dayReservation ? <Edit2 size={10} /> : <Tag size={10} />}
+                                    </button>
                                 </div>
 
                                 {/* Scheduled Tasks/Visits List */}
-                                <div className="flex-grow overflow-y-auto scrollbar-hide space-y-1 mt-1 pr-0.5">
+                                <div className="flex-grow overflow-y-auto scrollbar-hide space-y-1 mt-1 pr-0.5 relative z-10">
                                     {/* Drafts / Planned Visits */}
                                     {dayPlanned.map(pv => (
                                         <div 
@@ -800,9 +855,11 @@ const TravelCalendarTab = ({
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="px-6 py-4 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
                             <div>
-                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Bloquear Semana</h3>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                                    {editingReservationId ? 'Editar Reserva' : 'Bloquear Período'}
+                                </h3>
                                 <p className="text-[9px] text-slate-400 font-black uppercase mt-0.5">
-                                    Início em: {formatDate(selectedWeekStart)}
+                                    Configurar agenda de viagem
                                 </p>
                             </div>
                             <button onClick={() => setShowReserveModal(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400">
@@ -810,6 +867,29 @@ const TravelCalendarTab = ({
                             </button>
                         </div>
                         <form onSubmit={handleSaveReservation} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Data de Início</label>
+                                    <input 
+                                        type="date"
+                                        value={selectedWeekStart}
+                                        onChange={(e) => setSelectedWeekStart(e.target.value)}
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Data de Fim</label>
+                                    <input 
+                                        type="date"
+                                        value={reserveEndDate}
+                                        onChange={(e) => setReserveEndDate(e.target.value)}
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
                             <div className="space-y-1.5">
                                 <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Estado (UF) Destino</label>
                                 <select 
@@ -836,7 +916,7 @@ const TravelCalendarTab = ({
                             </div>
 
                             <div className="flex gap-2.5 pt-2 border-t border-slate-100">
-                                {reservations.some(r => r.week_start === selectedWeekStart) && (
+                                {editingReservationId && (
                                     <button 
                                         type="button" 
                                         onClick={handleDeleteReservation}
