@@ -186,7 +186,10 @@ const GlobalDashboard = ({
         };
 
         allClients.forEach(client => {
-            if (!client.visit_frequency_months) return; // Skip if no visit metas are defined
+            const hasNewFreq = client.visit_frequency_value !== undefined && client.visit_frequency_value !== null && client.visit_frequency_value > 0;
+            const hasLegacyFreq = client.visit_frequency_months !== undefined && client.visit_frequency_months !== null && client.visit_frequency_months > 0;
+            
+            if (!hasNewFreq && !hasLegacyFreq) return; // Skip if no visit metas are defined
 
             const uf = client.state?.trim().toUpperCase() || 'OUTROS';
             if (!ufMap[uf]) {
@@ -197,17 +200,42 @@ const GlobalDashboard = ({
             ufMap[uf].clientNames.push(client.name);
 
             const lastVisit = getLastVisitForClient(client.name);
-            const freq = client.visit_frequency_months;
-            const lead = client.visit_lead_time_months || 2;
 
             if (!lastVisit) {
                 ufMap[uf].expired += 1; // Never visited is expired/urgent
             } else {
                 const lastDate = new Date(lastVisit.date);
-                const dueDate = new Date(lastDate);
-                dueDate.setMonth(dueDate.getMonth() + freq);
-                const warningDate = new Date(dueDate);
-                warningDate.setMonth(warningDate.getMonth() - lead);
+                let dueDate = new Date(lastDate);
+                
+                if (hasNewFreq) {
+                    const freqVal = client.visit_frequency_value;
+                    const freqUnit = client.visit_frequency_unit || 'MESES';
+                    if (freqUnit === 'DIAS') {
+                        dueDate.setDate(dueDate.getDate() + freqVal);
+                    } else if (freqUnit === 'ANOS') {
+                        dueDate.setFullYear(dueDate.getFullYear() + freqVal);
+                    } else {
+                        dueDate.setMonth(dueDate.getMonth() + freqVal);
+                    }
+                } else {
+                    dueDate.setMonth(dueDate.getMonth() + client.visit_frequency_months);
+                }
+
+                let warningDate = new Date(dueDate);
+                if (hasNewFreq) {
+                    const leadVal = client.visit_lead_time_value !== undefined && client.visit_lead_time_value !== null ? client.visit_lead_time_value : 2;
+                    const leadUnit = client.visit_lead_time_unit || 'MESES';
+                    if (leadUnit === 'DIAS') {
+                        warningDate.setDate(warningDate.getDate() - leadVal);
+                    } else if (leadUnit === 'ANOS') {
+                        warningDate.setFullYear(warningDate.getFullYear() - leadVal);
+                    } else {
+                        warningDate.setMonth(warningDate.getMonth() - leadVal);
+                    }
+                } else {
+                    const leadMonths = client.visit_lead_time_months !== undefined && client.visit_lead_time_months !== null ? client.visit_lead_time_months : 2;
+                    warningDate.setMonth(warningDate.getMonth() - leadMonths);
+                }
 
                 if (today > dueDate) {
                     ufMap[uf].expired += 1;

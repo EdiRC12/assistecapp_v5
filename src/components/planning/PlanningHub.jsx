@@ -149,6 +149,7 @@ const PlanningHub = ({
                         allClients={allClients}
                         tasks={tasks}
                         onNewTask={onNewTask}
+                        onEditTask={onEditTask}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                     />

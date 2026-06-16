@@ -4,16 +4,35 @@ import DashboardCard from '../DashboardCard';
 
 const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuccess, notifyError, fetchClients }) => {
     const [hasMeta, setHasMeta] = useState(false);
-    const [metaFreq, setMetaFreq] = useState(6);
-    const [metaLead, setMetaLead] = useState(2);
+    const [metaFreqVal, setMetaFreqVal] = useState(6);
+    const [metaFreqUnit, setMetaFreqUnit] = useState('MESES');
+    const [metaLeadVal, setMetaLeadVal] = useState(2);
+    const [metaLeadUnit, setMetaLeadUnit] = useState('MESES');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (activeClientObj) {
-            const hasDefinedMeta = activeClientObj.visit_frequency_months !== undefined && activeClientObj.visit_frequency_months !== null && activeClientObj.visit_frequency_months > 0;
+            // Check if user has defined meta (either legacy col or new cols)
+            const hasDefinedMeta = (activeClientObj.visit_frequency_value !== undefined && activeClientObj.visit_frequency_value !== null && activeClientObj.visit_frequency_value > 0) || 
+                                   (activeClientObj.visit_frequency_months !== undefined && activeClientObj.visit_frequency_months !== null && activeClientObj.visit_frequency_months > 0);
+            
             setHasMeta(hasDefinedMeta);
-            setMetaFreq(hasDefinedMeta ? activeClientObj.visit_frequency_months : 6);
-            setMetaLead(activeClientObj.visit_lead_time_months !== undefined && activeClientObj.visit_lead_time_months !== null ? activeClientObj.visit_lead_time_months : 2);
+            
+            if (activeClientObj.visit_frequency_value !== undefined && activeClientObj.visit_frequency_value !== null) {
+                setMetaFreqVal(activeClientObj.visit_frequency_value);
+                setMetaFreqUnit(activeClientObj.visit_frequency_unit || 'MESES');
+            } else {
+                setMetaFreqVal(activeClientObj.visit_frequency_months || 6);
+                setMetaFreqUnit('MESES');
+            }
+
+            if (activeClientObj.visit_lead_time_value !== undefined && activeClientObj.visit_lead_time_value !== null) {
+                setMetaLeadVal(activeClientObj.visit_lead_time_value);
+                setMetaLeadUnit(activeClientObj.visit_lead_time_unit || 'MESES');
+            } else {
+                setMetaLeadVal(activeClientObj.visit_lead_time_months || 2);
+                setMetaLeadUnit('MESES');
+            }
         }
     }, [activeClientObj]);
 
@@ -23,20 +42,44 @@ const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuc
 
         setLoading(true);
         try {
-            const freqVal = hasMeta ? (parseInt(metaFreq) || 6) : null;
-            const leadVal = hasMeta ? (parseInt(metaLead) || 2) : null;
+            const freqVal = hasMeta ? (parseInt(metaFreqVal) || 6) : null;
+            const freqUnit = hasMeta ? metaFreqUnit : null;
+            const leadVal = hasMeta ? (parseInt(metaLeadVal) || 2) : null;
+            const leadUnit = hasMeta ? metaLeadUnit : null;
+
+            // Legacy backward-compatibility conversion to months (rough approximation)
+            let freqMonths = freqVal;
+            if (hasMeta) {
+                if (freqUnit === 'DIAS') freqMonths = Math.max(1, Math.round(freqVal / 30));
+                if (freqUnit === 'ANOS') freqMonths = freqVal * 12;
+            } else {
+                freqMonths = null;
+            }
+
+            let leadMonths = leadVal;
+            if (hasMeta) {
+                if (leadUnit === 'DIAS') leadMonths = Math.round(leadVal / 30);
+                if (leadUnit === 'ANOS') leadMonths = leadVal * 12;
+            } else {
+                leadMonths = null;
+            }
 
             const { error } = await supabase
                 .from('clients')
                 .update({
-                    visit_frequency_months: freqVal,
-                    visit_lead_time_months: leadVal
+                    visit_frequency_value: freqVal,
+                    visit_frequency_unit: freqUnit,
+                    visit_lead_time_value: leadVal,
+                    visit_lead_time_unit: leadUnit,
+                    // Maintain legacy columns updated in case other components depend on them
+                    visit_frequency_months: freqMonths,
+                    visit_lead_time_months: leadMonths
                 })
                 .eq('id', activeClientObj.id);
 
             if (error) throw error;
 
-            notifySuccess('Sucesso!', 'Metas de visitas atualizadas.');
+            notifySuccess('Sucesso!', 'Configurações de prazos atualizadas.');
             if (fetchClients) {
                 await fetchClients();
             }
@@ -75,39 +118,61 @@ const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuc
 
                 {hasMeta && (
                     <div className="space-y-4 border-l-4 border-brand-500 pl-4 py-1 animate-in slide-in-from-top-3 duration-200">
+                        {/* Frequência */}
                         <div className="space-y-1.5">
                             <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
-                                Frequência Limite (Meses)
+                                Frequência Limite de Visita
                             </label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="60"
-                                value={metaFreq}
-                                onChange={(e) => setMetaFreq(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-                                required={hasMeta}
-                            />
+                            <div className="grid grid-cols-3 gap-2">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={metaFreqVal}
+                                    onChange={(e) => setMetaFreqVal(e.target.value)}
+                                    className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
+                                    required={hasMeta}
+                                />
+                                <select
+                                    value={metaFreqUnit}
+                                    onChange={(e) => setMetaFreqUnit(e.target.value)}
+                                    className="px-2 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                                >
+                                    <option value="DIAS">Dias</option>
+                                    <option value="MESES">Meses</option>
+                                    <option value="ANOS">Anos</option>
+                                </select>
+                            </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase">
-                                Tempo máximo tolerado entre uma visita e outra (ex: a cada 6 meses).
+                                Tempo máximo tolerado entre uma visita e outra (ex: a cada 15 Dias, 6 Meses, 1 Ano).
                             </p>
                         </div>
 
+                        {/* Aviso Prévio */}
                         <div className="space-y-1.5">
                             <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
-                                Antecedência de Alerta (Meses)
+                                Antecedência de Alerta (Aviso Prévio)
                             </label>
-                            <input
-                                type="number"
-                                min="0"
-                                max="12"
-                                value={metaLead}
-                                onChange={(e) => setMetaLead(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-                                required={hasMeta}
-                            />
+                            <div className="grid grid-cols-3 gap-2">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={metaLeadVal}
+                                    onChange={(e) => setMetaLeadVal(e.target.value)}
+                                    className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
+                                    required={hasMeta}
+                                />
+                                <select
+                                    value={metaLeadUnit}
+                                    onChange={(e) => setMetaLeadUnit(e.target.value)}
+                                    className="px-2 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                                >
+                                    <option value="DIAS">Dias</option>
+                                    <option value="MESES">Meses</option>
+                                    <option value="ANOS">Anos</option>
+                                </select>
+                            </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase">
-                                Tempo de antecedência para o cliente entrar na lista de prospecção (ex: avisar 2 meses antes).
+                                Tempo de antecedência para o cliente entrar na lista de prospecção (ex: avisar 2 Meses antes).
                             </p>
                         </div>
                     </div>

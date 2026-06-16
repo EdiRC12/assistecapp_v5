@@ -11,8 +11,11 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
     
     // Meta visitation states
     const [metaEditingClient, setMetaEditingClient] = useState(null);
-    const [metaFreq, setMetaFreq] = useState(6);
-    const [metaLead, setMetaLead] = useState(2);
+    const [metaFreqVal, setMetaFreqVal] = useState(6);
+    const [metaFreqUnit, setMetaFreqUnit] = useState('MESES');
+    const [metaLeadVal, setMetaLeadVal] = useState(2);
+    const [metaLeadUnit, setMetaLeadUnit] = useState('MESES');
+    const [hasMeta, setHasMeta] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -235,7 +238,29 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-slate-700 text-sm">{client.name}</h3>
                                         <div className="flex gap-1">
-                                            <button onClick={(e) => { e.stopPropagation(); setMetaEditingClient(client); setMetaFreq(client.visit_frequency_months || 6); setMetaLead(client.visit_lead_time_months || 2); }} className="p-1.5 hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 rounded-lg animate-pulse" title="Metas de Visita"><Calendar size={14} /></button>
+                                            <button onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setMetaEditingClient(client); 
+                                                const hasDefinedMeta = (client.visit_frequency_value !== undefined && client.visit_frequency_value !== null && client.visit_frequency_value > 0) || 
+                                                                       (client.visit_frequency_months !== undefined && client.visit_frequency_months !== null && client.visit_frequency_months > 0);
+                                                setHasMeta(hasDefinedMeta);
+                                                
+                                                if (client.visit_frequency_value !== undefined && client.visit_frequency_value !== null) {
+                                                    setMetaFreqVal(client.visit_frequency_value);
+                                                    setMetaFreqUnit(client.visit_frequency_unit || 'MESES');
+                                                } else {
+                                                    setMetaFreqVal(client.visit_frequency_months || 6);
+                                                    setMetaFreqUnit('MESES');
+                                                }
+                                                
+                                                if (client.visit_lead_time_value !== undefined && client.visit_lead_time_value !== null) {
+                                                    setMetaLeadVal(client.visit_lead_time_value);
+                                                    setMetaLeadUnit(client.visit_lead_time_unit || 'MESES');
+                                                } else {
+                                                    setMetaLeadVal(client.visit_lead_time_months || 2);
+                                                    setMetaLeadUnit('MESES');
+                                                }
+                                            }} className="p-1.5 hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 rounded-lg animate-pulse" title="Metas de Visita"><Calendar size={14} /></button>
                                             <button onClick={(e) => { e.stopPropagation(); startEdit(client); }} className="p-1.5 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-lg" title="Editar"><Edit2 size={14} /></button>
                                             <button onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }} className="p-1.5 hover:bg-red-100 text-slate-400 hover:text-red-500 rounded-lg" title="Excluir"><Trash2 size={14} /></button>
                                         </div>
@@ -367,14 +392,72 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                             </button>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div className="space-y-1.5">
-                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Frequência Limite (Meses)</label>
-                                <input type="number" min="1" max="60" value={metaFreq} onChange={(e) => setMetaFreq(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                            {/* Toggle Habilitar Cronograma */}
+                            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                                <input
+                                    type="checkbox"
+                                    id="enable-meta-toggle-mgr"
+                                    checked={hasMeta}
+                                    onChange={(e) => setHasMeta(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <label htmlFor="enable-meta-toggle-mgr" className="text-[10px] font-black text-slate-700 uppercase tracking-wider cursor-pointer select-none">
+                                    Habilitar Cronograma de Visitas
+                                </label>
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Antecedência de Alerta (Meses)</label>
-                                <input type="number" min="0" max="12" value={metaLead} onChange={(e) => setMetaLead(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
-                            </div>
+
+                            {hasMeta && (
+                                <div className="space-y-4 border-l-4 border-indigo-500 pl-3 py-1 animate-in slide-in-from-top-3 duration-200">
+                                    {/* Frequência */}
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Frequência Limite</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                value={metaFreqVal} 
+                                                onChange={(e) => setMetaFreqVal(e.target.value)} 
+                                                className="col-span-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                                                required={hasMeta}
+                                            />
+                                            <select
+                                                value={metaFreqUnit}
+                                                onChange={(e) => setMetaFreqUnit(e.target.value)}
+                                                className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                            >
+                                                <option value="DIAS">Dias</option>
+                                                <option value="MESES">Meses</option>
+                                                <option value="ANOS">Anos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Aviso Prévio */}
+                                    <div className="space-y-1.5">
+                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Antecedência de Alerta</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <input 
+                                                type="number" 
+                                                min="0" 
+                                                value={metaLeadVal} 
+                                                onChange={(e) => setMetaLeadVal(e.target.value)} 
+                                                className="col-span-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                                                required={hasMeta}
+                                            />
+                                            <select
+                                                value={metaLeadUnit}
+                                                onChange={(e) => setMetaLeadUnit(e.target.value)}
+                                                className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                            >
+                                                <option value="DIAS">Dias</option>
+                                                <option value="MESES">Meses</option>
+                                                <option value="ANOS">Anos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex gap-2.5 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setMetaEditingClient(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
                                 <button 
@@ -382,11 +465,37 @@ const ClientManager = ({ isOpen, onClose, currentUser, initialData, notifySucces
                                     onClick={async () => {
                                         setLoading(true);
                                         try {
+                                            const freqVal = hasMeta ? (parseInt(metaFreqVal) || 6) : null;
+                                            const freqUnit = hasMeta ? metaFreqUnit : null;
+                                            const leadVal = hasMeta ? (parseInt(metaLeadVal) || 2) : null;
+                                            const leadUnit = hasMeta ? metaLeadUnit : null;
+
+                                            // Legacy backward-compatibility conversion to months (rough approximation)
+                                            let freqMonths = freqVal;
+                                            if (hasMeta) {
+                                                if (freqUnit === 'DIAS') freqMonths = Math.max(1, Math.round(freqVal / 30));
+                                                if (freqUnit === 'ANOS') freqMonths = freqVal * 12;
+                                            } else {
+                                                freqMonths = null;
+                                            }
+
+                                            let leadMonths = leadVal;
+                                            if (hasMeta) {
+                                                if (leadUnit === 'DIAS') leadMonths = Math.round(leadVal / 30);
+                                                if (leadUnit === 'ANOS') leadMonths = leadVal * 12;
+                                            } else {
+                                                leadMonths = null;
+                                            }
+
                                             const { error } = await supabase
                                                 .from('clients')
                                                 .update({
-                                                    visit_frequency_months: parseInt(metaFreq) || 6,
-                                                    visit_lead_time_months: parseInt(metaLead) || 2
+                                                    visit_frequency_value: freqVal,
+                                                    visit_frequency_unit: freqUnit,
+                                                    visit_lead_time_value: leadVal,
+                                                    visit_lead_time_unit: leadUnit,
+                                                    visit_frequency_months: freqMonths,
+                                                    visit_lead_time_months: leadMonths
                                                 })
                                                 .eq('id', metaEditingClient.id);
                                             if (error) throw error;

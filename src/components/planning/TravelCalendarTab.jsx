@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, 
-    AlertTriangle, CheckCircle2, Clock, Trash2, Tag, CalendarRange
+    AlertTriangle, CheckCircle2, Clock, Trash2, Tag, CalendarRange, Search, Users
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
@@ -10,6 +10,7 @@ const TravelCalendarTab = ({
     allClients = [],
     tasks = [],
     onNewTask,
+    onEditTask,
     notifySuccess,
     notifyError
 }) => {
@@ -21,6 +22,12 @@ const TravelCalendarTab = ({
     const [reserveState, setReserveState] = useState('');
     const [reserveNotes, setReserveNotes] = useState('');
     const [draggedClient, setDraggedClient] = useState(null);
+    const [plannedVisits, setPlannedVisits] = useState([]);
+    const [loadingPlanned, setLoadingPlanned] = useState(false);
+    const [draggedPlannedVisit, setDraggedPlannedVisit] = useState(null);
+    const [sidebarTab, setSidebarTab] = useState('PENDING'); // 'PENDING' | 'SEARCH'
+    const [clientSearch, setClientSearch] = useState('');
+    const searchRef = useRef(null);
 
     // List of Brazilian States for reservation selector
     const BRAZILIAN_STATES = [
@@ -97,8 +104,25 @@ const TravelCalendarTab = ({
         }
     };
 
+    // Fetch planned visits (drafts)
+    const fetchPlannedVisits = async () => {
+        setLoadingPlanned(true);
+        try {
+            const { data, error } = await supabase
+                .from('planned_visits')
+                .select('*');
+            if (error) throw error;
+            setPlannedVisits(data || []);
+        } catch (err) {
+            console.error('Error fetching planned visits:', err);
+        } finally {
+            setLoadingPlanned(false);
+        }
+    };
+
     useEffect(() => {
         fetchReservations();
+        fetchPlannedVisits();
     }, []);
 
     // Calculate clients health and check who needs visit (SLA Warning/Expired)
@@ -108,12 +132,13 @@ const TravelCalendarTab = ({
 
         allClients.forEach(client => {
             if (!client.name) return;
-            if (!client.visit_frequency_months) return; // Skip if no schedule is defined
+            
+            const hasNewFreq = client.visit_frequency_value !== undefined && client.visit_frequency_value !== null && client.visit_frequency_value > 0;
+            const hasLegacyFreq = client.visit_frequency_months !== undefined && client.visit_frequency_months !== null && client.visit_frequency_months > 0;
+            
+            if (!hasNewFreq && !hasLegacyFreq) return; // Skip if no schedule is defined
 
             const lastVisit = getLastVisit(client.name);
-            const freq = client.visit_frequency_months;
-            const lead = client.visit_lead_time_months || 2;
-
             let lastVisitDate = null;
             if (lastVisit && lastVisit.date) {
                 lastVisitDate = new Date(lastVisit.date);
@@ -124,10 +149,35 @@ const TravelCalendarTab = ({
 
             if (lastVisitDate) {
                 dueDate = new Date(lastVisitDate);
-                dueDate.setMonth(dueDate.getMonth() + freq);
+                if (hasNewFreq) {
+                    const freqVal = client.visit_frequency_value;
+                    const freqUnit = client.visit_frequency_unit || 'MESES';
+                    if (freqUnit === 'DIAS') {
+                        dueDate.setDate(dueDate.getDate() + freqVal);
+                    } else if (freqUnit === 'ANOS') {
+                        dueDate.setFullYear(dueDate.getFullYear() + freqVal);
+                    } else {
+                        dueDate.setMonth(dueDate.getMonth() + freqVal);
+                    }
+                } else {
+                    dueDate.setMonth(dueDate.getMonth() + client.visit_frequency_months);
+                }
 
                 warningDate = new Date(dueDate);
-                warningDate.setMonth(warningDate.getMonth() - lead);
+                if (hasNewFreq) {
+                    const leadVal = client.visit_lead_time_value !== undefined && client.visit_lead_time_value !== null ? client.visit_lead_time_value : 2;
+                    const leadUnit = client.visit_lead_time_unit || 'MESES';
+                    if (leadUnit === 'DIAS') {
+                        warningDate.setDate(warningDate.getDate() - leadVal);
+                    } else if (leadUnit === 'ANOS') {
+                        warningDate.setFullYear(warningDate.getFullYear() - leadVal);
+                    } else {
+                        warningDate.setMonth(warningDate.getMonth() - leadVal);
+                    }
+                } else {
+                    const leadMonths = client.visit_lead_time_months !== undefined && client.visit_lead_time_months !== null ? client.visit_lead_time_months : 2;
+                    warningDate.setMonth(warningDate.getMonth() - leadMonths);
+                }
             } else {
                 // If never visited, it is always pending/urgent
                 dueDate = new Date(today);
@@ -143,7 +193,8 @@ const TravelCalendarTab = ({
             const hasFutureVisit = tasks.some(t => {
                 const isMatch = t.client && t.client.trim().toLowerCase() === client.name.trim().toLowerCase();
                 const isUpcoming = t.due_date && new Date(t.due_date) >= today;
-                return isMatch && isUpcoming && t.status !== 'DONE' && t.status !== 'CANCELED';
+                const isTravelTask = (t.travels && t.travels.length > 0) || t.visitation?.required;
+                return isMatch && isUpcoming && isTravelTask && t.status !== 'DONE' && t.status !== 'CANCELED';
             });
 
             if ((isWarning || isOverdue) && !hasFutureVisit) {
@@ -167,6 +218,40 @@ const TravelCalendarTab = ({
             return a.diffDays - b.diffDays;
         });
     }, [allClients, tasks]);
+
+    // Memoized travels mapping from all tasks
+    // ONLY includes tasks that have real travel entries in task.travels array.
+    // Tasks with visitation?.required but no travels are NOT shown here — they are
+    // operational tasks (Entrega, Faturamento, etc.) that must not appear in this calendar.
+    const mappedTravels = useMemo(() => {
+        const list = [];
+        tasks.forEach(task => {
+            if (task.status === 'CANCELED') return;
+            const travels = task.travels || [];
+            // Strict filter: only tasks with at least one travel leg in the travels array
+            if (travels.length === 0) return;
+            travels.forEach((tr, index) => {
+                const trDate = tr.date ? tr.date.split('T')[0] : '';
+                let displayDate = trDate;
+                if (!displayDate || tr.isDateDefined === false) {
+                    displayDate = task.due_date ? task.due_date.split('T')[0] : '';
+                }
+                if (displayDate) {
+                    list.push({
+                        id: tr.id || `${task.id}_travel_${index}`,
+                        taskId: task.id,
+                        clientName: task.client || task.title || '',
+                        date: displayDate,
+                        status: tr.status || 'PROGRAMADA',
+                        team: tr.team || [''],
+                        driver: tr.vehicle || '',
+                        taskObj: task
+                    });
+                }
+            });
+        });
+        return list;
+    }, [tasks]);
 
     // Calendar Calculations
     const year = currentDate.getFullYear();
@@ -305,93 +390,216 @@ const TravelCalendarTab = ({
         e.dataTransfer.setData('text/plain', client.name);
     };
 
-    const handleDrop = (e, dayDate) => {
-        e.preventDefault();
-        if (!draggedClient) return;
+    const handleDragStartPlanned = (e, pv) => {
+        setDraggedPlannedVisit(pv);
+        e.dataTransfer.setData('text/plain', pv.client_name);
+    };
 
+    const handleDragEnd = () => {
+        setDraggedClient(null);
+        setDraggedPlannedVisit(null);
+    };
+
+    const handleDrop = async (e, dayDate) => {
+        e.preventDefault();
         const formattedDateStr = dayDate.toISOString().split('T')[0];
         
-        // Trigger create task with pre-filled client and date
-        if (onNewTask) {
-            onNewTask(draggedClient.name, {
-                due_date: formattedDateStr,
-                client: draggedClient.name,
-                location: draggedClient.address || '',
-                description: `VISITA AGENDADA VIA CRONOGRAMA DE VIAGENS.`
-            });
+        if (draggedClient) {
+            try {
+                const { error } = await supabase
+                    .from('planned_visits')
+                    .insert([{
+                        client_id: draggedClient.id,
+                        client_name: draggedClient.name,
+                        visit_date: formattedDateStr,
+                        user_id: currentUser?.id
+                    }]);
+                if (error) throw error;
+                notifySuccess('Rascunho de viagem planejado com sucesso!');
+                fetchPlannedVisits();
+            } catch (err) {
+                notifyError('Erro', err.message);
+            }
+            setDraggedClient(null);
+        } else if (draggedPlannedVisit) {
+            try {
+                const { error } = await supabase
+                    .from('planned_visits')
+                    .update({
+                        visit_date: formattedDateStr
+                    })
+                    .eq('id', draggedPlannedVisit.id);
+                if (error) throw error;
+                notifySuccess('Data do rascunho de viagem atualizada!');
+                fetchPlannedVisits();
+            } catch (err) {
+                notifyError('Erro ao mover rascunho', err.message);
+            }
+            setDraggedPlannedVisit(null);
         }
-
-        setDraggedClient(null);
     };
 
     const handleDragOver = (e) => {
         e.preventDefault();
     };
 
+    // Search filtered clients
+    const searchedClients = useMemo(() => {
+        if (!clientSearch.trim()) return [];
+        const q = clientSearch.trim().toLowerCase();
+        return allClients
+            .filter(c => c.name && c.name.toLowerCase().includes(q))
+            .slice(0, 20);
+    }, [clientSearch, allClients]);
+
     return (
         <div className="flex-grow flex flex-col lg:flex-row min-h-0 bg-slate-50/50 p-4 gap-4 overflow-hidden">
-            {/* Sidebar: Pending Visits */}
+            {/* Sidebar: Pending Visits + Client Search */}
             <div className="w-full lg:w-80 shrink-0 bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-slate-200 bg-indigo-50/20">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                        <Clock className="text-indigo-600" size={16} />
-                        Banco de Visitas
-                    </h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-                        Clientes aguardando agendamento
-                    </p>
-                </div>
-                <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-3">
-                    {pendingClients.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
-                            <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
-                            <h4 className="text-xs font-bold text-slate-600">Tudo em dia!</h4>
-                            <p className="text-[10px] max-w-[180px] mt-1">Nenhum cliente precisa de agendamento no momento.</p>
+                {/* Tab Header */}
+                <div className="p-3 border-b border-slate-200 bg-slate-50/50 space-y-2">
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                        <button
+                            onClick={() => setSidebarTab('PENDING')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                sidebarTab === 'PENDING'
+                                    ? 'bg-indigo-600 text-white shadow'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white/60'
+                            }`}
+                        >
+                            <Clock size={11} />
+                            Em Atraso
+                        </button>
+                        <button
+                            onClick={() => { setSidebarTab('SEARCH'); setTimeout(() => searchRef.current?.focus(), 50); }}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                sidebarTab === 'SEARCH'
+                                    ? 'bg-indigo-600 text-white shadow'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-white/60'
+                            }`}
+                        >
+                            <Search size={11} />
+                            Buscar Cliente
+                        </button>
+                    </div>
+                    {sidebarTab === 'SEARCH' && (
+                        <div className="relative">
+                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                ref={searchRef}
+                                type="text"
+                                value={clientSearch}
+                                onChange={e => setClientSearch(e.target.value)}
+                                placeholder="Digite o nome do cliente..."
+                                className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-all"
+                            />
                         </div>
-                    ) : (
-                        pendingClients.map(({ client, isOverdue, diffDays, lastVisit, state }) => (
-                            <div 
-                                key={client.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, client)}
-                                className={`p-3.5 rounded-xl border-2 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden ${
-                                    isOverdue 
-                                        ? 'border-rose-100 hover:border-rose-300' 
-                                        : 'border-amber-100 hover:border-amber-300'
-                                }`}
-                            >
-                                <div className="flex items-start justify-between gap-2 mb-2">
-                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                        isOverdue 
-                                            ? 'bg-rose-50 text-rose-600 border border-rose-100' 
-                                            : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                    }`}>
-                                        {isOverdue ? 'Atrasado' : 'Alerta'}
-                                    </span>
-                                    <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200">
-                                        {state}
-                                    </span>
-                                </div>
-                                <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-tight line-clamp-2 mb-2">
-                                    {client.name}
-                                </h4>
-                                <div className="text-[10px] text-slate-500 font-medium space-y-1">
-                                    <p className="flex items-center gap-1">
-                                        <CalendarIcon size={11} className="text-slate-400" />
-                                        Última: {lastVisit ? formatDate(lastVisit.date) : 'Nenhuma'}
-                                    </p>
-                                    <p className={`font-bold flex items-center gap-1 ${isOverdue ? 'text-rose-600' : 'text-amber-600'}`}>
-                                        <AlertTriangle size={11} />
-                                        {isOverdue 
-                                            ? `Venceu há ${Math.abs(diffDays)} dias` 
-                                            : `Vence daqui a ${diffDays} dias`}
-                                    </p>
-                                </div>
-                                <div className="absolute right-2 bottom-2 bg-slate-50 p-1 rounded border opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="text-[8px] font-black text-slate-400 uppercase">Arraste para Agendar</span>
-                                </div>
+                    )}
+                    {sidebarTab === 'PENDING' && (
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
+                            Clientes aguardando agendamento
+                        </p>
+                    )}
+                </div>
+
+                <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-3">
+                    {/* --- PENDING TAB --- */}
+                    {sidebarTab === 'PENDING' && (
+                        pendingClients.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
+                                <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
+                                <h4 className="text-xs font-bold text-slate-600">Tudo em dia!</h4>
+                                <p className="text-[10px] max-w-[180px] mt-1">Nenhum cliente precisa de agendamento no momento.</p>
                             </div>
-                        ))
+                        ) : (
+                            pendingClients.map(({ client, isOverdue, diffDays, lastVisit, state }) => (
+                                <div
+                                    key={client.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, client)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`p-3.5 rounded-xl border-2 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden ${
+                                        isOverdue
+                                            ? 'border-rose-100 hover:border-rose-300'
+                                            : 'border-amber-100 hover:border-amber-300'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                            isOverdue
+                                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                                : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                        }`}>
+                                            {isOverdue ? 'Atrasado' : 'Alerta'}
+                                        </span>
+                                        <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200">
+                                            {state}
+                                        </span>
+                                    </div>
+                                    <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-tight line-clamp-2 mb-2">
+                                        {client.name}
+                                    </h4>
+                                    <div className="text-[10px] text-slate-500 font-medium space-y-1">
+                                        <p className="flex items-center gap-1">
+                                            <CalendarIcon size={11} className="text-slate-400" />
+                                            Última: {lastVisit ? formatDate(lastVisit.date) : 'Nenhuma'}
+                                        </p>
+                                        <p className={`font-bold flex items-center gap-1 ${isOverdue ? 'text-rose-600' : 'text-amber-600'}`}>
+                                            <AlertTriangle size={11} />
+                                            {isOverdue
+                                                ? `Venceu há ${Math.abs(diffDays)} dias`
+                                                : `Vence daqui a ${diffDays} dias`}
+                                        </p>
+                                    </div>
+                                    <div className="absolute right-2 bottom-2 bg-slate-50 p-1 rounded border opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase">Arraste para Agendar</span>
+                                    </div>
+                                </div>
+                            ))
+                        )
+                    )}
+
+                    {/* --- SEARCH TAB --- */}
+                    {sidebarTab === 'SEARCH' && (
+                        clientSearch.trim() === '' ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
+                                <Search size={28} className="text-indigo-300 mb-3" />
+                                <h4 className="text-xs font-bold text-slate-500">Busque um cliente</h4>
+                                <p className="text-[10px] max-w-[180px] mt-1">Digite o nome para encontrar e arrastar ao calendário.</p>
+                            </div>
+                        ) : searchedClients.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
+                                <Users size={28} className="text-slate-300 mb-3" />
+                                <p className="text-[10px]">Nenhum cliente encontrado.</p>
+                            </div>
+                        ) : (
+                            searchedClients.map(client => (
+                                <div
+                                    key={client.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, client)}
+                                    onDragEnd={handleDragEnd}
+                                    className="p-3 rounded-xl border-2 border-indigo-100 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-300 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden"
+                                >
+                                    <div className="flex items-start justify-between gap-2 mb-1">
+                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                            Cliente
+                                        </span>
+                                        {client.state && (
+                                            <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200">
+                                                {client.state}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-tight line-clamp-2">
+                                        {client.name}
+                                    </h4>
+                                    <div className="absolute right-2 bottom-2 bg-slate-50 p-1 rounded border opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase">Arraste para Agendar</span>
+                                    </div>
+                                </div>
+                            ))
+                        )
                     )}
                 </div>
             </div>
@@ -436,15 +644,17 @@ const TravelCalendarTab = ({
                         const dayStr = item.date.toISOString().split('T')[0];
                         const weekStartStr = getWeekStartDateStr(item.date);
                         const isToday = new Date().toDateString() === item.date.toDateString();
-
                         // Find week reservation
                         const weekReservation = reservations.find(r => r.week_start === weekStartStr);
 
-                        // Find scheduled visits/tasks for this day
-                        const dayTasks = tasks.filter(t => {
-                            if (!t.due_date) return false;
-                            const tDate = t.due_date.split('T')[0];
-                            return tDate === dayStr && t.status !== 'DONE' && t.status !== 'CANCELED';
+                        // Find scheduled travels mapped from tasks for this day
+                        const dayTravels = mappedTravels.filter(tr => tr.date === dayStr);
+
+                        // Find planned visits (drafts) for this day
+                        const dayPlanned = plannedVisits.filter(pv => {
+                            if (!pv.visit_date) return false;
+                            const pvDate = pv.visit_date.split('T')[0];
+                            return pvDate === dayStr;
                         });
 
                         // Only render the reservation highlight on Monday (Seg) cell of each row to avoid visual spam, or across all
@@ -492,15 +702,91 @@ const TravelCalendarTab = ({
 
                                 {/* Scheduled Tasks/Visits List */}
                                 <div className="flex-grow overflow-y-auto scrollbar-hide space-y-1 mt-1 pr-0.5">
-                                    {dayTasks.map(task => (
+                                    {/* Drafts / Planned Visits */}
+                                    {dayPlanned.map(pv => (
                                         <div 
-                                            key={task.id}
-                                            className="px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-[9px] font-bold text-slate-700 truncate hover:border-slate-300 transition-colors uppercase"
-                                            title={task.title || task.client}
+                                            key={pv.id}
+                                            draggable
+                                            onDragStart={(e) => handleDragStartPlanned(e, pv)}
+                                            onDragEnd={handleDragEnd}
+                                            className="px-1.5 py-1 bg-indigo-50/50 border border-dashed border-indigo-300 rounded-md text-[9px] font-bold text-indigo-750 hover:border-indigo-400 hover:bg-indigo-50/80 transition-all flex items-center justify-between group/pv cursor-grab active:cursor-grabbing uppercase"
+                                            title={`${pv.client_name} (Rascunho de Viagem)`}
                                         >
-                                            📌 {task.client || task.title}
+                                            <span className="truncate">✈️ {pv.client_name}</span>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover/pv:opacity-100 transition-opacity ml-1 shrink-0">
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        try {
+                                                            const { error } = await supabase
+                                                                .from('planned_visits')
+                                                                .delete()
+                                                                .eq('id', pv.id);
+                                                            if (error) throw error;
+                                                            
+                                                            const clientObj = allClients.find(c => c.id === pv.client_id) || { name: pv.client_name };
+                                                            
+                                                            if (onNewTask) {
+                                                                onNewTask(pv.client_name, {
+                                                                    due_date: pv.visit_date,
+                                                                    client: pv.client_name,
+                                                                    location: clientObj.address || '',
+                                                                    description: `VISITA CONFIRMADA VIA CRONOGRAMA DE VIAGENS.`
+                                                                });
+                                                            }
+                                                            fetchPlannedVisits();
+                                                        } catch (err) {
+                                                            notifyError('Erro ao confirmar viagem', err.message);
+                                                        }
+                                                    }}
+                                                    className="p-0.5 bg-emerald-500 text-white rounded hover:bg-emerald-600 transition-colors"
+                                                    title="Confirmar Viagem (Gerar Tarefa)"
+                                                >
+                                                    <CheckCircle2 size={9} />
+                                                </button>
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (!confirm('Excluir este rascunho de viagem?')) return;
+                                                        try {
+                                                            const { error } = await supabase
+                                                                .from('planned_visits')
+                                                                .delete()
+                                                                .eq('id', pv.id);
+                                                            if (error) throw error;
+                                                            notifySuccess('Rascunho removido.');
+                                                            fetchPlannedVisits();
+                                                        } catch (err) {
+                                                            notifyError('Erro ao excluir', err.message);
+                                                        }
+                                                    }}
+                                                    className="p-0.5 bg-rose-500 text-white rounded hover:bg-rose-600 transition-colors"
+                                                    title="Excluir Rascunho"
+                                                >
+                                                    <Trash2 size={9} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
+
+                                    {/* Confirmed Travels */}
+                                    {dayTravels.map(travel => {
+                                        const isFinalized = travel.status === 'FINALIZADA' || travel.status === 'CONCLUIDA';
+                                        return (
+                                            <div 
+                                                key={travel.id}
+                                                onClick={() => onEditTask && onEditTask(travel.taskObj)}
+                                                className={`px-1.5 py-0.5 border rounded-md text-[9px] font-bold truncate transition-colors uppercase cursor-pointer ${
+                                                    isFinalized 
+                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70' 
+                                                        : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100/70'
+                                                }`}
+                                                title={`${travel.clientName} [${travel.status}]`}
+                                            >
+                                                {isFinalized ? '✓' : '✈️'} {travel.clientName}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
