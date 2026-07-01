@@ -8,7 +8,10 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
     const [testFlows, setTestFlows] = useState([
         { label: 'CADASTRADO', color: '#94a3b8' },
         { label: 'EM PRODUÇÃO', color: '#3b82f6' },
-        { label: 'FATURADO', color: '#10b981' }
+        { label: 'FATURADO', color: '#10b981' },
+        { label: 'ENGENHARIA', color: '#8b5cf6' },
+        { label: 'EM ESTOQUE', color: '#f59e0b' },
+        { label: 'EM FILA DE PRODUÇÃO', color: '#06b6d4' }
     ]);
     const [testStatusPresets, setTestStatusPresets] = useState([
         { label: 'APROVADO', color: '#10b981' },
@@ -17,7 +20,9 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
         { label: 'EM DESENVOLVIMENTO', color: '#94a3b8' },
         { label: 'EM ANÁLISE', color: '#f97316' },
         { label: 'AGUARDANDO RETORNO DO CLIENTE', color: '#eab308' },
-        { label: 'DESCARTADO', color: '#f43f5e' }
+        { label: 'DESCARTADO', color: '#f43f5e' },
+        { label: 'PRODUÇÃO FINALIZADA', color: '#14b8a6' },
+        { label: 'EM PRODUÇÃO', color: '#3b82f6' }
     ]);
     const [inventoryReasons, setInventoryReasons] = useState([
         { label: 'DESCARTE' },
@@ -94,6 +99,16 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
                         let parsed = typeof loadedFlows === 'string' ? JSON.parse(loadedFlows) : loadedFlows;
                         if (Array.isArray(parsed)) {
                             const normalized = parsed.map(f => typeof f === 'string' ? { label: f, color: '#94a3b8' } : f);
+                            // Patch for new Flows
+                            if (!normalized.some(p => p.label === 'ENGENHARIA')) {
+                                normalized.push({ label: 'ENGENHARIA', color: '#8b5cf6' });
+                            }
+                            if (!normalized.some(p => p.label === 'EM ESTOQUE')) {
+                                normalized.push({ label: 'EM ESTOQUE', color: '#f59e0b' });
+                            }
+                            if (!normalized.some(p => p.label === 'EM FILA DE PRODUÇÃO')) {
+                                normalized.push({ label: 'EM FILA DE PRODUÇÃO', color: '#06b6d4' });
+                            }
                             setTestFlows(normalized);
                         }
                     } catch(e){}
@@ -106,6 +121,13 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
                             let normalized = parsed.map(p => typeof p === 'string' ? { label: p, color: '#94a3b8' } : p);
                             if (!normalized.some(p => p.label === 'DESCARTADO')) {
                                 normalized.push({ label: 'DESCARTADO', color: '#f43f5e' });
+                            }
+                            // Patch for new Statuses
+                            if (!normalized.some(p => p.label === 'PRODUÇÃO FINALIZADA')) {
+                                normalized.push({ label: 'PRODUÇÃO FINALIZADA', color: '#14b8a6' });
+                            }
+                            if (!normalized.some(p => p.label === 'EM PRODUÇÃO')) {
+                                normalized.push({ label: 'EM PRODUÇÃO', color: '#3b82f6' });
                             }
                             setTestStatusPresets(normalized);
                         }

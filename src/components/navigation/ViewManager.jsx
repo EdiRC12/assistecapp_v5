@@ -239,6 +239,7 @@ const ViewManager = ({
                         categories={customCategories}
                         onNewTask={(client, taskData) => { setIsModalOpen(true); setEditingTask({ client, ...taskData }); }}
                         onEditTask={async (t) => { setIsModalOpen(true); setEditingTask(t); await fetchTaskDetail(t.id); }}
+                        onTaskCreated={() => fetchTasks(true)}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                         theme={theme}

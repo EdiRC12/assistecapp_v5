@@ -141,6 +141,7 @@ const PlanningHub = ({
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                         onNewTask={onNewTask}
+                        onTaskCreated={onTaskCreated}
                         tasks={tasks}
                     />
                 ) : activeTab === 'CRONOGRAMA' ? (
@@ -150,6 +151,7 @@ const PlanningHub = ({
                         tasks={tasks}
                         onNewTask={onNewTask}
                         onEditTask={onEditTask}
+                        onTaskCreated={onTaskCreated}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                     />

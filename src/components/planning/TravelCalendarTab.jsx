@@ -11,6 +11,7 @@ const TravelCalendarTab = ({
     tasks = [],
     onNewTask,
     onEditTask,
+    onTaskCreated,
     notifySuccess,
     notifyError
 }) => {
@@ -23,10 +24,20 @@ const TravelCalendarTab = ({
     const [editingReservationId, setEditingReservationId] = useState(null);
     const [reserveState, setReserveState] = useState('');
     const [reserveNotes, setReserveNotes] = useState('');
+    const [selectedRouteTemplateId, setSelectedRouteTemplateId] = useState(''); // Para vincular rota
+    const [savedRoutes, setSavedRoutes] = useState([]); // Modelos de rota
     const [draggedClient, setDraggedClient] = useState(null);
     const [plannedVisits, setPlannedVisits] = useState([]);
     const [loadingPlanned, setLoadingPlanned] = useState(false);
     const [draggedPlannedVisit, setDraggedPlannedVisit] = useState(null);
+
+    const RESERVATION_COLORS = [
+        { bg: 'bg-indigo-50', border: 'border-indigo-200', hover: 'hover:bg-indigo-100', textMain: 'text-indigo-700', textSub: 'text-indigo-800', hoverText: 'hover:text-indigo-700' },
+        { bg: 'bg-amber-50', border: 'border-amber-200', hover: 'hover:bg-amber-100', textMain: 'text-amber-600', textSub: 'text-amber-800', hoverText: 'hover:text-amber-700' },
+        { bg: 'bg-sky-50', border: 'border-sky-200', hover: 'hover:bg-sky-100', textMain: 'text-sky-600', textSub: 'text-sky-800', hoverText: 'hover:text-sky-700' },
+        { bg: 'bg-emerald-50', border: 'border-emerald-200', hover: 'hover:bg-emerald-100', textMain: 'text-emerald-600', textSub: 'text-emerald-800', hoverText: 'hover:text-emerald-700' }
+    ];
+
     const [sidebarTab, setSidebarTab] = useState('PENDING'); // 'PENDING' | 'SEARCH'
     const [clientSearch, setClientSearch] = useState('');
     const searchRef = useRef(null);
@@ -96,7 +107,8 @@ const TravelCalendarTab = ({
         try {
             const { data, error } = await supabase
                 .from('travel_reservations')
-                .select('*');
+                .select('*')
+                .order('week_start', { ascending: true });
             if (error) throw error;
             setReservations(data || []);
         } catch (err) {
@@ -122,9 +134,26 @@ const TravelCalendarTab = ({
         }
     };
 
+    // Fetch saved routes templates
+    const fetchSavedRoutes = async () => {
+        if (!currentUser?.id) return;
+        try {
+            const { data, error } = await supabase
+                .from('support_routes')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('name', { ascending: true });
+            if (error) throw error;
+            setSavedRoutes(data || []);
+        } catch (err) {
+            console.error("Error fetching saved routes:", err);
+        }
+    };
+
     useEffect(() => {
         fetchReservations();
         fetchPlannedVisits();
+        fetchSavedRoutes();
     }, []);
 
     // Calculate clients health and check who needs visit (SLA Warning/Expired)
@@ -242,7 +271,7 @@ const TravelCalendarTab = ({
                     list.push({
                         id: tr.id || `${task.id}_travel_${index}`,
                         taskId: task.id,
-                        clientName: task.client || task.title || '',
+                        clientName: tr.name || tr.client || task.client || task.title || '',
                         date: displayDate,
                         status: tr.status || 'PROGRAMADA',
                         team: tr.team || [''],
@@ -323,6 +352,7 @@ const TravelCalendarTab = ({
             setReserveState(existingRes.state_code);
             setReserveNotes(existingRes.notes || '');
             setEditingReservationId(existingRes.id);
+            setSelectedRouteTemplateId('');
         } else {
             setSelectedWeekStart(startDateStr);
             // By default, suggest an end date up to Friday
@@ -336,6 +366,7 @@ const TravelCalendarTab = ({
             setReserveState('');
             setReserveNotes('');
             setEditingReservationId(null);
+            setSelectedRouteTemplateId('');
         }
         setShowReserveModal(true);
     };
@@ -372,6 +403,32 @@ const TravelCalendarTab = ({
                     .insert([payload]);
                 if (error) throw error;
                 notifySuccess('Sucesso', 'Reserva criada no calendário!');
+                
+                // If a route was selected, schedule the task for this route as well
+                if (selectedRouteTemplateId) {
+                    const selectedRoute = savedRoutes.find(r => r.id === selectedRouteTemplateId);
+                    if (selectedRoute) {
+                        const newTask = {
+                            title: `ROTEIRO: ${selectedRoute.name}`,
+                            description: selectedRoute.notes || 'Rota programada via Cronograma',
+                            category: 'ROTEIRO',
+                            priority: 'MEDIUM',
+                            status: 'NOT_STARTED',
+                            due_date: selectedWeekStart, // The task starts on the reservation's start date
+                            travels: selectedRoute.destinations,
+                            user_id: currentUser.id,
+                            route_template_id: selectedRoute.id
+                        };
+                        const { error: taskError } = await supabase.from('tasks').insert([newTask]);
+                        if (taskError) {
+                            console.error('Error scheduling route task:', taskError);
+                            notifyError('Aviso', 'A reserva foi criada, mas houve erro ao agendar a rota.');
+                        } else {
+                            notifySuccess('Rota agendada!', `A rota "${selectedRoute.name}" foi agendada.`);
+                            if (onTaskCreated) onTaskCreated();
+                        }
+                    }
+                }
             }
             setShowReserveModal(false);
             fetchReservations();
@@ -667,6 +724,9 @@ const TravelCalendarTab = ({
                         const isReservationStart = dayReservation && dayReservation.week_start === dayStr;
                         const isReservationEnd = dayReservation && (dayReservation.end_date || dayReservation.week_start) === dayStr;
 
+                        const rsvIndex = dayReservation ? reservations.indexOf(dayReservation) : 0;
+                        const colorTheme = RESERVATION_COLORS[rsvIndex % RESERVATION_COLORS.length] || RESERVATION_COLORS[0];
+
                         let isSegmentStart = false;
                         let segmentSpan = 1;
 
@@ -711,7 +771,7 @@ const TravelCalendarTab = ({
                                 {dayReservation && (
                                     <div 
                                         onClick={() => handleOpenReserve(dayStr, dayReservation)}
-                                        className={`absolute top-1 bottom-1 left-0 right-0 bg-indigo-50 border-y border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors ${
+                                        className={`absolute top-1 bottom-1 left-0 right-0 ${colorTheme.bg} border-y ${colorTheme.border} cursor-pointer ${colorTheme.hover} transition-colors ${
                                             isReservationStart ? 'rounded-l-xl border-l ml-1' : ''
                                         } ${
                                             isReservationEnd ? 'rounded-r-xl border-r mr-1' : ''
@@ -726,11 +786,11 @@ const TravelCalendarTab = ({
                                         style={{ width: `calc(${segmentSpan * 100}%)` }} 
                                         className="absolute top-1 bottom-1 left-0 flex flex-col items-center justify-center p-2 opacity-30 pointer-events-none overflow-visible z-[5]"
                                     >
-                                        <span className="text-3xl font-black text-indigo-700 uppercase tracking-widest leading-none drop-shadow-sm">
+                                        <span className={`text-3xl font-black ${colorTheme.textMain} uppercase tracking-widest leading-none drop-shadow-sm`}>
                                             {dayReservation.state_code}
                                         </span>
                                         {dayReservation.notes && (
-                                            <span className="text-[10px] font-bold text-indigo-800 uppercase text-center line-clamp-2 mt-1 leading-tight w-full px-4 drop-shadow-sm">
+                                            <span className={`text-[10px] font-bold ${colorTheme.textSub} uppercase text-center line-clamp-2 mt-1 leading-tight w-full px-4 drop-shadow-sm`}>
                                                 {dayReservation.notes}
                                             </span>
                                         )}
@@ -740,7 +800,7 @@ const TravelCalendarTab = ({
                                 {/* Day Number Header */}
                                 <div className="flex justify-between items-center mb-1 shrink-0 relative z-10">
                                     <span className={`text-[10px] font-black flex items-center justify-center w-5 h-5 rounded-full ${
-                                        isToday ? 'bg-indigo-600 text-white shadow-md' : (dayReservation ? 'bg-white shadow-sm text-indigo-700' : '')
+                                        isToday ? 'bg-indigo-600 text-white shadow-md' : (dayReservation ? `bg-white shadow-sm ${colorTheme.textMain}` : '')
                                     }`}>
                                         {item.day}
                                     </span>
@@ -748,7 +808,7 @@ const TravelCalendarTab = ({
                                     {/* Action button to reserve period (Visible on hover any day) */}
                                     <button 
                                         onClick={() => handleOpenReserve(dayStr, dayReservation)}
-                                        className="opacity-0 group-hover/day:opacity-100 p-1 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-all cursor-pointer bg-white/80"
+                                        className={`opacity-0 group-hover/day:opacity-100 p-1 text-slate-400 rounded-md transition-all cursor-pointer bg-white/80 ${dayReservation ? `${colorTheme.hover} ${colorTheme.hoverText}` : 'hover:bg-indigo-50 hover:text-indigo-600'}`}
                                         title={dayReservation ? "Editar Período" : "Bloquear/Reservar Período"}
                                     >
                                         {dayReservation ? <Edit2 size={10} /> : <Tag size={10} />}
@@ -889,6 +949,33 @@ const TravelCalendarTab = ({
                                     />
                                 </div>
                             </div>
+
+                            {!editingReservationId && (
+                                <div className="space-y-1.5">
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                        Vincular Rota Salva
+                                        <span className="text-indigo-500 font-bold normal-case text-[8px] px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100">(Opcional)</span>
+                                    </label>
+                                    <select 
+                                        value={selectedRouteTemplateId}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setSelectedRouteTemplateId(val);
+                                            if (val) {
+                                                const route = savedRoutes.find(r => r.id === val);
+                                                if (route) setReserveNotes(`ROTEIRO: ${route.name}`);
+                                            }
+                                        }}
+                                        className="w-full px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-black text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                                    >
+                                        <option value="">Nenhuma rota (Apenas bloquear dias)</option>
+                                        {savedRoutes.map(route => (
+                                            <option key={route.id} value={route.id}>🗺️ {route.name}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[8.5px] font-bold text-slate-400 leading-tight">Ao selecionar uma rota, o sistema bloqueará os dias E vai gerar as tarefas da viagem.</p>
+                                </div>
+                            )}
 
                             <div className="space-y-1.5">
                                 <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Estado (UF) Destino</label>

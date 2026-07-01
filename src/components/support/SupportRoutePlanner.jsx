@@ -158,6 +158,18 @@ const UpdateMapSize = ({ mobileTab }) => {
     return null;
 };
 
+// Component to track map zoom level
+const MapZoomListener = ({ onZoomChange }) => {
+    const map = useMap();
+    useEffect(() => {
+        onZoomChange(map.getZoom());
+        const handleZoom = () => onZoomChange(map.getZoom());
+        map.on('zoomend', handleZoom);
+        return () => map.off('zoomend', handleZoom);
+    }, [map, onZoomChange]);
+    return null;
+};
+
 // Helper: Haversine distance in km
 const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371; // Earth radius in km
@@ -178,10 +190,12 @@ const SupportRoutePlanner = ({
     notifySuccess,
     notifyError,
     onNewTask,
+    onTaskCreated,
     tasks = []
 }) => {
     const isMobile = useIsMobile();
     const [mobileTab, setMobileTab] = useState('ITINERARY'); // 'ITINERARY' or 'MAP'
+    const [currentZoom, setCurrentZoom] = useState(12);
 
     // Helper to format date in DD/MM/YYYY format
     const formatDate = (dateStr) => {
@@ -385,6 +399,7 @@ const SupportRoutePlanner = ({
     const [showTemplatesModal, setShowTemplatesModal] = useState(false);
     const [newRouteName, setNewRouteName] = useState('');
     const [newRouteNotes, setNewRouteNotes] = useState('');
+    const [newRouteRecurrence, setNewRouteRecurrence] = useState(0); // 0 = sem recorrência
     const [savingRoute, setSavingRoute] = useState(false);
 
     // Fetch saved routes templates
@@ -427,7 +442,8 @@ const SupportRoutePlanner = ({
                 destinations: activeStops,
                 notes: newRouteNotes.trim(),
                 distance_km: routeDistance || 0,
-                duration_min: routeDuration || 0
+                duration_min: routeDuration || 0,
+                recurrence_months: newRouteRecurrence
             };
 
             const { error } = await supabase
@@ -440,6 +456,7 @@ const SupportRoutePlanner = ({
             setShowSaveRouteModal(false);
             setNewRouteName('');
             setNewRouteNotes('');
+            setNewRouteRecurrence(0);
             fetchSavedRoutes();
         } catch (err) {
             console.error("Error saving route:", err);
@@ -482,6 +499,41 @@ const SupportRoutePlanner = ({
         setDestinations(loadedStops.length > 0 ? loadedStops : [null]);
         setSearchQueries(loadedStops.length > 0 ? loadedStops.map(s => s.name) : ['']);
         notifySuccess(`Rota "${route.name}" carregada!`);
+    };
+
+    // Schedule the full route into the calendar
+    const handleScheduleFullRoute = async (route) => {
+        if (!currentUser?.id) return;
+        
+        const confirmSchedule = confirm(`Deseja agendar a rota "${route.name}" para hoje?\nVocê poderá mover para outra data no calendário (Cronograma) depois.\n\n* Se esta rota tiver recorrência configurada, uma nova cópia será agendada automaticamente quando você concluir esta viagem.`);
+        if (!confirmSchedule) return;
+
+        try {
+            const newTask = {
+                title: `ROTEIRO: ${route.name}`,
+                description: route.notes || 'Rota programada via Planejador de Rotas',
+                category: 'ROTEIRO',
+                priority: 'MEDIUM',
+                status: 'NOT_STARTED',
+                due_date: new Date().toISOString(),
+                travels: route.destinations,
+                user_id: currentUser.id,
+                route_template_id: route.id
+            };
+
+            const { error: taskError } = await supabase.from('tasks').insert([newTask]);
+            if (taskError) {
+                console.error('Error scheduling route task:', taskError);
+                notifyError('Aviso', 'Erro ao agendar a rota.');
+            } else {
+                notifySuccess('Rota agendada!', `A rota "${route.name}" foi adicionada à agenda.`);
+                setShowTemplatesModal(false);
+                if (onTaskCreated) onTaskCreated();
+            }
+        } catch (err) {
+            console.error("Error scheduling route:", err);
+            notifyError('Erro ao agendar', err.message);
+        }
     };
 
     // Check if client has active task assigned to technician
@@ -1642,6 +1694,7 @@ const SupportRoutePlanner = ({
                     {/* Active bound recenter helper */}
                     <RecenterMap bounds={mapBounds} />
                     <UpdateMapSize mobileTab={mobileTab} />
+                    <MapZoomListener onZoomChange={setCurrentZoom} />
 
                     {/* Marker: Start Point */}
                     <Marker
@@ -1688,11 +1741,58 @@ const SupportRoutePlanner = ({
                         />
                     )}
                     {/* Markers: Reference Clients Pins */}
-                    {showAllClientsOnMap && allClients
-                        .filter(c => c.lat !== null && c.lng !== null)
-                        .filter(c => !selectedState || c.state?.trim().toUpperCase() === selectedState)
-                        .filter(c => !selectedCategory || c.classification === selectedCategory)
-                        .map((client) => {
+                    {(() => {
+                        if (!showAllClientsOnMap) return null;
+                        
+                        const filtered = allClients
+                            .filter(c => c.lat !== null && c.lng !== null)
+                            .filter(c => !selectedState || c.state?.trim().toUpperCase() === selectedState)
+                            .filter(c => !selectedCategory || c.classification === selectedCategory);
+                            
+                        const clusters = [];
+                        // Distância limite de colisão visual na tela (aprox 45 pixels independente do zoom)
+                        const threshold = 60 / Math.pow(2, currentZoom); 
+                        const offsetStep = threshold * 0.75; // Distância do raio de separação
+
+                        filtered.forEach(client => {
+                            let foundCluster = null;
+                            for (let i = 0; i < clusters.length; i++) {
+                                const dx = clusters[i].centerLat - client.lat;
+                                const dy = clusters[i].centerLng - client.lng;
+                                if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+                                    foundCluster = clusters[i];
+                                    break;
+                                }
+                            }
+                            if (foundCluster) {
+                                foundCluster.clients.push(client);
+                            } else {
+                                clusters.push({
+                                    centerLat: client.lat,
+                                    centerLng: client.lng,
+                                    clients: [client]
+                                });
+                            }
+                        });
+
+                        const renderedMarkers = [];
+                        clusters.forEach(cluster => {
+                            if (cluster.clients.length === 1) {
+                                const client = cluster.clients[0];
+                                renderedMarkers.push({...client, offsetLat: client.lat, offsetLng: client.lng});
+                            } else {
+                                cluster.clients.forEach((client, index) => {
+                                    // Distribui perfeitamente em círculo ao redor do centro do aglomerado
+                                    const angle = (index / cluster.clients.length) * Math.PI * 2;
+                                    const radius = offsetStep * Math.max(1, cluster.clients.length / 4);
+                                    const offsetLat = cluster.centerLat + Math.sin(angle) * radius;
+                                    const offsetLng = cluster.centerLng + Math.cos(angle) * radius;
+                                    renderedMarkers.push({...client, offsetLat, offsetLng});
+                                });
+                            }
+                        });
+
+                        return renderedMarkers.map((client) => {
                             const lastVisit = getLastVisit(client.name);
                             const hasNewFreq = client.visit_frequency_value !== undefined && client.visit_frequency_value !== null && client.visit_frequency_value > 0;
                             const hasLegacyFreq = client.visit_frequency_months !== undefined && client.visit_frequency_months !== null && client.visit_frequency_months > 0;
@@ -1768,7 +1868,7 @@ const SupportRoutePlanner = ({
                             return (
                                 <Marker
                                     key={`ref_client_${client.id}`}
-                                    position={[client.lat, client.lng]}
+                                    position={[client.offsetLat, client.offsetLng]}
                                     icon={iconToUse}
                                 >
                                     <Popup>
@@ -1843,7 +1943,8 @@ const SupportRoutePlanner = ({
                                     </Popup>
                                 </Marker>
                             );
-                        })}
+                        });
+                    })()}
 
                     {/* Markers: Intelligent Support Points (Filtered by Proximity Radius) */}
                     {filteredSupportPlaces.map((place) => (
@@ -2169,6 +2270,25 @@ const SupportRoutePlanner = ({
                                 />
                             </div>
 
+                            <div className="space-y-1">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                    Recorrência de Viagem
+                                </label>
+                                <select
+                                    value={newRouteRecurrence}
+                                    onChange={(e) => setNewRouteRecurrence(Number(e.target.value))}
+                                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-brand-500 font-bold bg-slate-50/50 text-slate-750"
+                                >
+                                    <option value={0}>Nenhuma (Viagem Única)</option>
+                                    <option value={1}>Mensal (1 mês)</option>
+                                    <option value={2}>Bimestral (2 meses)</option>
+                                    <option value={3}>Trimestral (3 meses)</option>
+                                    <option value={6}>Semestral (6 meses)</option>
+                                    <option value={12}>Anual (12 meses)</option>
+                                </select>
+                                <p className="text-[9px] text-slate-400 font-bold mt-1">Se definida, ao finalizar no cronograma o sistema recriará a viagem automaticamente.</p>
+                            </div>
+
                             {/* Summary Badge */}
                             <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] text-indigo-700 font-bold space-y-1">
                                 <div className="flex justify-between">
@@ -2284,7 +2404,7 @@ const SupportRoutePlanner = ({
                                             </div>
 
                                             {/* Actions */}
-                                            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 mt-4 shrink-0">
+                                            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 mt-4 shrink-0 flex-wrap">
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
@@ -2296,13 +2416,21 @@ const SupportRoutePlanner = ({
                                                 </button>
                                                 <button
                                                     type="button"
+                                                    onClick={() => handleScheduleFullRoute(route)}
+                                                    className="px-4 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 border border-brand-200 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95"
+                                                    title="Agendar esta rota inteira no calendário"
+                                                >
+                                                    Agendar Rota
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => {
                                                         handleLoadRoute(route);
                                                         setShowTemplatesModal(false);
                                                     }}
                                                     className="px-4 py-1.5 bg-slate-900 hover:bg-black text-white text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all shadow active:scale-95"
                                                 >
-                                                    Carregar Rota
+                                                    Carregar no Mapa
                                                 </button>
                                             </div>
                                         </div>
