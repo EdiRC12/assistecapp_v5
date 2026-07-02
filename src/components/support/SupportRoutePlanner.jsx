@@ -144,9 +144,10 @@ const RecenterMap = ({ bounds }) => {
     return null;
 };
 
-// Component to handle map size invalidation on mobile tab change
-const UpdateMapSize = ({ mobileTab }) => {
+// Component to handle map size invalidation on mobile tab change and desktop sidebar toggle
+const UpdateMapSize = ({ mobileTab, isSidebarCollapsed }) => {
     const map = useMap();
+    
     useEffect(() => {
         if (mobileTab === 'MAP') {
             const timer = setTimeout(() => {
@@ -155,6 +156,26 @@ const UpdateMapSize = ({ mobileTab }) => {
             return () => clearTimeout(timer);
         }
     }, [mobileTab, map]);
+
+    // Anima a invalidação do tamanho durante a transição CSS do painel
+    useEffect(() => {
+        if (isSidebarCollapsed !== undefined) {
+            let frame;
+            const startTime = Date.now();
+            const duration = 350; // 300ms (duração do CSS) + 50ms de margem
+            
+            const animate = () => {
+                map.invalidateSize();
+                if (Date.now() - startTime < duration) {
+                    frame = requestAnimationFrame(animate);
+                }
+            };
+            
+            frame = requestAnimationFrame(animate);
+            return () => cancelAnimationFrame(frame);
+        }
+    }, [isSidebarCollapsed, map]);
+
     return null;
 };
 
@@ -1693,7 +1714,7 @@ const SupportRoutePlanner = ({
 
                     {/* Active bound recenter helper */}
                     <RecenterMap bounds={mapBounds} />
-                    <UpdateMapSize mobileTab={mobileTab} />
+                    <UpdateMapSize mobileTab={mobileTab} isSidebarCollapsed={isSidebarCollapsed} />
                     <MapZoomListener onZoomChange={setCurrentZoom} />
 
                     {/* Marker: Start Point */}
@@ -1750,9 +1771,14 @@ const SupportRoutePlanner = ({
                             .filter(c => !selectedCategory || c.classification === selectedCategory);
                             
                         const clusters = [];
-                        // Distância limite de colisão visual na tela (aprox 45 pixels independente do zoom)
-                        const threshold = 60 / Math.pow(2, currentZoom); 
-                        const offsetStep = threshold * 0.75; // Distância do raio de separação
+                        // Limite de agrupamento: fixa em uma distância física pequena (~200 metros)
+                        // Isso evita agrupar cidades inteiras quando o mapa está fechado (zoom out), mantendo as posições originais
+                        const threshold = 0.002; 
+                        
+                        // O passo do espalhamento (raio de separação)
+                        // Cresce gradualmente com o zoom, mas limitamos a um máximo visual (aprox 45 pixels)
+                        const maxVisualOffset = 60 / Math.pow(2, currentZoom);
+                        const offsetStep = Math.min(0.002, maxVisualOffset);
 
                         filtered.forEach(client => {
                             let foundCluster = null;
