@@ -194,7 +194,16 @@ const TestsView = ({
                                     <div className="flex flex-col gap-1">
                                         <div className="flex justify-start gap-2 items-center bg-slate-200/50 px-1.5 py-0.5 rounded text-[10px] border border-slate-300/30">
                                             <span className="font-black text-slate-900 uppercase tracking-tighter">Unit:</span>
-                                            <span className="font-mono font-bold text-slate-900">R$ {parseFloat(t.unit_cost || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                                            <span className="font-mono font-bold text-slate-900">
+                                                R$ {
+                                                    (() => {
+                                                        const gross = parseFloat(t.gross_total_cost || t.op_cost || 0);
+                                                        const qty = parseFloat(t.produced_quantity || 0);
+                                                        const dynamicUnit = qty > 0 ? gross / qty : parseFloat(t.unit_cost || 0);
+                                                        return dynamicUnit.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                                                    })()
+                                                }
+                                            </span>
                                         </div>
                                         <div className="flex justify-start gap-1.5 items-center bg-emerald-100 border border-emerald-200 px-1.5 py-1 rounded shadow-sm text-[10px]">
                                             <span className="font-black text-emerald-900 uppercase tracking-tighter">BRUTO:</span>

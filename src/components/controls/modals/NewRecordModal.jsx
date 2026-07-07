@@ -338,7 +338,14 @@ const NewRecordModal = ({
                             <div className="space-y-1">
                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">Custo KG / Unit</label>
                                 <p className="text-xl text-slate-700 font-mono tracking-tighter">
-                                    R$ {parseFloat(newItem.unit_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    R$ {
+                                        (() => {
+                                            const gross = parseFloat(newItem.gross_total_cost || newItem.op_cost || 0);
+                                            const qty = parseFloat(newItem.produced_quantity || 0);
+                                            const dynamicUnit = qty > 0 ? gross / qty : parseFloat(newItem.unit_cost || 0);
+                                            return dynamicUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        })()
+                                    }
                                 </p>
                             </div>
                             <div className="space-y-1">

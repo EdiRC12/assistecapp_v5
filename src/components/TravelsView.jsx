@@ -235,6 +235,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             clientCount: new Set(filteredTrips.map(t => t.client)).size,
             byPerson: {},
             byVehicle: {},
+            byCategory: {},
             irregularityCount: 0,
             irregularityRanking: {} // { issue: { total: 0, vehicles: { vName: count } } }
         };
@@ -277,6 +278,13 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 stats.irregularityRanking[issue].vehicles[vName] = (stats.irregularityRanking[issue].vehicles[vName] || 0) + 1;
             }
 
+            // Agrupamento por Categoria (Tipo de Viagem)
+            const catKey = CategoryLabels[t.category] || (categories && categories.find(c => c.id === t.category || c.label === t.category)?.label) || t.category || 'Não Especificado';
+            if (!stats.byCategory[catKey]) {
+                stats.byCategory[catKey] = { trips: 0 };
+            }
+            stats.byCategory[catKey].trips += 1;
+
             // Agrupamento por Veículo
             const vehicleKey = t.vehicle_info || 'Não Identificado';
             if (!stats.byVehicle[vehicleKey]) {
@@ -294,7 +302,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             );
             stats.byVehicle[vehicleKey].incidentCost += (parseFloat(t.occurrence_cost) || 0) + (t.has_fine ? (parseFloat(t.fine_amount) || 0) : 0);
 
-            t.team.forEach(person => {
+            t.team.forEach(personRaw => {
+                if (!personRaw) return;
+                const person = personRaw.trim().toUpperCase();
                 if (!stats.byPerson[person]) {
                     stats.byPerson[person] = { 
                         km: 0, 
@@ -319,7 +329,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                 );
                 
                 // Custos de incidentes
-                if (t.has_fine && t.fine_driver === person) {
+                if (t.has_fine && t.fine_driver && t.fine_driver.trim().toUpperCase() === person) {
                     stats.byPerson[person].incidentCost += (parseFloat(t.fine_amount) || 0);
                 }
                 stats.byPerson[person].incidentCost += (parseFloat(t.occurrence_cost) || 0);
@@ -336,7 +346,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
         stats.totalConsolidated = stats.totalLogistics + stats.totalIncidents;
 
         return stats;
-    }, [filteredTrips]);
+    }, [filteredTrips, categories]);
 
     const groupColorMap = useMemo(() => {
         const map = {};
@@ -1789,6 +1799,46 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summaryData.totalIncidents)}
                                     </span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden mb-8">
+                            <div className="p-6 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
+                                <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                    <ListIcon size={18} className="text-indigo-500" /> Tipos de Viagens
+                                </h3>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Métricas de {Object.keys(summaryData.byCategory).length} tipos</div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tipo de Viagem</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Quantidade de Viagens</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {Object.entries(summaryData.byCategory).length === 0 ? (
+                                            <tr><td colSpan="2" className="p-12 text-center text-slate-400 italic font-medium">Nenhum dado para o filtro selecionado.</td></tr>
+                                        ) : (
+                                            Object.entries(summaryData.byCategory).sort((a, b) => b[1].trips - a[1].trips).map(([category, stats]) => (
+                                                <tr key={category} className="hover:bg-slate-50 transition-colors group">
+                                                    <td className="p-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                                <ListIcon size={14} />
+                                                            </div>
+                                                            <span className="text-xs font-black text-slate-700 uppercase tracking-tighter">{category}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-6 text-xs text-slate-600 text-center font-bold">
+                                                        <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-black">{stats.trips}</span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 

@@ -1115,7 +1115,16 @@ return (
                                     />
                                 )}
                                 {activeTopic === 'RELATORIOS' && <ClientReportsTab clientReports={clientReports} tasks={tasks} onViewTechnicalReport={onViewTechnicalReport} />}
-                                {activeTopic === 'VIAGENS' && <ClientTripsTab clientTrips={clientTrips} tasks={tasks} onEditTask={onEditTask} />}
+                                {activeTopic === 'VIAGENS' && (
+                                    <ClientTripsTab 
+                                        clientTrips={clientTrips} 
+                                        tasks={tasks} 
+                                        onEditTask={onEditTask} 
+                                        filterYear={filterYear}
+                                        setFilterYear={setFilterYear}
+                                        years={years}
+                                    />
+                                )}
                                 {activeTopic === 'ATIVIDADES' && (
                                     <ClientActivitiesTab
                                         clientTasks={clientTasks}
