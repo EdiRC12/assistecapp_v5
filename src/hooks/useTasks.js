@@ -50,8 +50,8 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
             const currentLimit = isLoadMore ? tasksLimit + 200 : 500;
             if (isLoadMore) setTasksLimit(currentLimit);
 
-            // SHALLOW FETCH - Adicionados 'stages', 'description' e 'meeting_action_id' para rastreabilidade
-            const shallowFields = 'id, title, client, status, due_date, priority, user_id, assigned_users, visibility, category, created_at, updated_at, last_modified_by, last_modified_at, visitation, travels, trip_km_end, vehicle_info, trip_cost, trip_cost_currency, parent_test_id, parent_test_number, parent_followup_id, production_cost, parent_sac_id, parent_rnc_id, geo, stages, description, meeting_action_id';
+            // SHALLOW FETCH - Adicionados 'stages', 'description', 'meeting_action_id' e 'location' para rastreabilidade
+            const shallowFields = 'id, title, client, status, due_date, priority, user_id, assigned_users, visibility, category, created_at, updated_at, last_modified_by, last_modified_at, visitation, travels, trip_km_end, vehicle_info, trip_cost, trip_cost_currency, parent_test_id, parent_test_number, parent_followup_id, production_cost, parent_sac_id, parent_rnc_id, geo, stages, description, meeting_action_id, location';
 
             const { data, error } = await supabase.from('tasks')
                 .select(shallowFields)

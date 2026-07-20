@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2, Unlink, Printer
+    Plane, DollarSign, Search, Users, Download, MapPin, Edit2, Save, X, ExternalLink, BarChart3, List as ListIcon, ChevronLeft, AlertTriangle, Info, Calendar, Car, CreditCard, User, ClipboardList, CheckCircle2, Unlink, Printer, AlertCircle
 } from 'lucide-react';
 import {
     TaskStatus, StatusLabels, CategoryLabels, StatusColors
@@ -8,16 +8,20 @@ import {
 import { supabase } from '../supabaseClient';
 
 import useIsMobile from '../hooks/useIsMobile';
+import RankingMap from './planning/RankingMap';
 
-const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView, fetchTasks, categories = [] }) => {
+const TravelsView = ({ tasks, allClients = [], onEditTask, onBack, vehicles = [], users = [], onUpdateTasks, onUpdateTests, initialClientFilter = '', notifySuccess, notifyError, hasMore, onLoadMore, isMeetingView, fetchTasks, categories = [] }) => {
     const isMobile = useIsMobile();
-    const [filters, setFilters] = useState({ client: initialClientFilter, status: '', team: '', date: '', dateMode: 'ALL', category: '', incident: '' });
+    const [filters, setFilters] = useState({ client: initialClientFilter, status: '', team: '', date: '', dateMode: 'ALL', category: '', incident: '', classification: '' });
 
     // Update filter if initialClientFilter changes (e.g. navigated from POLI again)
     React.useEffect(() => {
         setFilters(prev => ({ ...prev, client: initialClientFilter }));
     }, [initialClientFilter]);
-    const [viewTab, setViewTab] = useState('LISTA'); // 'LISTA' or 'RESUMO'
+    const [viewTab, setViewTab] = useState('LISTA'); // 'LISTA', 'RESUMO' or 'RANKING'
+    const [rankingYear, setRankingYear] = useState(new Date().getFullYear().toString());
+    const [rankingSubTab, setRankingSubTab] = useState('CLIENTES'); // 'CLIENTES', 'ESTADOS' or 'MAPA'
+    const [expandedRankingRow, setExpandedRankingRow] = useState(null);
     const [editingRow, setEditingRow] = useState(null); // idx of trip being edited
     const [editData, setEditData] = useState({}); // data being edited
     const [isSaving, setIsSaving] = useState(false);
@@ -73,6 +77,10 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
 
             // If has specific travels
             if (task.travels && task.travels.length > 0) {
+                const clientName = task.client || task.title;
+                const clientObj = allClients.find(c => c.name === clientName);
+                const classification = clientObj?.classification || 'BRONZE';
+
                 task.travels.forEach((t, travelIdx) => {
                     const techParticipants = t.tech_participants || [];
                     const techNames = techParticipants.map(uid => users.find(u => u.id === uid)?.username || users.find(u => u.id === uid)?.full_name).filter(Boolean);
@@ -127,10 +135,16 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         isSpecific: true,
                         tech_participants: t.tech_participants || [],
                         assigned_to: task.assigned_to,
-                        assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || ''
+                        assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || '',
+                        geo: task.geo || null,
+                        classification: classification
                     });
                 });
             } else {
+                const clientName = task.client || task.title;
+                const clientObj = allClients.find(c => c.name === clientName);
+                const classification = clientObj?.classification || 'BRONZE';
+
                 // Legacy or just marked as required but no trips added yet (shows as generic trip)
                 list.push({
                     id: task.id + '_main',
@@ -170,7 +184,8 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     isSpecific: false,
                     tech_participants: task.tech_participants || task.assigned_users || [],
                     assigned_to: task.assigned_to,
-                    assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || ''
+                    assigned_name: users.find(u => u.id === task.assigned_to)?.username || users.find(u => u.id === task.assigned_to)?.full_name || '',
+                    classification: classification
                 });
             }
         });
@@ -212,6 +227,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
             if (filters.incident) {
                 if (filters.incident === 'FINE' && !trip.has_fine) return false;
                 if (filters.incident === 'OCCURRENCE' && !trip.occurrence) return false;
+            }
+            if (filters.classification && trip.classification !== filters.classification) {
+                return false;
             }
             return true;
         });
@@ -347,6 +365,168 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
 
         return stats;
     }, [filteredTrips, categories]);
+
+    const rankingData = useMemo(() => {
+        const data = trips.filter(trip => {
+            if (rankingYear !== 'ALL') {
+                if (!trip.date || !trip.date.startsWith(rankingYear)) return false;
+            }
+            if (filters.status && trip.taskStatus !== filters.status) return false;
+            if (filters.category && trip.category !== filters.category) return false;
+            if (filters.team) {
+                const search = filters.team.toLowerCase();
+                if (!trip.team.some(m => m.toLowerCase().includes(search))) return false;
+            }
+            return true;
+        });
+
+        const clientMap = {};
+        data.forEach(trip => {
+            const client = trip.client || 'Sem Cliente';
+            if (!clientMap[client]) {
+                clientMap[client] = { 
+                    name: client, 
+                    count: 0, 
+                    cost: 0, 
+                    km: 0, 
+                    location: trip.location || 'Sem Região',
+                    geo: trip.geo || null,
+                    classification: trip.classification || 'BRONZE',
+                    visits: []
+                };
+            }
+            clientMap[client].count += 1;
+            clientMap[client].cost += (parseFloat(trip.trip_cost) || 0);
+            clientMap[client].km += (parseFloat(trip.trip_km_end) || 0);
+            clientMap[client].visits.push(trip);
+            
+            // Prefer the first valid geo coordinate we find
+            if (trip.geo && trip.geo.lat && !clientMap[client].geo) {
+                clientMap[client].geo = trip.geo;
+            }
+        });
+
+        return Object.values(clientMap).sort((a, b) => b.count - a.count);
+    }, [trips, rankingYear, filters]);
+
+    const rankingStateData = useMemo(() => {
+        const stateMap = {};
+        rankingData.forEach(client => {
+            let region = "Desconhecido";
+            if (client.location && client.location !== 'Sem Região') {
+                const parts = client.location.split('-');
+                if (parts.length > 1) {
+                    region = parts[parts.length - 1].trim().toUpperCase();
+                } else {
+                    const partsSlash = client.location.split('/');
+                    if (partsSlash.length > 1) {
+                        region = partsSlash[partsSlash.length - 1].trim().toUpperCase();
+                    } else {
+                        region = client.location.trim().toUpperCase();
+                    }
+                }
+            }
+
+            if (!stateMap[region]) {
+                stateMap[region] = { name: region, count: 0, cost: 0, km: 0, visits: [] };
+            }
+            stateMap[region].count += client.count;
+            stateMap[region].cost += client.cost;
+            stateMap[region].km += client.km;
+            if (client.visits) {
+                stateMap[region].visits.push(...client.visits);
+            }
+        });
+
+        return Object.values(stateMap).sort((a, b) => b.count - a.count);
+    }, [rankingData]);
+
+    const classificationStats = useMemo(() => {
+        const stats = {
+            'OURO': { clients: 0, visits: 0, total: 0, coverage: 0 },
+            'PRATA': { clients: 0, visits: 0, total: 0, coverage: 0 },
+            'BRONZE': { clients: 0, visits: 0, total: 0, coverage: 0 },
+        };
+        
+        // 1. Contabilizar total de clientes na base
+        allClients.forEach(c => {
+            const cls = c.classification || 'BRONZE';
+            if (stats[cls]) {
+                stats[cls].total += 1;
+            }
+        });
+
+        // 2. Contabilizar clientes visitados
+        rankingData.forEach(client => {
+            const cls = client.classification || 'BRONZE';
+            if (stats[cls]) {
+                stats[cls].clients += 1;
+                stats[cls].visits += client.count;
+            }
+        });
+
+        // 3. Calcular a cobertura (%)
+        Object.keys(stats).forEach(key => {
+            const tier = stats[key];
+            if (tier.total > 0) {
+                tier.coverage = Math.round((tier.clients / tier.total) * 100);
+            }
+        });
+
+        return stats;
+    }, [rankingData, allClients]);
+
+    const paretoInsight = useMemo(() => {
+        if (rankingData.length === 0) return null;
+        
+        const totalCost = rankingData.reduce((acc, curr) => acc + curr.cost, 0);
+        if (totalCost === 0) return null;
+
+        const sortedByCost = [...rankingData].sort((a, b) => b.cost - a.cost);
+        let accumulatedCost = 0;
+        let clientCount = 0;
+
+        for (let client of sortedByCost) {
+            accumulatedCost += client.cost;
+            clientCount++;
+            if (accumulatedCost >= totalCost * 0.8) {
+                break;
+            }
+        }
+
+        const percentageOfClients = Math.round((clientCount / rankingData.length) * 100);
+        
+        return {
+            clientCount,
+            percentageOfClients,
+            totalCost,
+            accumulatedCost
+        };
+    }, [rankingData]);
+
+    const seasonalityData = useMemo(() => {
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const data = months.map(m => ({ month: m, count: 0, cost: 0, km: 0 }));
+
+        filteredTrips.forEach(trip => {
+            if (trip.date) {
+                const dateObj = new Date(trip.date + 'T12:00:00');
+                const monthIdx = dateObj.getMonth();
+                if (monthIdx >= 0 && monthIdx < 12) {
+                    data[monthIdx].count += 1;
+                    data[monthIdx].cost += (parseFloat(trip.trip_cost) || 0);
+                    data[monthIdx].km += (parseFloat(trip.trip_km_end) || 0);
+                }
+            }
+        });
+
+        const maxCount = Math.max(...data.map(d => d.count), 1);
+        
+        return data.map(d => ({
+            ...d,
+            percentage: (d.count / maxCount) * 100
+        }));
+    }, [filteredTrips]);
 
     const groupColorMap = useMemo(() => {
         const map = {};
@@ -966,6 +1146,12 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             >
                                 <BarChart3 size={12} /> {isMobile ? 'RESUMO' : 'RESUMO MENSAL'}
                             </button>
+                            <button
+                                onClick={() => setViewTab('RANKING')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-1.5 rounded-lg text-[9px] md:text-xs font-black uppercase tracking-widest transition-all ${viewTab === 'RANKING' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                            >
+                                <Users size={12} /> {isMobile ? 'RANKING' : 'RANKING DE VISITAS'}
+                            </button>
                         </div>
                     </div>
                     <div className="flex items-center gap-1 md:gap-2">
@@ -1055,7 +1241,16 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                         </select>
                     </div>
 
-                    <div className="col-span-1 md:col-span-2">
+                    <div className="col-span-1 md:col-span-1">
+                        <select value={filters.classification} onChange={e => setFilters(p => ({ ...p, classification: e.target.value }))} className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] md:text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500 text-slate-600 appearance-none cursor-pointer transition-all">
+                            <option value="">Todas Categorias</option>
+                            <option value="OURO">⭐ Ouro</option>
+                            <option value="PRATA">🥈 Prata</option>
+                            <option value="BRONZE">🥉 Bronze</option>
+                        </select>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-1">
                         <select value={filters.incident} onChange={e => setFilters(p => ({ ...p, incident: e.target.value }))} className="w-full px-2 py-2 bg-white border border-slate-200 rounded-xl text-[10px] md:text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500 text-slate-600 appearance-none cursor-pointer overflow-hidden text-ellipsis transition-all">
                             <option value="">Alertas</option>
                             <option value="FINE">Apenas Multas ⚠️</option>
@@ -1100,7 +1295,7 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                     </div>
                 </div>
 
-                {viewTab === 'LISTA' ? (
+                {viewTab === 'LISTA' && (
                     <div className="min-w-full inline-block align-middle">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm print:shadow-none">
@@ -1656,7 +1851,9 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                             </div>
                         )}
                     </div>
-                ) : (
+                )}
+                
+                {viewTab === 'RESUMO' && (
                     <div className="p-6 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300 bg-slate-50/10">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4">
@@ -1996,6 +2193,321 @@ const TravelsView = ({ tasks, onEditTask, onBack, vehicles = [], users = [], onU
                                     Este painel consolida automaticamente todos os custos operacionais (Logística) e custos reativos (Não Conformidade). 
                                     Os valores apresentados refletem o impacto financeiro direto das viagens cadastradas, permitindo monitorar o cumprimento do orçamento e a recorrência de incidentes por colaborador.
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {viewTab === 'RANKING' && (
+                    <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 bg-slate-50/10">
+                        <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm overflow-hidden mb-8">
+                            <div className="p-6 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center flex-wrap gap-4">
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                        <Users size={20} className="text-brand-500" /> Ranking de Clientes por Volume de Visitas
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                                        Monitoramento de engajamento e esforço logístico por cliente
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200">
+                                        <button 
+                                            onClick={() => setRankingSubTab('CLIENTES')}
+                                            className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingSubTab === 'CLIENTES' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Clientes
+                                        </button>
+                                        <button 
+                                            onClick={() => setRankingSubTab('ESTADOS')}
+                                            className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingSubTab === 'ESTADOS' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Estados
+                                        </button>
+                                        <button 
+                                            onClick={() => setRankingSubTab('MAPA')}
+                                            className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingSubTab === 'MAPA' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Mapa
+                                        </button>
+                                        <button 
+                                            onClick={() => setRankingSubTab('SAZONALIDADE')}
+                                            className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${rankingSubTab === 'SAZONALIDADE' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Sazonalidade
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase px-2">Ano Ref:</span>
+                                        <select 
+                                            value={rankingYear}
+                                            onChange={e => setRankingYear(e.target.value)}
+                                            className="bg-white px-4 py-1.5 rounded-lg text-xs font-bold text-brand-600 outline-none cursor-pointer border border-slate-200 shadow-sm"
+                                        >
+                                            <option value="ALL">Todo o Período</option>
+                                            <option value="2023">2023</option>
+                                            <option value="2024">2024</option>
+                                            <option value="2025">2025</option>
+                                            <option value="2026">2026</option>
+                                            <option value="2027">2027</option>
+                                            <option value="2028">2028</option>
+                                            <option value="2029">2029</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-6">
+                                {paretoInsight && rankingSubTab !== 'MAPA' && (
+                                    <div className="mb-6 p-4 bg-brand-50 border border-brand-100 rounded-2xl flex items-start gap-4">
+                                        <div className="p-2 bg-brand-100 text-brand-600 rounded-xl shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-brand-800 uppercase tracking-wider mb-1">Insight Logístico de Custo</h4>
+                                            <p className="text-xs font-medium text-brand-700/80 leading-relaxed">
+                                                Atenção à concentração: <strong className="text-brand-700 font-black">{paretoInsight.percentageOfClients}% dos seus clientes</strong> ({paretoInsight.clientCount} clientes) 
+                                                são responsáveis por aproximadamente <strong className="text-brand-700 font-black">80% de todo o seu custo</strong> de deslocamento logístico 
+                                                ({new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(paretoInsight.accumulatedCost)}).
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {rankingSubTab !== 'MAPA' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        {/* Card OURO */}
+                                        <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 rounded-2xl border border-amber-200 shadow-sm flex flex-col justify-between">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 flex items-center gap-1"><span className="text-sm">⭐</span> Tier Ouro</div>
+                                                    <div className="text-2xl font-black text-amber-800 leading-none" title={`${classificationStats['OURO'].clients} clientes visitados de ${classificationStats['OURO'].total} totais`}>
+                                                        {classificationStats['OURO'].clients} <span className="text-[10px] font-bold text-amber-600/80 uppercase tracking-tighter">/ {classificationStats['OURO'].total} Clientes</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-xl font-black text-amber-700">{classificationStats['OURO'].visits}</div>
+                                                    <div className="text-[9px] font-bold text-amber-600 uppercase">Visitas</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 space-y-1">
+                                                <div className="flex justify-between items-center text-[9px] font-black text-amber-700/80 uppercase tracking-wider">
+                                                    <span>Cobertura da Carteira</span>
+                                                    <span>{classificationStats['OURO'].coverage}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-amber-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${classificationStats['OURO'].coverage}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Card PRATA */}
+                                        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><span className="text-sm">🥈</span> Tier Prata</div>
+                                                    <div className="text-2xl font-black text-slate-700 leading-none" title={`${classificationStats['PRATA'].clients} clientes visitados de ${classificationStats['PRATA'].total} totais`}>
+                                                        {classificationStats['PRATA'].clients} <span className="text-[10px] font-bold text-slate-500/80 uppercase tracking-tighter">/ {classificationStats['PRATA'].total} Clientes</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-xl font-black text-slate-600">{classificationStats['PRATA'].visits}</div>
+                                                    <div className="text-[9px] font-bold text-slate-500 uppercase">Visitas</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 space-y-1">
+                                                <div className="flex justify-between items-center text-[9px] font-black text-slate-500/80 uppercase tracking-wider">
+                                                    <span>Cobertura da Carteira</span>
+                                                    <span>{classificationStats['PRATA'].coverage}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-slate-200/50 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-slate-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${classificationStats['PRATA'].coverage}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Card BRONZE */}
+                                        <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 p-4 rounded-2xl border border-orange-200 shadow-sm flex flex-col justify-between">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1 flex items-center gap-1"><span className="text-sm">🥉</span> Tier Bronze</div>
+                                                    <div className="text-2xl font-black text-orange-800 leading-none" title={`${classificationStats['BRONZE'].clients} clientes visitados de ${classificationStats['BRONZE'].total} totais`}>
+                                                        {classificationStats['BRONZE'].clients} <span className="text-[10px] font-bold text-orange-600/80 uppercase tracking-tighter">/ {classificationStats['BRONZE'].total} Clientes</span>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-xl font-black text-orange-700">{classificationStats['BRONZE'].visits}</div>
+                                                    <div className="text-[9px] font-bold text-orange-600 uppercase">Visitas</div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 space-y-1">
+                                                <div className="flex justify-between items-center text-[9px] font-black text-orange-700/80 uppercase tracking-wider">
+                                                    <span>Cobertura da Carteira</span>
+                                                    <span>{classificationStats['BRONZE'].coverage}%</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-orange-200/50 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-orange-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${classificationStats['BRONZE'].coverage}%` }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {rankingSubTab === 'MAPA' ? (
+                                    <RankingMap rankingData={rankingData} />
+                                ) : rankingSubTab === 'SAZONALIDADE' ? (
+                                    <div className="space-y-4">
+                                        {seasonalityData.map((item, index) => {
+                                            let barColor = "bg-purple-400";
+                                            if (item.count === 0) barColor = "bg-slate-200";
+                                            return (
+                                                <div key={index} className="group flex items-center gap-4 p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                                                    <div className="w-12 h-10 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 shadow-sm bg-purple-50 text-purple-600 uppercase tracking-wider border border-purple-100">
+                                                        {item.month}
+                                                    </div>
+                                                    
+                                                    <div className="flex-1 min-w-0 space-y-2">
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="truncate pr-4">
+                                                                <div className="text-[10px] font-bold text-slate-500 uppercase flex gap-4">
+                                                                    <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.cost)}</span>
+                                                                    <span>Distância: {item.km.toLocaleString()} KM</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <span className="text-lg font-black text-slate-800 leading-none">{item.count}</span>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">Visitas</span>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                            <div 
+                                                                className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} 
+                                                                style={{ width: `${item.percentage}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : rankingData.length === 0 ? (
+                                    <div className="text-center p-12 text-slate-400 italic font-medium bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                        Nenhum dado encontrado para o filtro selecionado.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {(rankingSubTab === 'CLIENTES' ? rankingData : rankingStateData).map((item, index) => {
+                                            const sourceArray = rankingSubTab === 'CLIENTES' ? rankingData : rankingStateData;
+                                            const maxCount = Math.max(...sourceArray.map(c => c.count), 1);
+                                            const percentage = (item.count / maxCount) * 100;
+                                            
+                                            // As top 3 have special colors
+                                            let barColor = "bg-slate-400";
+                                            let bgIconColor = "bg-slate-100 text-slate-500";
+                                            if (index === 0) { barColor = "bg-brand-500"; bgIconColor = "bg-brand-100 text-brand-600"; }
+                                            else if (index === 1) { barColor = "bg-emerald-500"; bgIconColor = "bg-emerald-100 text-emerald-600"; }
+                                            else if (index === 2) { barColor = "bg-amber-500"; bgIconColor = "bg-amber-100 text-amber-600"; }
+                                            else if (index === 3) { barColor = "bg-blue-400"; bgIconColor = "bg-blue-50 text-blue-500"; }
+                                            else if (index === 4) { barColor = "bg-purple-400"; bgIconColor = "bg-purple-50 text-purple-500"; }
+
+                                            const isExpanded = expandedRankingRow === index;
+
+                                            return (
+                                                <div key={index} className={`group rounded-2xl transition-all border ${isExpanded ? 'bg-slate-50 border-slate-200' : 'border-transparent hover:border-slate-100 hover:bg-slate-50/50'}`}>
+                                                    <div 
+                                                        className="flex items-center gap-4 p-4 cursor-pointer"
+                                                        onClick={() => setExpandedRankingRow(isExpanded ? null : index)}
+                                                    >
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-sm ${bgIconColor} transition-transform ${isExpanded ? 'scale-110' : ''}`}>
+                                                            #{index + 1}
+                                                        </div>
+                                                        
+                                                        <div className="flex-1 min-w-0 space-y-2">
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="truncate pr-4 flex-1">
+                                                                    <h4 className="text-xs font-black text-slate-700 uppercase truncate">
+                                                                        {item.name}
+                                                                    </h4>
+                                                                    {rankingSubTab === 'CLIENTES' && (
+                                                                        <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                                                                            <MapPin size={10} className="text-brand-500 shrink-0" />
+                                                                            <span className="truncate">{item.location}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="text-[9px] font-bold text-slate-400 uppercase flex gap-3 mt-1.5">
+                                                                        <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.cost)}</span>
+                                                                        <span>Distância: {item.km.toLocaleString()} KM</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right shrink-0 mt-0.5 flex flex-col items-end">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xl font-black text-slate-800 leading-none">{item.count}</span>
+                                                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Visitas</span>
+                                                                    </div>
+                                                                    <div className="mt-2 text-slate-300">
+                                                                        {isExpanded ? (
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                                                                        ) : (
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`} 
+                                                                    style={{ width: `${percentage}%` }}
+                                                                ></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {isExpanded && item.visits && item.visits.length > 0 && (
+                                                        <div className="px-14 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
+                                                            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+                                                                <div className="overflow-x-auto">
+                                                                    <table className="w-full text-[10px] text-left">
+                                                                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
+                                                                            <tr>
+                                                                                <th className="px-4 py-2 w-1/4">Data</th>
+                                                                                <th className="px-4 py-2 w-3/4">Profissional(is)</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-slate-50">
+                                                                            {item.visits.sort((a, b) => new Date(b.date) - new Date(a.date)).map((v, i) => {
+                                                                                const profNames = v.team && v.team.length > 0 ? v.team.join(', ') : 'Não atribuído';
+                                                                                const initial = profNames !== 'Não atribuído' ? profNames.charAt(0).toUpperCase() : '?';
+                                                                                
+                                                                                return (
+                                                                                    <tr key={i} className="hover:bg-slate-50/50">
+                                                                                        <td className="px-4 py-2 font-medium text-slate-700 whitespace-nowrap">
+                                                                                            {v.date ? new Date(v.date + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
+                                                                                        </td>
+                                                                                        <td className="px-4 py-2 whitespace-nowrap">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold text-[9px]">
+                                                                                                    {initial}
+                                                                                                </div>
+                                                                                                <span className="truncate">{profNames}</span>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
