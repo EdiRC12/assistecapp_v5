@@ -217,9 +217,9 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
 
     const gridTemplate = useMemo(() => {
         const columns = [];
-        columns.push(getWeekendStatus.sun ? (isMobile ? '20px' : '1fr') : (isMobile ? '12px' : '50px')); // Dom resizes more aggressively on mobile
-        for (let i = 1; i <= 5; i++) columns.push('1fr');  // Seg-Sex
-        columns.push(getWeekendStatus.sat ? (isMobile ? '20px' : '1fr') : (isMobile ? '12px' : '50px')); // Sáb resizes more aggressively on mobile
+        columns.push(getWeekendStatus.sun ? (isMobile ? '20px' : 'minmax(0, 1fr)') : (isMobile ? '12px' : '50px')); // Dom resizes more aggressively on mobile
+        for (let i = 1; i <= 5; i++) columns.push('minmax(0, 1fr)');  // Seg-Sex
+        columns.push(getWeekendStatus.sat ? (isMobile ? '20px' : 'minmax(0, 1fr)') : (isMobile ? '12px' : '50px')); // Sáb resizes more aggressively on mobile
         return columns.join(' ');
     }, [getWeekendStatus, isMobile]);
 
@@ -696,7 +696,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                             );
                         })}
                     </div>
-                    <div className="flex-1 grid auto-rows-fr overflow-y-auto" style={{ gridTemplateColumns: gridTemplate }}>
+                    <div className="flex-1 grid auto-rows-fr overflow-y-auto overflow-x-hidden" style={{ gridTemplateColumns: gridTemplate }}>
                         {calendarDays.map((calDay, index) => {
                             if (calDay === null) return <div key={`empty-${index}`} className="bg-slate-50/20 border-b border-r border-slate-100 min-h-[100px] md:min-h-[120px]" />;
                             const cDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(calDay).padStart(2, '0')}`;
@@ -721,7 +721,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                             setViewMode('DAY');
                                         }
                                     }}
-                                    className={`border-b border-r border-slate-100 p-0.5 md:p-2 min-h-[65px] md:min-h-[120px] flex flex-col gap-0 md:gap-1 group transition-colors duration-200 ${isDrag ? 'bg-emerald-50 ring-2 ring-emerald-400 z-10' : isToday ? 'ring-inset ring-2 ring-brand-500/20 bg-brand-50/30' : 'hover:bg-blue-50/30 cursor-pointer md:cursor-default'}`}
+                                    className={`border-b border-r border-slate-100 p-0.5 md:p-2 min-h-[65px] md:min-h-[120px] flex flex-col gap-0 md:gap-1 group transition-colors duration-200 min-w-0 overflow-hidden ${isDrag ? 'bg-emerald-50 ring-2 ring-emerald-400 z-10' : isToday ? 'ring-inset ring-2 ring-brand-500/20 bg-brand-50/30' : 'hover:bg-blue-50/30 cursor-pointer md:cursor-default'}`}
                                     style={{
                                         backgroundColor: isWeekend ? '#f0f7ff' : (isCurrentMonth ? '#ffffff' : '#f8fafc'),
                                         opacity: !isCurrentMonth ? 0.4 : 1,
@@ -736,7 +736,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                             {calDay}
                                         </span>
                                     </div>
-                                    <div className="space-y-0.5 md:space-y-1 flex-1 relative overflow-y-auto custom-scrollbar pr-1">
+                                    <div className="space-y-0.5 md:space-y-1 flex-1 relative overflow-y-auto custom-scrollbar pr-1 min-w-0">
                                         {dEvents.map(ev => {
                                             const isSel = selectedEventId === ev.id;
                                             const isRelated = focusedTaskId && focusedTaskId === ev.taskId;
@@ -746,7 +746,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                             const priorityClass = PriorityColors[ev.priority] || PriorityColors[Priority.LOW];
 
                                             return (
-                                                <div key={ev.id} className="relative">
+                                                <div key={ev.id} className="relative min-w-0">
                                                     <div
                                                         draggable
                                                         onDragStart={(e) => handleDragStart(e, ev)}
@@ -758,7 +758,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                                             }
                                                         }}
                                                         onDoubleClick={(e) => { e.stopPropagation(); onEditTask(ev.originalTask); setSelectedEventId(null); }}
-                                                        className={`w-full px-0.5 py-0.5 md:px-2 md:py-1.5 rounded-sm md:rounded text-[7px] md:text-[10px] font-bold border shadow-sm cursor-grab flex items-center gap-0.5 md:gap-1 transition-all duration-300 leading-tight md:leading-normal
+                                                        className={`w-full px-0.5 py-0.5 md:px-2 md:py-1.5 rounded-sm md:rounded text-[7px] md:text-[10px] font-bold border shadow-sm cursor-grab flex items-center gap-0.5 md:gap-1 transition-all duration-300 leading-tight md:leading-normal min-w-0 overflow-hidden
                                                             ${ev.isOverdue ? 'bg-red-600 text-white border-red-700' :
                                                                 ev.isCompleted ? 'bg-emerald-600 text-white border-emerald-700' :
                                                                 ev.type === 'DEADLINE' || (ev.type === 'VISIT' && !ev.isCompleted) ? 'bg-blue-600 text-white border-blue-700' :
@@ -783,7 +783,7 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                                                         {ev.isCompleted && <Check size={10} className="shrink-0 text-slate-500" />}
 
                                                         {/* Texto Visível apenas Desktop ou Mobile adaptado */}
-                                                        <span className="truncate pointer-events-none hidden md:inline">{ev.fullTitle}</span>
+                                                        <span className="truncate pointer-events-none hidden md:inline flex-1 min-w-0" title={ev.fullTitle}>{ev.fullTitle}</span>
                                                         <span className="truncate pointer-events-none md:hidden flex-1 overflow-hidden" style={{ textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             <span className="opacity-80 font-normal mr-0.5">{ev.mobileCounterText}</span>
                                                             {ev.shortTitle.split(' ')[0]} {/* Apenas primeira palavra no mobile super espremido */}
