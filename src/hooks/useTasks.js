@@ -41,13 +41,9 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
 
         setLoading(true);
         try {
-            // Limite de 90 dias por padrão para economia de dados
-            const ninetyDaysAgo = new Date();
-            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-            const startDate = ninetyDaysAgo.toISOString();
-
-            // Elevamos o limite para garantir que tarefas ativas (atrasadas ou não) sejam carregadas
-            const currentLimit = isLoadMore ? tasksLimit + 200 : 500;
+            // Removemos o limite de 90 dias para garantir o histórico completo
+            // Elevamos o limite inicial para 5000 para cobrir o uso médio inteiro
+            const currentLimit = isLoadMore ? tasksLimit + 1000 : 5000;
             if (isLoadMore) setTasksLimit(currentLimit);
 
             // SHALLOW FETCH - Adicionados 'stages', 'description', 'meeting_action_id' e 'location' para rastreabilidade
@@ -56,11 +52,12 @@ export const useTasks = (supabase, currentUser, { notifySuccess, notifyError, no
             const { data, error } = await supabase.from('tasks')
                 .select(shallowFields)
                 .or(`visibility.eq.PUBLIC,user_id.eq.${currentUser.id},assigned_users.cs.{${currentUser.id}}`)
-                .or(`status.not.in.(DONE,CANCELED),created_at.gte.${startDate}`);
+                .order('created_at', { ascending: false })
+                .limit(currentLimit);
 
             if (error) throw error;
 
-            const sortedData = (data || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, currentLimit);
+            const sortedData = data || [];
 
             setHasMoreTasks(sortedData.length === currentLimit);
 

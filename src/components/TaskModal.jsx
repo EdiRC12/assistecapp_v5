@@ -311,7 +311,21 @@ const TaskModal = ({
                         setReportRequired(false);
                     }
                 };
-                if (initialData.id) fetchReports();
+
+                const loadDeepData = async () => {
+                    if (!initialData.id || initialData.id.toString().startsWith('test-')) return;
+                    const { data, error } = await supabase.from('tasks').select('comments, attachments, description').eq('id', initialData.id).single();
+                    if (data && !error) {
+                        setComments(data.comments || []);
+                        setAttachments(data.attachments || []);
+                        if (data.description) setDescription(data.description);
+                    }
+                };
+
+                if (initialData.id) {
+                    fetchReports();
+                    loadDeepData();
+                }
 
                 // Load extended data
                 setTravels(initialData.travels ? initialData.travels.map(t => ({ // Migration for old data
