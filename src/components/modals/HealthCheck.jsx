@@ -166,14 +166,28 @@ const HealthCheck = ({ isOpen, onClose, currentUser }) => {
                 if (tErr) throw tErr;
                 tempRecords.tests.push(test.id);
 
-                const { data: inv, error: iErr } = await supabase.from('ee_inventory').insert([{
-                    name: '[DIAGNOSTICO-TESTE] Item de Simulação',
-                    quantity: 10,
-                    test_id: test.id,
-                    user_id: testUserId,
-                    status: 'ACTIVE'
-                }]).select().single();
-                if (iErr) throw iErr;
+                let inv;
+                const { data: existingInv } = await supabase.from('ee_inventory').select().eq('test_id', test.id).maybeSingle();
+                
+                if (existingInv) {
+                    // Atualiza o auto-gerado para fins de teste
+                    const { data: updatedInv, error: uErr } = await supabase.from('ee_inventory').update({
+                        name: '[DIAGNOSTICO-TESTE] Item de Simulação',
+                        quantity: 10
+                    }).eq('id', existingInv.id).select().single();
+                    if (uErr) throw uErr;
+                    inv = updatedInv;
+                } else {
+                    const { data: newInv, error: iErr } = await supabase.from('ee_inventory').insert([{
+                        name: '[DIAGNOSTICO-TESTE] Item de Simulação',
+                        quantity: 10,
+                        test_id: test.id,
+                        user_id: testUserId,
+                        status: 'ACTIVE'
+                    }]).select().single();
+                    if (iErr) throw iErr;
+                    inv = newInv;
+                }
                 tempRecords.inventory.push(inv.id);
 
                 const { data: log, error: lErr } = await supabase.from('inventory_adjustments_log').insert([{
