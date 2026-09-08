@@ -357,9 +357,17 @@ const SupportRoutePlanner = ({
                         lng = Number(data[0].lon);
                     }
 
-                    if ((!lat || !lng) && client.city) {
+                    let fallbackCityStr = client.city ? `${client.city}, ${client.state || ''}` : null;
+                    if (!fallbackCityStr && client.address) {
+                        const match = client.address.match(/([A-Za-zÀ-ÖØ-öø-ÿ\s]+)[,\/\-]\s*([A-Z]{2})\b\s*$/i);
+                        if (match) {
+                            fallbackCityStr = `${match[1].trim().split(/[\-\,]/).pop().trim()}, ${match[2].trim().toUpperCase()}`;
+                        }
+                    }
+
+                    if ((!lat || !lng) && fallbackCityStr) {
                         const fallbackRes = await fetch(
-                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${client.city}, ${client.state || ''}`)}&limit=1&countrycodes=br`,
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackCityStr)}&limit=1&countrycodes=br`,
                             { headers: { 'User-Agent': 'AssistecApp/1.0' } }
                         );
                         const fallbackData = await fallbackRes.json();

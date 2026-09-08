@@ -1,13 +1,53 @@
-import React, { useMemo, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useMemo, useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Filter, Users, MapPin, Lock, Plus } from 'lucide-react';
+import { Filter, Users, MapPin, Lock, Plus, Map as MapIcon, Navigation, AlertTriangle, Calendar as CalendarIcon } from 'lucide-react';
 import { TaskStatus, StatusLabels } from '../constants/taskConstants';
 import useIsMobile from '../hooks/useIsMobile';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import { point } from '@turf/helpers';
+import { UI_TOKENS } from '../constants/themeConstants';
+import { calculateClientSLA } from '../utils/slaCalculator';
 
-const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [], onNewTask }) => {
+const FitBounds = ({ data }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (data) {
+            const layer = L.geoJSON(data);
+            map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+        }
+    }, [data, map]);
+    return null;
+};
+
+const ResizeHandler = () => {
+    const map = useMap();
+    useEffect(() => {
+        const observer = new ResizeObserver(() => {
+            map.invalidateSize();
+        });
+        const container = map.getContainer();
+        if (container) {
+            observer.observe(container);
+        }
+        return () => observer.disconnect();
+    }, [map]);
+    return null;
+};
+
+const MapView = ({ tasks, allClients = [], mapFilter, setMapFilter, users, highlightedClients = [], onNewTask }) => {
     const isMobile = useIsMobile();
+    // Move state declarations here to avoid ReferenceError in useMemo
+    const [viewMode, setViewMode] = useState('PINS'); // 'PINS' or 'COVERAGE'
+    const [selectedState, setSelectedState] = useState('ALL');
+    const [geoJsonData, setGeoJsonData] = useState(null);
+    const [mesoregionsMeta, setMesoregionsMeta] = useState({});
+    const [isLoadingGeo, setIsLoadingGeo] = useState(false);
+    const [coverageStats, setCoverageStats] = useState({});
+    const [statsVersion, setStatsVersion] = useState(0);
+    const [pinColorMode, setPinColorMode] = useState('DEFAULT'); // 'DEFAULT' | 'SLA'
+
     // Custom Icons
     const blueIcon = new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
@@ -48,6 +88,15 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
 
     const redIcon = new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    const greyIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
@@ -137,8 +186,175 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
             }
         });
         return items;
-    }, [tasks, mapFilter]);
+    }, [tasks, mapFilter, pinColorMode]);
 
+    const slaMapItems = useMemo(() => {
+        if (pinColorMode !== 'SLA') return [];
+        const items = [];
+        (allClients || []).forEach(client => {
+            if (!client.name) return;
+            const sla = calculateClientSLA(client, tasks);
+            if (sla.status === 'NO_SLA') return; // Hide clients without SLA to declutter map
+            
+            // Find the most recent task with GEO for this client
+            const clientTasksWithGeo = tasks.filter(t => t.client && t.client.toLowerCase() === client.name.toLowerCase() && t.geo && t.geo.lat && t.geo.lng);
+            if (clientTasksWithGeo.length === 0) return;
+            
+            // Sort by most recent
+            clientTasksWithGeo.sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at));
+            const latestTask = clientTasksWithGeo[0];
+
+            let icon = greyIcon;
+            if (sla.status === 'OVERDUE') icon = redIcon;
+            else if (sla.status === 'SCHEDULED') icon = yellowIcon;
+            else if (sla.status === 'OK') icon = greenIcon;
+
+            items.push({
+                id: `sla-${client.id}`,
+                type: 'CLIENT_SLA',
+                client: client,
+                geo: latestTask.geo,
+                sla: sla,
+                icon: icon,
+                task: latestTask
+            });
+        });
+        return items;
+    }, [allClients, tasks, pinColorMode]);
+
+    // COVERAGE MAP LOGIC
+
+    // Fetch Mesoregion Names ONCE
+    useEffect(() => {
+        let isMounted = true;
+        const fetchMeta = async () => {
+            try {
+                const res = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/mesorregioes');
+                const data = await res.json();
+                const metaDict = {};
+                data.forEach(item => {
+                    metaDict[item.id] = `${item.nome} (${item.UF.sigla})`;
+                });
+                if (isMounted) setMesoregionsMeta(metaDict);
+            } catch (err) {
+                console.error("Error loading mesoregion metadata", err);
+            }
+        };
+        fetchMeta();
+        return () => { isMounted = false; };
+    }, []);
+
+    // Fetch GeoJSON when state changes and in COVERAGE mode
+    useEffect(() => {
+        if (viewMode !== 'COVERAGE') return;
+        
+        let isMounted = true;
+        const fetchGeo = async () => {
+            setIsLoadingGeo(true);
+            try {
+                let url = '';
+                if (selectedState === 'INTL') {
+                    url = '/maps/south_america.geojson';
+                } else if (selectedState === 'ALL') {
+                    url = 'https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&intrarregiao=mesorregiao';
+                } else if (selectedState === 'ARG') {
+                    url = '/maps/argentina.geojson';
+                } else if (selectedState === 'PER') {
+                    url = '/maps/peru.geojson';
+                } else {
+                    url = `https://servicodados.ibge.gov.br/api/v3/malhas/estados/${selectedState}?formato=application/vnd.geo+json&intrarregiao=mesorregiao`;
+                }
+                
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to fetch map data');
+                const data = await res.json();
+                if (isMounted) setGeoJsonData(data);
+            } catch (err) {
+                console.error("Error loading GeoJSON:", err);
+            } finally {
+                if (isMounted) setIsLoadingGeo(false);
+            }
+        };
+        fetchGeo();
+        return () => { isMounted = false; };
+    }, [selectedState, viewMode]);
+
+    // Calculate coverage intersections when mapItems or geoJsonData changes
+    useEffect(() => {
+        if (viewMode !== 'COVERAGE' || !geoJsonData) return;
+
+        const stats = {};
+        const getRegionId = (f) => f.properties.codarea || f.properties.FIRST_IDDP || f.properties.adm1_code || f.properties['ISO3166-1-Alpha-3'] || f.properties.name || f.properties.NOMBDEP;
+        const getRegionName = (f, rId) => mesoregionsMeta[rId] || f.properties.NM_MESO || f.properties.NOMBDEP || f.properties.name || `Região ${rId}`;
+        
+        // Initialize stats for all regions
+        geoJsonData.features.forEach(feature => {
+            const regionId = getRegionId(feature);
+            stats[regionId] = { count: 0, name: getRegionName(feature, regionId) };
+        });
+
+        // Test each task against all polygons
+        mapItems.forEach(item => {
+            if (!item.geo || !item.geo.lat || !item.geo.lng) return;
+            const pt = point([item.geo.lng, item.geo.lat]); // Turf uses [lng, lat]
+            
+            for (const feature of geoJsonData.features) {
+                // booleanPointInPolygon handles MultiPolygons and Polygons
+                if (booleanPointInPolygon(pt, feature)) {
+                    const regionId = getRegionId(feature);
+                    if (!stats[regionId]) {
+                        stats[regionId] = { count: 0, name: getRegionName(feature, regionId) };
+                    }
+                    stats[regionId].count += 1;
+                    break; // Found the region, no need to check others for this point
+                }
+            }
+        });
+
+        setCoverageStats(stats);
+        setStatsVersion(v => v + 1);
+    }, [mapItems, geoJsonData, viewMode, mesoregionsMeta]);
+
+    // Style function for Choropleth
+    const getRegionStyle = (feature) => {
+        const regionId = feature.properties.codarea || feature.properties.FIRST_IDDP || feature.properties.adm1_code || feature.properties['ISO3166-1-Alpha-3'] || feature.properties.name || feature.properties.NOMBDEP;
+        const count = coverageStats[regionId]?.count || 0;
+        
+        let fillColor = '#cbd5e1'; // slate-300 (0 visits)
+        let fillOpacity = 0.4;
+        
+        if (count > 0) {
+            fillColor = '#10b981'; // emerald-500
+            fillOpacity = Math.min(0.4 + (count * 0.1), 0.9); // Gets darker with more visits
+        }
+
+        return {
+            fillColor,
+            weight: 1,
+            opacity: 1,
+            color: '#64748b', // border color
+            fillOpacity
+        };
+    };
+
+    const onEachFeature = (feature, layer) => {
+        const regionId = feature.properties.codarea || feature.properties.FIRST_IDDP || feature.properties.adm1_code || feature.properties['ISO3166-1-Alpha-3'] || feature.properties.name || feature.properties.NOMBDEP;
+        const count = coverageStats[regionId]?.count || 0;
+        const regionName = coverageStats[regionId]?.name || feature.properties.NM_MESO || feature.properties.NOMBDEP || feature.properties.name || `Região ${regionId}`;
+        
+        // Use a simple tooltip for hover
+        layer.bindTooltip(`
+            <div class="text-center">
+                <div class="font-bold text-slate-800">${regionName}</div>
+                <div class="text-sm ${count > 0 ? 'text-emerald-600 font-bold' : 'text-slate-500'}">
+                    ${count} atendimento(s)
+                </div>
+            </div>
+        `, { sticky: true, className: 'bg-white/90 backdrop-blur border-none shadow-md rounded-lg p-2' });
+    };
+
+    const BR_STATES = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+    
     useEffect(() => {
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
@@ -158,7 +374,7 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
     const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - 2 + i).toString());
 
     return (
-        <div className="flex flex-col h-[calc(100vh-8rem)] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+        <div className="flex flex-col flex-1 h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
             <div className={`bg-slate-50 border-b border-slate-200 ${isMobile ? 'p-1.5' : 'p-3'} flex flex-wrap gap-2 md:gap-3 items-center z-10 shrink-0`}>
                 <div className="flex items-center gap-1.5 md:gap-2 bg-white border rounded-lg px-2 py-0.5 md:py-1 shadow-sm">
                     <Filter size={isMobile ? 10 : 12} className="text-slate-400" />
@@ -205,10 +421,65 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                 </div>
 
                 <div className="flex flex-wrap gap-3 md:gap-4">
-                    <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Tarefas</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Finalizadas</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Testes</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Acomp.</span></div>
+                    {viewMode === 'PINS' && pinColorMode === 'DEFAULT' ? (
+                        <>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Tarefas</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Finalizadas</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Testes</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Acomp.</span></div>
+                        </>
+                    ) : viewMode === 'PINS' && pinColorMode === 'SLA' ? (
+                        <>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50 animate-pulse" /> <span className="text-[10px] md:text-xs font-black text-rose-500 uppercase tracking-wider">Visita Vencida</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Programado</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Em Dia</span></div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-sm bg-emerald-500 opacity-60" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Atendido</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 md:w-3 h-2 md:h-3 rounded-sm bg-slate-300 opacity-40" /> <span className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider">Sem Visitas</span></div>
+                        </>
+                    )}
+                </div>
+
+                <div className="flex flex-1 justify-end items-center gap-2 border-l border-slate-200 pl-3 ml-auto">
+                    <div className="flex bg-slate-200/50 rounded-lg p-0.5">
+                        <button 
+                            onClick={() => { setViewMode('PINS'); setPinColorMode('DEFAULT'); }}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] md:text-xs font-bold transition-all ${viewMode === 'PINS' && pinColorMode === 'DEFAULT' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <MapPin size={12} /> Alfinetes
+                        </button>
+                        <button 
+                            onClick={() => { setViewMode('PINS'); setPinColorMode('SLA'); }}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] md:text-xs font-bold transition-all ${viewMode === 'PINS' && pinColorMode === 'SLA' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            title="Prospecção / Vencimentos SLA"
+                        >
+                            <AlertTriangle size={12} /> SLA
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('COVERAGE')}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] md:text-xs font-bold transition-all ${viewMode === 'COVERAGE' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <MapIcon size={12} /> Cobertura
+                        </button>
+                    </div>
+
+                    {viewMode === 'COVERAGE' && (
+                        <select
+                            value={selectedState}
+                            onChange={e => setSelectedState(e.target.value)}
+                            className="text-[10px] md:text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none shadow-sm hover:border-emerald-500"
+                        >
+                            <option value="ALL">Todo o Brasil</option>
+                            <option value="ARG">Argentina (Províncias)</option>
+                            <option value="PER">Peru (Departamentos)</option>
+                            <option value="INTL">América Latina / Intl</option>
+                            <optgroup label="Estados Brasileiros">
+                                {BR_STATES.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                            </optgroup>
+                        </select>
+                    )}
                 </div>
             </div>
 
@@ -222,11 +493,14 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                     </div>
                 )}
                 <MapContainer center={[-23.5505, -46.6333]} zoom={4} style={{ height: '100%', width: '100%' }}>
+                    <ResizeHandler />
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
-                    {mapItems.map(item => {
+                    {viewMode === 'PINS' && (pinColorMode === 'SLA' ? slaMapItems : mapItems).map(item => {
                         const t = item.task;
-                        const isFromTest = !!t.parent_test_id;
-                        const isFromFollowup = !!t.parent_followup_id;
+                        const isSLA = item.type === 'CLIENT_SLA';
+                        const sla = item.sla;
+                        const isFromTest = !isSLA && !!t.parent_test_id;
+                        const isFromFollowup = !isSLA && !!t.parent_followup_id;
 
                         return (
                             <Marker
@@ -238,20 +512,30 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                                     <div className="p-1">
                                         <div className="flex justify-between items-center mb-0.5">
                                             <div className="flex items-center gap-1.5">
-                                                <div className={`text-[10px] font-black uppercase tracking-tight ${item.status === 'FINALIZADA' ? 'text-emerald-600' : 'text-brand-600'}`}>
-                                                    {item.type === 'TRAVEL' ? item.status : StatusLabels[t.status]}
+                                                <div className={`text-[10px] font-black uppercase tracking-tight ${isSLA ? 'text-slate-500' : (item.status === 'FINALIZADA' ? 'text-emerald-600' : 'text-brand-600')}`}>
+                                                    {isSLA ? 'CLIENTE / SLA' : (item.type === 'TRAVEL' ? item.status : StatusLabels[t.status])}
                                                 </div>
                                                 {isFromTest && <span className="bg-yellow-500 text-slate-800 text-[7px] font-black px-1 py-0.5 rounded tracking-wider uppercase">Teste</span>}
                                                 {isFromFollowup && <span className="bg-red-500 text-white text-[7px] font-black px-1 py-0.5 rounded tracking-wider uppercase">Acomp.</span>}
                                             </div>
-                                            {t.visibility === 'PRIVATE' && <Lock size={10} className="text-amber-500" title="Privada" />}
+                                            {!isSLA && t.visibility === 'PRIVATE' && <Lock size={10} className="text-amber-500" title="Privada" />}
                                         </div>
                                         <div className="font-bold text-slate-800 border-b pb-1 mb-1">
-                                            {item.type === 'TRAVEL' ? `[VIAGEM] ${t.client || t.title}` : t.client || t.title}
+                                            {isSLA ? item.client.name : (item.type === 'TRAVEL' ? `[VIAGEM] ${t.client || t.title}` : t.client || t.title)}
                                         </div>
-                                        <div className="text-xs text-slate-600 flex items-start gap-1"><MapPin size={10} className="mt-0.5 shrink-0" /> {t.location}</div>
+
+                                        {isSLA && sla && (
+                                            <div className={`mt-2 p-1.5 rounded-md border text-xs font-medium ${sla.status === 'OVERDUE' ? 'bg-rose-50 border-rose-200 text-rose-700' : sla.status === 'SCHEDULED' ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                                <div className="font-bold uppercase tracking-wider text-[10px] mb-0.5">SLA ({item.client.visit_frequency_months} meses)</div>
+                                                {sla.status === 'OVERDUE' && <span>⚠️ {sla.monthsOverdue === 999 ? 'Nunca visitado' : `Atrasado ${sla.monthsOverdue} meses`}</span>}
+                                                {sla.status === 'SCHEDULED' && <span>⏳ Viagem Programada</span>}
+                                                {sla.status === 'OK' && <span>✅ Em Dia</span>}
+                                            </div>
+                                        )}
+
+                                        {!isSLA && <div className="text-xs text-slate-600 flex items-start gap-1"><MapPin size={10} className="mt-0.5 shrink-0" /> {t.location}</div>}
                                         
-                                        {item.type === 'TRAVEL' && (
+                                        {!isSLA && item.type === 'TRAVEL' && (
                                             <div className="mt-2 bg-slate-50 p-2 rounded border border-slate-200">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] font-bold text-slate-500">DATA:</span>
@@ -283,7 +567,7 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                         );
                     })}
 
-                    {highlightedClients.map(client => (
+                    {viewMode === 'PINS' && highlightedClients.map(client => (
                         <Marker
                             key={`highlight-${client.id || client.name}`}
                             position={[client.geo.lat, client.geo.lng]}
@@ -305,6 +589,18 @@ const MapView = ({ tasks, mapFilter, setMapFilter, users, highlightedClients = [
                             </Popup>
                         </Marker>
                     ))}
+
+                    {viewMode === 'COVERAGE' && geoJsonData && (
+                        <>
+                            <GeoJSON 
+                                key={`geojson-${selectedState}-${geoJsonData.features.length}-${statsVersion}`}
+                                data={geoJsonData}
+                                style={getRegionStyle}
+                                onEachFeature={onEachFeature}
+                            />
+                            <FitBounds data={geoJsonData} />
+                        </>
+                    )}
                 </MapContainer>
             </div>
         </div>

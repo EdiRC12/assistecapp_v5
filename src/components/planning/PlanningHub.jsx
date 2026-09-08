@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
     Calendar, CheckSquare, ChevronRight, 
-    Briefcase, ClipboardList, Clock, AlertTriangle, Route
+    Briefcase, ClipboardList, Clock, AlertTriangle, Route, MapPin, Users
 } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 import VisitationTab from './VisitationTab';
 import PendingActionsTab from './PendingActionsTab';
 import SupportRoutePlanner from '../support/SupportRoutePlanner';
 import TravelCalendarTab from './TravelCalendarTab';
+import OverdueSLATab from './OverdueSLATab';
+import { calculateClientSLA } from '../../utils/slaCalculator';
 
 const TABS = [
     {
@@ -20,6 +22,17 @@ const TABS = [
         activeText: 'text-emerald-600',
         activeBg: 'bg-emerald-600',
         ring: 'ring-emerald-500',
+    },
+    {
+        id: 'SLA_OVERDUE',
+        label: 'SLA VENCIDO',
+        fullLabel: 'Clientes Atrasados',
+        desc: 'Clientes aguardando agendamento',
+        color: 'rose',
+        icon: AlertTriangle,
+        activeText: 'text-rose-600',
+        activeBg: 'bg-rose-600',
+        ring: 'ring-rose-500',
     },
     {
         id: 'CRONOGRAMA',
@@ -75,13 +88,25 @@ const PlanningHub = ({
 
     const activeTabInfo = TABS.find(t => t.id === activeTab) || TABS[0];
 
+    const overdueClients = useMemo(() => {
+        if (!allClients || !tasks) return [];
+        const overdue = [];
+        allClients.forEach(c => {
+            const sla = calculateClientSLA(c, tasks);
+            if (sla.status === 'OVERDUE') {
+                overdue.push({ client: c, ...sla });
+            }
+        });
+        return overdue.sort((a, b) => b.monthsOverdue - a.monthsOverdue);
+    }, [allClients, tasks]);
+
     return (
         <div className="h-full flex-1 flex flex-col min-h-0 bg-[#f8fafc]">
             {/* Hub Header & Tab Nav */}
             <div className={`shrink-0 bg-white border-b border-slate-200 transition-all ${isMobile ? 'px-2 py-2' : 'px-6 py-3'}`}>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="w-full">
-                        <div className={`flex ${isMobile ? 'flex-wrap' : 'items-center'} gap-1 bg-slate-100 ${isMobile ? 'p-1' : 'p-1'} rounded-2xl w-full lg:w-fit`}>
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0 overflow-x-auto custom-scrollbar pb-1">
+                        <div className={`flex ${isMobile ? 'flex-wrap' : 'items-center'} gap-1 bg-slate-100 p-1 rounded-2xl w-max`}>
                             {TABS.map((tab, idx) => {
                                 const Icon = tab.icon;
                                 const isActive = activeTab === tab.id;
@@ -108,7 +133,7 @@ const PlanningHub = ({
                     </div>
 
                     {!isMobile && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 shrink-0 xl:ml-4">
                             <div className="flex flex-col items-end">
                                 <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight leading-none">Agenda Operacional</h2>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{activeTabInfo.desc}</p>
@@ -123,7 +148,9 @@ const PlanningHub = ({
 
             {/* Content Area */}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {activeTab === 'VISITATION' ? (
+                {activeTab === 'SLA_OVERDUE' ? (
+                    <OverdueSLATab overdueClients={overdueClients} onActionClick={setActiveTab} />
+                ) : activeTab === 'VISITATION' ? (
                     <VisitationTab 
                         currentUser={currentUser}
                         allClients={allClients}

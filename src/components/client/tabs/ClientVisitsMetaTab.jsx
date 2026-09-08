@@ -3,36 +3,13 @@ import { Calendar, Save, Loader2, Info } from 'lucide-react';
 import DashboardCard from '../DashboardCard';
 
 const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuccess, notifyError, fetchClients }) => {
-    const [hasMeta, setHasMeta] = useState(false);
-    const [metaFreqVal, setMetaFreqVal] = useState(6);
-    const [metaFreqUnit, setMetaFreqUnit] = useState('MESES');
-    const [metaLeadVal, setMetaLeadVal] = useState(2);
-    const [metaLeadUnit, setMetaLeadUnit] = useState('MESES');
+    const [metaFreqVal, setMetaFreqVal] = useState(0);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (activeClientObj) {
-            // Check if user has defined meta (either legacy col or new cols)
-            const hasDefinedMeta = (activeClientObj.visit_frequency_value !== undefined && activeClientObj.visit_frequency_value !== null && activeClientObj.visit_frequency_value > 0) || 
-                                   (activeClientObj.visit_frequency_months !== undefined && activeClientObj.visit_frequency_months !== null && activeClientObj.visit_frequency_months > 0);
-            
-            setHasMeta(hasDefinedMeta);
-            
-            if (activeClientObj.visit_frequency_value !== undefined && activeClientObj.visit_frequency_value !== null) {
-                setMetaFreqVal(activeClientObj.visit_frequency_value);
-                setMetaFreqUnit(activeClientObj.visit_frequency_unit || 'MESES');
-            } else {
-                setMetaFreqVal(activeClientObj.visit_frequency_months || 6);
-                setMetaFreqUnit('MESES');
-            }
-
-            if (activeClientObj.visit_lead_time_value !== undefined && activeClientObj.visit_lead_time_value !== null) {
-                setMetaLeadVal(activeClientObj.visit_lead_time_value);
-                setMetaLeadUnit(activeClientObj.visit_lead_time_unit || 'MESES');
-            } else {
-                setMetaLeadVal(activeClientObj.visit_lead_time_months || 2);
-                setMetaLeadUnit('MESES');
-            }
+            const months = activeClientObj.visit_frequency_months || 0;
+            setMetaFreqVal(months);
         }
     }, [activeClientObj]);
 
@@ -42,38 +19,15 @@ const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuc
 
         setLoading(true);
         try {
-            const freqVal = hasMeta ? (parseInt(metaFreqVal) || 6) : null;
-            const freqUnit = hasMeta ? metaFreqUnit : null;
-            const leadVal = hasMeta ? (parseInt(metaLeadVal) || 2) : null;
-            const leadUnit = hasMeta ? metaLeadUnit : null;
-
-            // Legacy backward-compatibility conversion to months (rough approximation)
-            let freqMonths = freqVal;
-            if (hasMeta) {
-                if (freqUnit === 'DIAS') freqMonths = Math.max(1, Math.round(freqVal / 30));
-                if (freqUnit === 'ANOS') freqMonths = freqVal * 12;
-            } else {
-                freqMonths = null;
-            }
-
-            let leadMonths = leadVal;
-            if (hasMeta) {
-                if (leadUnit === 'DIAS') leadMonths = Math.round(leadVal / 30);
-                if (leadUnit === 'ANOS') leadMonths = leadVal * 12;
-            } else {
-                leadMonths = null;
-            }
+            const freqMonths = parseInt(metaFreqVal);
+            const finalFreq = freqMonths > 0 ? freqMonths : null;
 
             const { error } = await supabase
                 .from('clients')
                 .update({
-                    visit_frequency_value: freqVal,
-                    visit_frequency_unit: freqUnit,
-                    visit_lead_time_value: leadVal,
-                    visit_lead_time_unit: leadUnit,
-                    // Maintain legacy columns updated in case other components depend on them
-                    visit_frequency_months: freqMonths,
-                    visit_lead_time_months: leadMonths
+                    visit_frequency_months: finalFreq,
+                    visit_frequency_value: finalFreq,
+                    visit_frequency_unit: 'MESES'
                 })
                 .eq('id', activeClientObj.id);
 
@@ -102,81 +56,31 @@ const ClientVisitsMetaTab = ({ activeClientObj, currentUser, supabase, notifySuc
                     </div>
                 </div>
 
-                {/* Toggle Habilitar Cronograma */}
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-inner">
-                    <input
-                        type="checkbox"
-                        id="enable-meta-toggle"
-                        checked={hasMeta}
-                        onChange={(e) => setHasMeta(e.target.checked)}
-                        className="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500 cursor-pointer"
-                    />
-                    <label htmlFor="enable-meta-toggle" className="text-xs font-black text-slate-700 uppercase tracking-wider cursor-pointer select-none">
-                        Habilitar Cronograma de Visitas para este cliente
-                    </label>
-                </div>
-
-                {hasMeta && (
-                    <div className="space-y-4 border-l-4 border-brand-500 pl-4 py-1 animate-in slide-in-from-top-3 duration-200">
-                        {/* Frequência */}
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
-                                Frequência Limite de Visita
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={metaFreqVal}
-                                    onChange={(e) => setMetaFreqVal(e.target.value)}
-                                    className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-                                    required={hasMeta}
-                                />
-                                <select
-                                    value={metaFreqUnit}
-                                    onChange={(e) => setMetaFreqUnit(e.target.value)}
-                                    className="px-2 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
-                                >
-                                    <option value="DIAS">Dias</option>
-                                    <option value="MESES">Meses</option>
-                                    <option value="ANOS">Anos</option>
-                                </select>
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">
-                                Tempo máximo tolerado entre uma visita e outra (ex: a cada 15 Dias, 6 Meses, 1 Ano).
-                            </p>
-                        </div>
-
-                        {/* Aviso Prévio */}
-                        <div className="space-y-1.5">
-                            <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
-                                Antecedência de Alerta (Aviso Prévio)
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={metaLeadVal}
-                                    onChange={(e) => setMetaLeadVal(e.target.value)}
-                                    className="col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-                                    required={hasMeta}
-                                />
-                                <select
-                                    value={metaLeadUnit}
-                                    onChange={(e) => setMetaLeadUnit(e.target.value)}
-                                    className="px-2 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
-                                >
-                                    <option value="DIAS">Dias</option>
-                                    <option value="MESES">Meses</option>
-                                    <option value="ANOS">Anos</option>
-                                </select>
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">
-                                Tempo de antecedência para o cliente entrar na lista de prospecção (ex: avisar 2 Meses antes).
-                            </p>
-                        </div>
+                <div className="space-y-4 border-l-4 border-brand-500 pl-4 py-1 animate-in slide-in-from-top-3 duration-200">
+                    {/* Frequência */}
+                    <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-slate-500 uppercase tracking-wider">
+                            Frequência de Visitas Exigida
+                        </label>
+                        <select
+                            value={metaFreqVal}
+                            onChange={(e) => setMetaFreqVal(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-850 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                        >
+                            <option value="0">Sem meta / Livre</option>
+                            <option value="1">A cada 1 mês (Mensal)</option>
+                            <option value="2">A cada 2 meses (Bimestral)</option>
+                            <option value="3">A cada 3 meses (Trimestral)</option>
+                            <option value="4">A cada 4 meses (Quadrimestral)</option>
+                            <option value="6">A cada 6 meses (Semestral)</option>
+                            <option value="12">A cada 12 meses (Anual)</option>
+                            <option value="24">A cada 24 meses (Bianual)</option>
+                        </select>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">
+                            Selecione a frequência ideal. O sistema avisará quando este prazo for ultrapassado desde a última visita. Se "Sem meta", ele não aparecerá nos alertas.
+                        </p>
                     </div>
-                )}
+                </div>
 
                 <div className="pt-4 border-t border-slate-100">
                     <button

@@ -544,6 +544,17 @@ const TaskModal = ({
             const expectedStateName = expectedState ? stateNames[expectedState] : null;
 
             const searchStrategies = [];
+            
+            // Tentar extrair cidade e estado inteligentemente.
+            // Padrão muito comum: "Nome da Cidade/UF" ou "Nome da Cidade - UF" ou "Nome da Cidade, UF" no final da string
+            const cityStateFallbackMatch = searchLocation.match(/([A-Za-zÀ-ÖØ-öø-ÿ\s]+)[,\/\-]\s*([A-Z]{2})\b\s*$/i);
+            if (cityStateFallbackMatch) {
+                const extractedCity = cityStateFallbackMatch[1].trim().split(/[\-\,]/).pop().trim(); // Pega só a última parte se houver traços antes
+                const extractedState = cityStateFallbackMatch[2].trim().toUpperCase();
+                if (extractedCity.length > 2) {
+                    searchStrategies.push({ query: `${extractedCity}, ${extractedState}, Brasil`, priority: 4 }); // Prioridade máxima
+                }
+            }
             searchStrategies.push({ query: searchLocation, priority: 1 });
             const addressParts = searchLocation.split('-');
             if (addressParts.length >= 2) {
@@ -584,13 +595,22 @@ const TaskModal = ({
                 let stateMatchFound = false;
 
                 if (expectedState) {
+                    const exactStateMatch = new RegExp(`\\b${expectedState}\\b`, 'i');
                     filteredResults = allResults.filter(result => {
                         const displayName = result.display_name.toUpperCase();
                         const normalizedDisplay = displayName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                        const matches = displayName.includes(expectedState) ||
-                            displayName.includes(expectedState.toLowerCase()) ||
-                            (expectedStateName && (displayName.includes(expectedStateName.toUpperCase()) ||
-                                normalizedDisplay.includes(expectedStateName.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))));
+                        const addressObj = result.address || {};
+                        
+                        // Check explicit state fields first if address details are returned
+                        const hasStateCode = addressObj.state_code && addressObj.state_code.toUpperCase() === expectedState.toUpperCase();
+                        
+                        const matches = hasStateCode || 
+                            exactStateMatch.test(displayName) ||
+                            (expectedStateName && (
+                                displayName.includes(`\\b${expectedStateName.toUpperCase()}\\b`) ||
+                                normalizedDisplay.includes(expectedStateName.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+                            ));
+                            
                         if (matches) stateMatchFound = true;
                         return matches;
                     });
