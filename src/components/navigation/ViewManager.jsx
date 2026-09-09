@@ -129,6 +129,7 @@ const ViewManager = ({
                                 notifySuccess={notifySuccess}
                                 notifyError={notifyError}
                                 notifyWarning={notifyWarning}
+                                onNewTask={() => { setIsModalOpen(true); setEditingTask(null); }}
                             />
                         </div>
                     </div>

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, AlertCircle,
-    Factory, Clock, Check, X, Eye, StickyNote, Grid, Shield, ShieldCheck, List
+    Factory, Clock, Check, X, Eye, StickyNote, Grid, Shield, ShieldCheck, List, Plus
 } from 'lucide-react';
 import { TaskStatus, StatusLabels, Priority, PriorityColors } from '../constants/taskConstants';
 import { generateUUID } from '../utils/helpers';
 import useIsMobile from '../hooks/useIsMobile';
 
-const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser, notifySuccess, notifyError, notifyWarning }) => {
+const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser, notifySuccess, notifyError, notifyWarning, onNewTask }) => {
     const isMobile = useIsMobile();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState('MONTH'); // MONTH, WEEK, YEAR, DAY
@@ -632,6 +632,17 @@ const CalendarView = ({ tasks, onEditTask, onUpdateTask, notes = [], currentUser
                     </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-2 md:gap-4 w-full sm:w-auto mt-1 sm:mt-0">
+                    {/* Botão Nova Tarefa */}
+                    {onNewTask && (
+                        <button
+                            onClick={onNewTask}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-black shadow-sm transition-all active:scale-95 shrink-0 uppercase tracking-wide"
+                            title="Nova Tarefa"
+                        >
+                            <Plus size={14} />
+                            <span className="hidden sm:inline">Nova Tarefa</span>
+                        </button>
+                    )}
                     {/* Filtro de Concluídas */}
                     <div className="flex bg-slate-200/50 p-0.5 rounded-lg shrink-0 overflow-x-auto border border-slate-300">
                         <button 
