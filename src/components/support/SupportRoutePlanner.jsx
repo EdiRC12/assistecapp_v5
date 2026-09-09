@@ -212,7 +212,8 @@ const SupportRoutePlanner = ({
     notifyError,
     onNewTask,
     onTaskCreated,
-    tasks = []
+    tasks = [],
+    overdueClients = []   // Fase 3: Camada SLA no Mapa
 }) => {
     const isMobile = useIsMobile();
     const [mobileTab, setMobileTab] = useState('ITINERARY'); // 'ITINERARY' or 'MAP'
@@ -286,6 +287,7 @@ const SupportRoutePlanner = ({
     const [selectedState, setSelectedState] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [showAllClientsOnMap, setShowAllClientsOnMap] = useState(false);
+    const [showOverdueSLA, setShowOverdueSLA] = useState(false); // Fase 3: Toggle camada SLA
 
     // Available States for filtering
     const availableStates = useMemo(() => {
@@ -1357,6 +1359,21 @@ const SupportRoutePlanner = ({
                                     <span className="text-[10px] font-bold text-slate-700">Ver Todos no Mapa</span>
                                 </label>
                             </div>
+                            {/* Fase 3: Toggle Camada SLA */}
+                            <div className="flex items-center justify-between border-t border-slate-150 pt-2">
+                                <span className="text-[9px] font-black text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                                    <AlertTriangle size={10} /> SLA Vencido ({overdueClients.length})
+                                </span>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showOverdueSLA}
+                                        onChange={(e) => setShowOverdueSLA(e.target.checked)}
+                                        className="rounded text-rose-600 focus:ring-rose-500 border-slate-350 w-3 h-3 cursor-pointer accent-rose-600"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-700">Ver Pendências no Mapa</span>
+                                </label>
+                            </div>
                             
                             {showAllClientsOnMap && (
                                 <>
@@ -1973,12 +1990,62 @@ const SupportRoutePlanner = ({
                                             >
                                                 Adicionar ao Roteiro
                                             </button>
+                                            {/* Fase 3: Botão Agendar Visita — só aparece se cliente tem SLA vencido */}
+                                            {overdueClients.some(oc => oc.client.id === client.id) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (onNewTask) onNewTask(client.name, { client: client.name });
+                                                    }}
+                                                    className="w-full mt-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black py-1.5 px-3 rounded-lg text-[10px] transition-all shadow-sm cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-1"
+                                                >
+                                                    <AlertTriangle size={10} /> Agendar Visita (SLA)
+                                                </button>
+                                            )}
                                         </div>
                                     </Popup>
                                 </Marker>
                             );
                         });
                     })()}
+
+                    {/* Fase 3: Camada de SLA — Pinos Vermelhos de Clientes Atrasados */}
+                    {showOverdueSLA && overdueClients.map((oc) => {
+                        const c = oc.client;
+                        if (!c.latitude && !c.longitude) return null;
+                        const lat = Number(c.latitude);
+                        const lng = Number(c.longitude);
+                        if (!lat || !lng) return null;
+                        return (
+                            <Marker
+                                key={`sla_overdue_${c.id}`}
+                                position={[lat, lng]}
+                                icon={icons.clientRed}
+                            >
+                                <Popup>
+                                    <div className="text-xs select-none max-w-[200px] p-1">
+                                        <div className="flex items-center gap-1 text-[9px] font-black text-rose-500 uppercase tracking-widest mb-1.5">
+                                            <AlertTriangle size={10} /> SLA Vencido
+                                        </div>
+                                        <h4 className="font-extrabold text-sm text-slate-900 leading-tight">{c.name}</h4>
+                                        {c.city && (
+                                            <p className="text-slate-400 text-[10px] mt-0.5 truncate uppercase">{c.city} - {c.state}</p>
+                                        )}
+                                        <div className="mt-1.5 bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 text-[9px] font-black text-rose-700">
+                                            {oc.monthsOverdue === 999 ? 'Nunca visitado' : `Atraso: ${oc.monthsOverdue} ${oc.monthsOverdue === 1 ? 'mês' : 'meses'}`}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { if (onNewTask) onNewTask(c.name, { client: c.name }); }}
+                                            className="w-full mt-2 bg-rose-600 hover:bg-rose-700 text-white font-black py-1.5 px-3 rounded-lg text-[10px] transition-all shadow-sm cursor-pointer text-center uppercase tracking-wider"
+                                        >
+                                            Agendar Visita
+                                        </button>
+                                    </div>
+                                </Popup>
+                            </Marker>
+                        );
+                    })}
 
                     {/* Markers: Intelligent Support Points (Filtered by Proximity Radius) */}
                     {filteredSupportPlaces.map((place) => (

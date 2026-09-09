@@ -13,9 +13,22 @@ const TravelCalendarTab = ({
     onEditTask,
     onTaskCreated,
     notifySuccess,
-    notifyError
+    notifyError,
+    globalFilterMonth,  // Fase 1: Filtro global do PlanningHub (1-12)
+    globalFilterYear,   // Fase 1: Filtro global do PlanningHub
 }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    // Se o filtro global estiver disponível, inicializa o calendário nesse período
+    const initialDate = (globalFilterMonth && globalFilterYear)
+        ? new Date(globalFilterYear, globalFilterMonth - 1, 1)
+        : new Date();
+    const [currentDate, setCurrentDate] = useState(initialDate);
+
+    // Sincroniza o mês exibido quando o filtro global muda no PlanningHub
+    useEffect(() => {
+        if (globalFilterMonth && globalFilterYear) {
+            setCurrentDate(new Date(globalFilterYear, globalFilterMonth - 1, 1));
+        }
+    }, [globalFilterMonth, globalFilterYear]);
     const [reservations, setReservations] = useState([]);
     const [loadingReservations, setLoadingReservations] = useState(false);
     const [showReserveModal, setShowReserveModal] = useState(false);
