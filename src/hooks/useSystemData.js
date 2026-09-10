@@ -20,6 +20,7 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
         { label: 'EM DESENVOLVIMENTO', color: '#94a3b8' },
         { label: 'EM ANÁLISE', color: '#f97316' },
         { label: 'AGUARDANDO RETORNO DO CLIENTE', color: '#eab308' },
+        { label: 'SEM RETORNO', color: '#d97706' },
         { label: 'DESCARTADO', color: '#f43f5e' },
         { label: 'PRODUÇÃO FINALIZADA', color: '#14b8a6' },
         { label: 'EM PRODUÇÃO', color: '#3b82f6' }
@@ -123,6 +124,9 @@ export const useSystemData = (supabase, currentUser, { notifySuccess, notifyErro
                                 normalized.push({ label: 'DESCARTADO', color: '#f43f5e' });
                             }
                             // Patch for new Statuses
+                            if (!normalized.some(p => p.label === 'SEM RETORNO')) {
+                                normalized.push({ label: 'SEM RETORNO', color: '#d97706' });
+                            }
                             if (!normalized.some(p => p.label === 'PRODUÇÃO FINALIZADA')) {
                                 normalized.push({ label: 'PRODUÇÃO FINALIZADA', color: '#14b8a6' });
                             }

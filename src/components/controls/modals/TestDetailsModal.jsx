@@ -83,6 +83,8 @@ const TestDetailsModal = ({
                 targetLabel = 'APROVADO';
             } else if (situationUpper === 'AGUARDANDO') {
                 targetLabel = 'AGUARDANDO RETORNO DO CLIENTE';
+            } else if (situationUpper === 'SEM RETORNO') {
+                targetLabel = 'SEM RETORNO';
             }
 
             const matchedPreset = testStatusPresets.find(p => p.label.toUpperCase() === targetLabel);

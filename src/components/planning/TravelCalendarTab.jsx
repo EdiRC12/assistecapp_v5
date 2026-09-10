@@ -16,6 +16,7 @@ const TravelCalendarTab = ({
     notifyError,
     globalFilterMonth,  // Fase 1: Filtro global do PlanningHub (1-12)
     globalFilterYear,   // Fase 1: Filtro global do PlanningHub
+    initialSelectedState = ''
 }) => {
     // Se o filtro global estiver disponível, inicializa o calendário nesse período
     const initialDate = (globalFilterMonth && globalFilterYear)
@@ -29,6 +30,7 @@ const TravelCalendarTab = ({
             setCurrentDate(new Date(globalFilterYear, globalFilterMonth - 1, 1));
         }
     }, [globalFilterMonth, globalFilterYear]);
+
     const [reservations, setReservations] = useState([]);
     const [loadingReservations, setLoadingReservations] = useState(false);
     const [showReserveModal, setShowReserveModal] = useState(false);
@@ -53,7 +55,24 @@ const TravelCalendarTab = ({
 
     const [sidebarTab, setSidebarTab] = useState('PENDING'); // 'PENDING' | 'SEARCH'
     const [clientSearch, setClientSearch] = useState('');
+    const [selectedStateFilter, setSelectedStateFilter] = useState(initialSelectedState || '');
     const searchRef = useRef(null);
+
+    // Sincroniza o estado selecionado vindo da aba Cobertura & Metas
+    useEffect(() => {
+        if (initialSelectedState) {
+            setSelectedStateFilter(initialSelectedState);
+            setSidebarTab('PENDING');
+            
+            const matchingRes = reservations.find(r => r.state_code === initialSelectedState);
+            if (matchingRes && matchingRes.week_start) {
+                const [y, m, d] = matchingRes.week_start.split('-').map(Number);
+                if (y && m) {
+                    setCurrentDate(new Date(y, m - 1, d || 1));
+                }
+            }
+        }
+    }, [initialSelectedState, reservations]);
 
     // List of Brazilian States for reservation selector
     const BRAZILIAN_STATES = [
@@ -262,6 +281,52 @@ const TravelCalendarTab = ({
             return a.diffDays - b.diffDays;
         });
     }, [allClients, tasks]);
+
+    const filteredPendingClients = useMemo(() => {
+        if (!selectedStateFilter) return pendingClients;
+
+        const targetState = selectedStateFilter.toUpperCase();
+
+        // 1. Clientes em situação de pendência/atraso no estado
+        const statePending = pendingClients.filter(item => {
+            const clientState = (item.state || item.client?.state || item.client?.uf || '').toUpperCase();
+            return clientState === targetState;
+        });
+
+        const pendingIds = new Set(statePending.map(p => p.client.id || p.client.name));
+
+        // 2. Outros clientes cadastrados no mesmo estado (âncoras/sugeridos)
+        const otherStateClients = [];
+        allClients.forEach(client => {
+            if (!client.name) return;
+            const clientState = (client.state || client.uf || '').toUpperCase();
+            if (clientState !== targetState) return;
+
+            const id = client.id || client.name;
+            if (pendingIds.has(id)) return;
+
+            const lastVisit = getLastVisit(client.name);
+            otherStateClients.push({
+                client,
+                lastVisit,
+                isOverdue: false,
+                isRegular: true,
+                diffDays: 0,
+                state: clientState
+            });
+        });
+
+        const priorityMap = { 'OURO': 1, 'PRATA': 2, 'BRONZE': 3 };
+
+        return [...statePending, ...otherStateClients].sort((a, b) => {
+            if (a.isOverdue && !b.isOverdue) return -1;
+            if (!a.isOverdue && b.isOverdue) return 1;
+            const pA = priorityMap[(a.client.classification || 'BRONZE').toUpperCase()] || 4;
+            const pB = priorityMap[(b.client.classification || 'BRONZE').toUpperCase()] || 4;
+            if (pA !== pB) return pA - pB;
+            return (a.client.name || '').localeCompare(b.client.name || '');
+        });
+    }, [pendingClients, selectedStateFilter, allClients]);
 
     // Memoized travels mapping from all tasks
     // ONLY includes tasks that have real travel entries in task.travels array.
@@ -581,67 +646,131 @@ const TravelCalendarTab = ({
                         </div>
                     )}
                     {sidebarTab === 'PENDING' && (
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
-                            Clientes aguardando agendamento
-                        </p>
+                        <div className="space-y-1.5 px-1">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                    Clientes Aguardando
+                                </p>
+                                {selectedStateFilter && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedStateFilter('')}
+                                        className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                    >
+                                        Limpar ({selectedStateFilter})
+                                    </button>
+                                )}
+                            </div>
+                            <select
+                                value={selectedStateFilter}
+                                onChange={(e) => setSelectedStateFilter(e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                            >
+                                <option value="">Filtrar por Estado (Todos)</option>
+                                {BRAZILIAN_STATES.map(st => (
+                                    <option key={st} value={st}>Estado do {st}</option>
+                                ))}
+                            </select>
+                        </div>
                     )}
                 </div>
 
                 <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-3">
                     {/* --- PENDING TAB --- */}
                     {sidebarTab === 'PENDING' && (
-                        pendingClients.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
-                                <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
-                                <h4 className="text-xs font-bold text-slate-600">Tudo em dia!</h4>
-                                <p className="text-[10px] max-w-[180px] mt-1">Nenhum cliente precisa de agendamento no momento.</p>
-                            </div>
-                        ) : (
-                            pendingClients.map(({ client, isOverdue, diffDays, lastVisit, state }) => (
-                                <div
-                                    key={client.id}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, client)}
-                                    onDragEnd={handleDragEnd}
-                                    className={`p-3.5 rounded-xl border-2 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden ${
-                                        isOverdue
-                                            ? 'border-rose-100 hover:border-rose-300'
-                                            : 'border-amber-100 hover:border-amber-300'
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between gap-2 mb-2">
-                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                            isOverdue
-                                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                                : 'bg-amber-50 text-amber-600 border border-amber-100'
-                                        }`}>
-                                            {isOverdue ? 'Atrasado' : 'Alerta'}
+                        <>
+                            {selectedStateFilter && (
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-2.5 space-y-1 shadow-2xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-black text-indigo-900 flex items-center gap-1">
+                                            <MapPin size={13} className="text-indigo-600" />
+                                            Região Reservada ({selectedStateFilter})
                                         </span>
-                                        <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200">
-                                            {state}
-                                        </span>
+                                        <button 
+                                            onClick={() => setSelectedStateFilter('')}
+                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline"
+                                        >
+                                            Ver Todos
+                                        </button>
                                     </div>
-                                    <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-tight line-clamp-2 mb-2">
-                                        {client.name}
-                                    </h4>
-                                    <div className="text-[10px] text-slate-500 font-medium space-y-1">
-                                        <p className="flex items-center gap-1">
-                                            <CalendarIcon size={11} className="text-slate-400" />
-                                            Última: {lastVisit ? formatDate(lastVisit.date) : 'Nenhuma'}
-                                        </p>
-                                        <p className={`font-bold flex items-center gap-1 ${isOverdue ? 'text-rose-600' : 'text-amber-600'}`}>
-                                            <AlertTriangle size={11} />
-                                            {isOverdue
-                                                ? `Venceu há ${Math.abs(diffDays)} dias`
-                                                : `Vence daqui a ${diffDays} dias`}
-                                        </p>
-                                    </div>
-                                    <div className="absolute right-2 bottom-2 bg-slate-50 p-1 rounded border opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="text-[8px] font-black text-slate-400 uppercase">Arraste para Agendar</span>
-                                    </div>
+                                    <p className="text-[10px] text-indigo-700 font-semibold leading-tight">
+                                        {filteredPendingClients.length} cliente(s) no Estado do {selectedStateFilter}. Arraste para o calendário para programar as visitas da viagem.
+                                    </p>
                                 </div>
-                            ))
-                        )
+                            )}
+
+                            {filteredPendingClients.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
+                                    <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
+                                    <h4 className="text-xs font-bold text-slate-600">
+                                        {selectedStateFilter ? `Nenhum cliente em ${selectedStateFilter}` : 'Tudo em dia!'}
+                                    </h4>
+                                    <p className="text-[10px] max-w-[180px] mt-1">
+                                        {selectedStateFilter ? `Nenhum cliente cadastrado no estado do ${selectedStateFilter}.` : 'Nenhum cliente precisa de agendamento no momento.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                filteredPendingClients.map(({ client, isOverdue, isRegular, diffDays, lastVisit, state }) => (
+                                    <div
+                                        key={client.id || client.name}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, client)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`p-3.5 rounded-xl border-2 bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden ${
+                                            isOverdue
+                                                ? 'border-rose-100 hover:border-rose-300'
+                                                : (isRegular ? 'border-indigo-100 hover:border-indigo-300' : 'border-amber-100 hover:border-amber-300')
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                                isOverdue
+                                                    ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                                    : (isRegular ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-amber-50 text-amber-600 border border-amber-100')
+                                            }`}>
+                                                {isOverdue ? 'Atrasado' : (isRegular ? 'Sugerido' : 'Alerta')}
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                {client.classification && (
+                                                    <span className="bg-amber-50 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded border border-amber-200">
+                                                        {client.classification}
+                                                    </span>
+                                                )}
+                                                <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-200">
+                                                    {state}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-tight line-clamp-2 mb-2">
+                                            {client.name}
+                                        </h4>
+                                        <div className="text-[10px] text-slate-500 font-medium space-y-1">
+                                            {(client.city || client.cidade) && (
+                                                <p className="flex items-center gap-1 font-semibold text-slate-600">
+                                                    <MapPin size={10} className="text-slate-400" />
+                                                    {client.city || client.cidade}
+                                                </p>
+                                            )}
+                                            <p className="flex items-center gap-1">
+                                                <CalendarIcon size={11} className="text-slate-400" />
+                                                Última: {lastVisit ? formatDate(lastVisit.date) : 'Nenhuma'}
+                                            </p>
+                                            {!isRegular && (
+                                                <p className={`font-bold flex items-center gap-1 ${isOverdue ? 'text-rose-600' : 'text-amber-600'}`}>
+                                                    <AlertTriangle size={11} />
+                                                    {isOverdue
+                                                        ? `Venceu há ${Math.abs(diffDays)} dias`
+                                                        : `Vence daqui a ${diffDays} dias`}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="absolute right-2 bottom-2 bg-slate-50 p-1 rounded border opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <span className="text-[8px] font-black text-slate-400 uppercase">Arraste para Agendar</span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </>
                     )}
 
                     {/* --- SEARCH TAB --- */}
@@ -783,13 +912,19 @@ const TravelCalendarTab = ({
                                 {/* Continuous Date Range Banner Background */}
                                 {dayReservation && (
                                     <div 
-                                        onClick={() => handleOpenReserve(dayStr, dayReservation)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (dayReservation?.state_code) {
+                                                setSelectedStateFilter(dayReservation.state_code);
+                                                setSidebarTab('PENDING');
+                                            }
+                                        }}
                                         className={`absolute top-1 bottom-1 left-0 right-0 ${colorTheme.bg} border-y ${colorTheme.border} cursor-pointer ${colorTheme.hover} transition-colors ${
                                             isReservationStart ? 'rounded-l-xl border-l ml-1' : ''
                                         } ${
                                             isReservationEnd ? 'rounded-r-xl border-r mr-1' : ''
                                         }`}
-                                        title={dayReservation.notes}
+                                        title={`Clique para ver clientes do Estado do ${dayReservation.state_code} na barra lateral`}
                                     />
                                 )}
 

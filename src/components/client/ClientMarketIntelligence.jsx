@@ -1,6 +1,5 @@
 import React from 'react';
-import { Search, Printer, Plus, Upload } from 'lucide-react';
-
+import { Search, Printer, Plus, Upload, Zap, CalendarClock } from 'lucide-react';
 import { TierIcon } from './ClientTierBadge';
 
 const ClientMarketIntelligence = ({
@@ -11,8 +10,17 @@ const ClientMarketIntelligence = ({
     setAnalysisTier,
     setIsExplorerActive,
     setIsClientManagerOpen,
-    onExcelImport
+    onExcelImport,
+    onOpenQuickSLA
 }) => {
+    const handleOpenQuickSLA = () => {
+        if (onOpenQuickSLA) {
+            onOpenQuickSLA();
+        } else if (setIsClientManagerOpen) {
+            setIsClientManagerOpen(true);
+        }
+    };
+
     return (
         <div className="flex-1 flex flex-col animate-in fade-in zoom-in-95 duration-500 overflow-y-auto custom-scrollbar p-6 md:p-12">
             {/* Boas Vindas & BI Controls */}
@@ -40,6 +48,16 @@ const ClientMarketIntelligence = ({
                             6 Meses
                         </button>
                     </div>
+
+                    {/* Botão Gestão Rápida de Prazos */}
+                    <button
+                        onClick={handleOpenQuickSLA}
+                        className="flex items-center gap-2 px-5 py-2 bg-amber-500 text-slate-900 hover:bg-amber-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-md hover:shadow-lg border border-amber-400"
+                        title="Ajustar Prazos de SLA por Estado e Categoria"
+                    >
+                        <Zap size={16} className="fill-slate-900" />
+                        Prazos & SLAs
+                    </button>
 
                     {/* Consolidated Report Button */}
                     <button
@@ -96,7 +114,7 @@ const ClientMarketIntelligence = ({
             </div>
 
             {/* Cards de Ação Principais */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Card: Consultar */}
                 <button
                     onClick={() => setIsExplorerActive(true)}
@@ -109,10 +127,30 @@ const ClientMarketIntelligence = ({
                         </div>
                         <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">Explorar Clientes</h3>
                         <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                            Acesse a lista completa de parceiros, consulte históricos, máquinas e relatórios técnicos exclusivos.
+                            Acesse a lista completa de parceiros, consulte históricos e relatórios técnicos.
                         </p>
                         <div className="mt-8 flex items-center gap-2 text-brand-600 font-black text-xs uppercase tracking-widest group-hover:translate-x-2 transition-transform">
                             Abrir Lista <Search size={16} />
+                        </div>
+                    </div>
+                </button>
+
+                {/* Card NOVO: Gestão Rápida de Prazos & SLAs */}
+                <button
+                    onClick={handleOpenQuickSLA}
+                    className="group relative bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 p-8 rounded-3xl border border-indigo-500/30 shadow-2xl text-left transition-all hover:scale-[1.02] overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700" />
+                    <div className="relative z-10">
+                        <div className="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-amber-500 group-hover:text-slate-900 transition-colors duration-300">
+                            <Zap size={28} className="fill-current" />
+                        </div>
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Prazos & SLAs</h3>
+                        <p className="text-slate-300 text-sm font-medium leading-relaxed">
+                            Ajuste a periodicidade de visitas dos clientes por Estado (UF) e Categoria em lote de forma rápida.
+                        </p>
+                        <div className="mt-8 flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-widest group-hover:translate-x-2 transition-transform">
+                            Ajustar Prazos <Zap size={16} />
                         </div>
                     </div>
                 </button>
@@ -129,7 +167,7 @@ const ClientMarketIntelligence = ({
                         </div>
                         <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Novo Cadastro</h3>
                         <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Adicione novos parceiros estratégicos à sua base de dados de forma rápida e intuitiva.
+                            Adicione novos parceiros estratégicos à sua base de dados de forma intuitiva.
                         </p>
                         <div className="mt-8 flex items-center gap-2 text-brand-400 font-black text-xs uppercase tracking-widest group-hover:translate-x-2 transition-transform">
                             Iniciar Registro <Plus size={16} />

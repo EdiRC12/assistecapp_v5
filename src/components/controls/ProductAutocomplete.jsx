@@ -8,9 +8,10 @@ import AutocompleteInput from './AutocompleteInput';
  * Resolves potential duplicates gracefully by checking first.
  */
 export const saveClientProduct = async (clientName, productName) => {
-    if (!clientName || !productName || !productName.trim()) return;
+    const rawClient = typeof clientName === 'string' ? clientName : (clientName?.name || clientName?.title || '');
+    if (!rawClient || !productName || typeof productName !== 'string' || !productName.trim()) return;
     
-    const trimmedClient = clientName.trim();
+    const trimmedClient = rawClient.trim();
     const trimmedProduct = productName.trim();
 
     try {
@@ -56,17 +57,23 @@ const ProductAutocomplete = ({
     const [options, setOptions] = useState([]);
 
     useEffect(() => {
-        if (!clientName || !clientName.trim()) {
+        const rawClientName = typeof clientName === 'string' 
+            ? clientName 
+            : (clientName?.name || clientName?.title || '');
+
+        if (!rawClientName || !rawClientName.trim()) {
             setOptions([]);
             return;
         }
+
+        const trimmed = rawClientName.trim();
 
         const fetchProducts = async () => {
             try {
                 const { data, error } = await supabase
                     .from('client_products')
                     .select('product_name')
-                    .eq('client_name', clientName.trim())
+                    .eq('client_name', trimmed)
                     .order('product_name', { ascending: true });
 
                 if (!error && data) {

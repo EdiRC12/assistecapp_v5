@@ -50,6 +50,7 @@ const ClientHistoryView = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [classificationFilter, setClassificationFilter] = useState('ALL');
     const [isClientManagerOpen, setIsClientManagerOpen] = useState(false);
+    const [clientManagerViewMode, setClientManagerViewMode] = useState('MANAGE');
     const [clientsData, setClientsData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [activeTopic, setActiveTopic] = useState(null);
@@ -911,7 +912,14 @@ return (
                         onOpenConsolidatedBI={onOpenConsolidatedBI}
                         setAnalysisTier={setAnalysisTier}
                         setIsExplorerActive={setIsExplorerActive}
-                        setIsClientManagerOpen={setIsClientManagerOpen}
+                        setIsClientManagerOpen={(val) => {
+                            if (val) setClientManagerViewMode('MANAGE');
+                            setIsClientManagerOpen(val);
+                        }}
+                        onOpenQuickSLA={() => {
+                            setClientManagerViewMode('QUICK_SLA');
+                            setIsClientManagerOpen(true);
+                        }}
                         onExcelImport={handleExcelImport}
                     />
                 )
@@ -1255,6 +1263,7 @@ return (
                 clients={clientsData}
                 currentUser={currentUser}
                 initialData={activeClientObj}
+                initialViewMode={clientManagerViewMode}
                 notifySuccess={notifySuccess}
                 notifyError={notifyError}
             />

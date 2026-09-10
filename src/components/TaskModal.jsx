@@ -1284,11 +1284,13 @@ const TaskModal = ({
                                                 .filter(t => {
                                                     if (t.id === parentTestId) return true;
                                                     if (!client) return true;
-                                                    const cleanText = (str) => (str || '')
-                                                        .normalize("NFD")
-                                                        .replace(/[\u0300-\u036f]/g, "")
-                                                        .toLowerCase()
-                                                        .trim();
+                                                    const cleanText = (str) => {
+                                                        if (!str) return '';
+                                                        const textVal = typeof str === 'string' ? str : (str.name || str.title || String(str));
+                                                        return typeof textVal.normalize === 'function' 
+                                                            ? textVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+                                                            : String(textVal).toLowerCase().trim();
+                                                    };
                                                     return cleanText(t.client_name) === cleanText(client);
                                                 })
                                                 .map(t => {

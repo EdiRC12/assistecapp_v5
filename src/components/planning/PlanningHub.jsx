@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
     Calendar, CheckSquare, ChevronRight, ChevronLeft,
     Briefcase, ClipboardList, Clock, AlertTriangle, Route, MapPin, Users,
-    BarChart2
+    BarChart2, Compass
 } from 'lucide-react';
 import useIsMobile from '../../hooks/useIsMobile';
 import VisitationTab from './VisitationTab';
@@ -11,6 +11,7 @@ import SupportRoutePlanner from '../support/SupportRoutePlanner';
 import TravelCalendarTab from './TravelCalendarTab';
 import OverdueSLATab from './OverdueSLATab';
 import PlanningDashboardTab from './PlanningDashboardTab';
+import RegionalCoveragePlannerTab from './RegionalCoveragePlannerTab';
 import { calculateClientSLA } from '../../utils/slaCalculator';
 import { usePendingActionsData } from '../../hooks/usePendingActionsData';
 
@@ -33,22 +34,22 @@ const TABS = [
         badgeColor: 'bg-rose-500',
     },
     {
-        id: 'PENDING',
-        label: 'AÇÕES PENDENTES',
-        fullLabel: 'Pendências de Visita',
-        desc: 'Ações e tarefas pós-atendimento',
-        color: 'emerald',
-        icon: CheckSquare,
-        activeText: 'text-emerald-600',
-        activeBg: 'bg-emerald-600',
-        ring: 'ring-emerald-500',
-        badgeColor: 'bg-amber-500',
+        id: 'REGIONAL_COVERAGE',
+        label: 'COBERTURA & METAS',
+        fullLabel: 'Central de Cobertura Regional & Metas',
+        desc: 'Planejamento por ciclo de datas, balanço de metas Ouro/Prata/Bronze e central de solicitações',
+        color: 'indigo',
+        icon: Compass,
+        activeText: 'text-indigo-600',
+        activeBg: 'bg-indigo-600',
+        ring: 'ring-indigo-500',
+        badgeColor: null,
     },
     {
         id: 'ROUTE_PLANNER',
         label: 'ROTA DE VIAGEM',
-        fullLabel: 'Planejador de Rotas',
-        desc: 'Simulação e roteirização de viagens',
+        fullLabel: 'Planejador de Rotas no Mapa',
+        desc: 'Simulação e roteirização no mapa',
         color: 'indigo',
         icon: Route,
         activeText: 'text-indigo-600',
@@ -69,28 +70,16 @@ const TABS = [
         badgeColor: null,
     },
     {
-        id: 'VISITATION',
-        label: 'PROSPECÇÃO',
-        fullLabel: 'Planejamento de Visitas',
-        desc: 'Agendamentos e prospecções futuras',
-        color: 'indigo',
-        icon: Briefcase,
-        activeText: 'text-indigo-600',
-        activeBg: 'bg-indigo-600',
-        ring: 'ring-indigo-500',
-        badgeColor: null,
-    },
-    {
-        id: 'SLA_OVERDUE',
-        label: 'SLA VENCIDO',
-        fullLabel: 'Clientes Atrasados',
-        desc: 'Clientes aguardando agendamento',
-        color: 'rose',
-        icon: AlertTriangle,
-        activeText: 'text-rose-600',
-        activeBg: 'bg-rose-600',
-        ring: 'ring-rose-500',
-        badgeColor: 'bg-rose-600',
+        id: 'PENDING',
+        label: 'AÇÕES PENDENTES',
+        fullLabel: 'Pendências de Visita',
+        desc: 'Ações e tarefas pós-atendimento',
+        color: 'emerald',
+        icon: CheckSquare,
+        activeText: 'text-emerald-600',
+        activeBg: 'bg-emerald-600',
+        ring: 'ring-emerald-500',
+        badgeColor: 'bg-amber-500',
     }
 ];
 
@@ -110,6 +99,14 @@ const PlanningHub = ({
 }) => {
     const isMobile = useIsMobile();
     const [activeTab, setActiveTab] = useState('DASHBOARD');
+    const [selectedCalendarState, setSelectedCalendarState] = useState('');
+
+    const handleNavigateTab = (tabId, stateCode = '') => {
+        setActiveTab(tabId);
+        if (stateCode) {
+            setSelectedCalendarState(stateCode);
+        }
+    };
 
     // ── GLOBAL FILTER STATE (Fase 1) ────────────────────────────────────────
     const now = new Date();
@@ -261,20 +258,18 @@ const PlanningHub = ({
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
                     />
-                ) : activeTab === 'SLA_OVERDUE' ? (
-                    <OverdueSLATab overdueClients={overdueClients} onActionClick={setActiveTab} />
-                ) : activeTab === 'VISITATION' ? (
-                    <VisitationTab
-                        currentUser={currentUser}
+                ) : activeTab === 'REGIONAL_COVERAGE' ? (
+                    <RegionalCoveragePlannerTab
                         allClients={allClients}
+                        tasks={tasks}
+                        supabase={supabase}
+                        currentUser={currentUser}
                         techTests={techTests}
                         onNewTask={onNewTask}
                         onTaskCreated={onTaskCreated}
+                        onNavigateTab={handleNavigateTab}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
-                        // Global filter passed down
-                        globalFilterMonth={filterMonth}
-                        globalFilterYear={filterYear}
                     />
                 ) : activeTab === 'ROUTE_PLANNER' ? (
                     <SupportRoutePlanner
@@ -286,7 +281,6 @@ const PlanningHub = ({
                         onNewTask={onNewTask}
                         onTaskCreated={onTaskCreated}
                         tasks={tasks}
-                        // SLA layer data
                         overdueClients={overdueClients}
                     />
                 ) : activeTab === 'CRONOGRAMA' ? (
@@ -299,9 +293,9 @@ const PlanningHub = ({
                         onTaskCreated={onTaskCreated}
                         notifySuccess={notifySuccess}
                         notifyError={notifyError}
-                        // Global filter passed down
                         globalFilterMonth={filterMonth}
                         globalFilterYear={filterYear}
+                        initialSelectedState={selectedCalendarState}
                     />
                 ) : (
                     <PendingActionsTab

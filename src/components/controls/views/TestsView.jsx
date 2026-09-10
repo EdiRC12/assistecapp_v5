@@ -42,6 +42,7 @@ const TestsView = ({
             let targetLabel = sitUpper;
             if (sitUpper === 'CONCLUÍDO' || sitUpper === 'CONCLUIDO') targetLabel = 'APROVADO';
             else if (sitUpper === 'AGUARDANDO') targetLabel = 'AGUARDANDO RETORNO DO CLIENTE';
+            else if (sitUpper === 'SEM RETORNO') targetLabel = 'SEM RETORNO';
 
             const matched = testStatusPresets?.find(p => p.label.toUpperCase() === targetLabel);
             if (matched) {
